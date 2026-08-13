@@ -51,6 +51,7 @@ export interface EventChoice {
   nextEventId?: string
   resultText?: string
   consequenceText?: string
+  chronicleText?: string
 }
 
 export interface GameEvent {
