@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAL_EVENTS } from '../data/events/formalEvents'
+import type { GameState } from '../types/game'
 import { createEventCatalog, resolveEventChoice } from './eventEngine'
 import {
   calculateBreakthroughChance,
@@ -12,7 +13,7 @@ import { createInitialGameState } from './gameState'
 
 const catalog = createEventCatalog(FORMAL_EVENTS)
 
-function createQiCandidate() {
+function createQiCandidate(): GameState {
   const base = createInitialGameState({ runSeed: 'qi-candidate' })
   return {
     ...base,
@@ -37,7 +38,7 @@ describe('breakthroughEngine', () => {
   })
 
   it('enters a breakthrough event before seeded resolution', () => {
-    let state = createQiCandidate()
+    let state: GameState = createQiCandidate()
     state = startBreakthrough(state, catalog)
 
     expect(state.events.currentEventId).toBe('breakthrough_qi_entry')
@@ -56,10 +57,10 @@ describe('breakthroughEngine', () => {
 
   it('applies deterministic failure costs and allows retry later', () => {
     const base = createInitialGameState({ runSeed: 'foundation-fail' })
-    let state = {
+    let state: GameState = {
       ...base,
       rngState: 67_634_689,
-      cultivation: { realm: 'qi' as const, stage: 9 },
+      cultivation: { realm: 'qi', stage: 9 },
       resources: { ...base.resources, cultivation: 100 },
     }
 
