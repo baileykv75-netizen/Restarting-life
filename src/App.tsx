@@ -8,9 +8,11 @@ import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
+import type { GameEvent } from './types/event'
 import type { PlayerAction, SessionCommand } from './types/command'
-import type { PersistentGame } from './types/persistence'
+import type { PersistentGame, ResolvedOutcome } from './types/persistence'
 import { clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
+import { formatAge } from './ui/formatters'
 
 interface InitialViewState {
   game: PersistentGame
@@ -26,6 +28,39 @@ function readInitialGame(): InitialViewState {
       error: error instanceof Error ? error.message : '本地存档无法读取',
     }
   }
+}
+
+function eventImportance(event: GameEvent): 'ambient' | 'notable' | 'major' {
+  if (event.importance) return event.importance
+  if (event.category === 'breakthrough' || event.category === 'chain') return 'major'
+  if (event.once) return 'notable'
+  return 'ambient'
+}
+
+function ResultPanel({ result, onContinue }: { result: ResolvedOutcome; onContinue: () => void }) {
+  return (
+    <section className="story-card result-card">
+      <p className="story-kicker">此事已定</p>
+      <h2>{result.title}</h2>
+      <p className="story-text result-narrative">{result.narrative}</p>
+      <div className="result-divider" />
+      <p className="subsection-title">这一选择真正改变了什么</p>
+      {result.changes.length > 0 ? (
+        <div className="result-changes">
+          {result.changes.map((change, index) => (
+            <div className={`result-change ${change.tone}`} key={`${change.label}-${index}`}>
+              <span>{change.label}</span>
+              <strong>{change.value}</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">没有直接的数值变化，但这并不意味着此事不会留下后果。</p>
+      )}
+      {result.consequence && <p className="consequence-note">因果 · {result.consequence}</p>}
+      <button className="primary-button result-continue" onClick={onContinue} type="button">记下此事，继续此生</button>
+    </section>
+  )
 }
 
 const initialViewState = readInitialGame()
@@ -94,10 +129,10 @@ function App() {
     return (
       <main className="landing-shell">
         <section className="landing-card">
-          <p className="eyebrow">RESTARTING LIFE · V1</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.1 PLAYTEST</p>
           <h1>此世问长生</h1>
-          <p className="landing-lead">一世一因果。你无法决定出生，却能决定往后的每一步。</p>
-          <p className="muted">纯规则驱动 · 无大模型 API · 所有选择与随机结果均可复现</p>
+          <p className="landing-lead">一世一因果。不是回答问卷，而是在有限寿元里真正活完一名修士的人生。</p>
+          <p className="muted">选择结果量化 · 事件防重复 · 境界成长 · 长期因果</p>
           <div className="landing-actions">
             <button className="primary-button" onClick={persistStart} type="button">开启第一世</button>
             <button className="secondary-button" onClick={() => setArchiveOpen(true)} type="button">前世档案 · {game.archives.length}</button>
@@ -114,13 +149,27 @@ function App() {
     : undefined
   const choices = activeEvent ? getAvailableChoices(state, activeEvent) : []
   const latestRecord = game.archives.find((record) => record.runId === state.runId)
-  const recentEvents = state.events.history.slice(-6).reverse()
+
+  const chronicleEntries = session.debugLog
+    .filter((entry) => entry.command.type === 'choice' && entry.eventIdBefore !== null)
+    .map((entry) => {
+      const event = FORMAL_EVENT_CATALOG.get(entry.eventIdBefore!)
+      return event && eventImportance(event) !== 'ambient'
+        ? {
+            eventId: event.id,
+            text: event.chronicleText ?? event.title,
+            timeMonths: entry.timeMonthsAfter,
+            importance: eventImportance(event),
+          }
+        : null
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 
   return (
     <main className="game-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RESTARTING LIFE</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.1</p>
           <h1>此世问长生</h1>
         </div>
         <div className="topbar-actions">
@@ -133,7 +182,9 @@ function App() {
         <CharacterPanel state={state} runNumber={game.meta.totalRuns} />
 
         <section className="main-stage">
-          {state.status !== 'playing' ? (
+          {session.pendingResult ? (
+            <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
+          ) : state.status !== 'playing' ? (
             <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
           ) : activeEvent ? (
             <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
@@ -143,7 +194,7 @@ function App() {
                 <section className="birth-banner">
                   <p className="story-kicker">命格初定</p>
                   <h2>十六岁，你第一次真正站在人生的岔路口。</h2>
-                  <p>从此往后，每一次闭关、远行与退让都会消耗真实岁月，也可能在很多年后重新找上你。</p>
+                  <p>从此以后，时间、灵石、修为、人物关系与旧日因果都会留下明确痕迹。</p>
                 </section>
               )}
               <ActionPanel
@@ -156,22 +207,22 @@ function App() {
           {notice && <p className="notice">{notice}</p>}
         </section>
 
-        <aside className="panel chronicle-panel" aria-label="此世纪年">
-          <div className="panel-heading"><span>此世纪年</span><strong>{session.debugLog.length} 次抉择</strong></div>
-          {recentEvents.length === 0 ? (
-            <p className="muted">此世尚未发生值得记入年表的事件。</p>
+        <aside className="panel chronicle-panel" aria-label="此世传">
+          <div className="panel-heading"><span>此世传</span><strong>{chronicleEntries.length} 个人生节点</strong></div>
+          {chronicleEntries.length === 0 ? (
+            <p className="muted">真正值得写进传记的事，还没有发生。</p>
           ) : (
             <ol className="chronicle-list">
-              {recentEvents.map((eventId) => (
-                <li key={`${eventId}-${state.events.history.lastIndexOf(eventId)}`}>
+              {chronicleEntries.slice(-8).reverse().map((entry, index) => (
+                <li className={entry.importance === 'major' ? 'chronicle-major' : ''} key={`${entry.eventId}-${entry.timeMonths}-${index}`}>
                   <span className="chronicle-dot" />
-                  <span>{FORMAL_EVENT_CATALOG.get(eventId)?.title ?? eventId}</span>
+                  <span><small>{formatAge(entry.timeMonths)}</small>{entry.text}</span>
                 </li>
               ))}
             </ol>
           )}
           <div className="debug-note">
-            <span>本世记录</span>
+            <span>本世种子 · 可重放</span>
             <code>{state.runSeed}</code>
           </div>
         </aside>
