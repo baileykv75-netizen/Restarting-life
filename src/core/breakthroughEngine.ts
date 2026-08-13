@@ -1,5 +1,6 @@
 import { BREAKTHROUGH_RULES, type BreakthroughRule } from '../data/realms'
 import type { GameState } from '../types/game'
+import { getEffectiveSpiritRootMultiplier } from './cultivationEngine'
 import type { EventCatalog } from './eventEngine'
 import { getAvailableChoices, startEventById } from './eventEngine'
 import { applyEffects } from './effectEngine'
@@ -34,8 +35,7 @@ export function canAttemptBreakthrough(state: GameState): boolean {
 
   if (rule.id === 'qi_entry') {
     return (
-      state.identity.spiritRootId !== '' &&
-      state.identity.spiritRootId !== 'none' &&
+      getEffectiveSpiritRootMultiplier(state) > 0 &&
       state.flags.has_cultivation_method === true
     )
   }

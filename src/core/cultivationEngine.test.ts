@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { GameState } from '../types/game'
 import {
   calculateCultivationGain,
+  getEffectiveSpiritRootMultiplier,
   performBasicCultivation,
 } from './cultivationEngine'
 import { createInitialGameState } from './gameState'
@@ -8,10 +10,10 @@ import { createInitialGameState } from './gameState'
 describe('cultivation engine', () => {
   it('uses stats, spirit root and realm factor for deterministic cultivation gain', () => {
     const base = createInitialGameState({ runSeed: 'cultivation' })
-    const cultivator = {
+    const cultivator: GameState = {
       ...base,
       identity: { ...base.identity, spiritRootId: 'three' },
-      cultivation: { realm: 'qi' as const, stage: 1 },
+      cultivation: { realm: 'qi', stage: 1 },
     }
 
     expect(calculateCultivationGain(cultivator)).toBe(50)
@@ -25,10 +27,10 @@ describe('cultivation engine', () => {
 
   it('automatically advances small qi stages and carries leftover cultivation', () => {
     const base = createInitialGameState({ runSeed: 'small-stage' })
-    const cultivator = {
+    const cultivator: GameState = {
       ...base,
       identity: { ...base.identity, spiritRootId: 'special' },
-      cultivation: { realm: 'qi' as const, stage: 1 },
+      cultivation: { realm: 'qi', stage: 1 },
       resources: { ...base.resources, cultivation: 90 },
     }
 
@@ -36,6 +38,19 @@ describe('cultivation engine', () => {
     expect(result.gain).toBe(69)
     expect(result.state.cultivation.stage).toBe(2)
     expect(result.state.resources.cultivation).toBe(59)
+  })
+
+  it('supports the preset reformed-root flag without changing the original birth id', () => {
+    const base = createInitialGameState({ runSeed: 'reformed-root' })
+    const cultivator: GameState = {
+      ...base,
+      identity: { ...base.identity, spiritRootId: 'none' },
+      flags: { reformed_spirit_root_multiplier: 0.7 },
+      cultivation: { realm: 'qi', stage: 1 },
+    }
+
+    expect(getEffectiveSpiritRootMultiplier(cultivator)).toBe(0.7)
+    expect(calculateCultivationGain(cultivator)).toBeGreaterThan(0)
   })
 
   it('does not let a mortal use the cultivation action', () => {

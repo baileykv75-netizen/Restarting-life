@@ -3,6 +3,6 @@ import { PROJECT_STAGE } from './projectStage'
 
 describe('project development stage', () => {
   it('exposes the expected development stage', () => {
-    expect(PROJECT_STAGE).toBe('阶段 4：完整修仙闭环')
+    expect(PROJECT_STAGE).toBe('阶段 5：正式内容扩充')
   })
 })

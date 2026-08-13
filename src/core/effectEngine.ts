@@ -1,5 +1,6 @@
 import type { Effect } from '../types/event'
 import type { GameState } from '../types/game'
+import { applyAutomaticStageProgression } from './cultivationEngine'
 import { resolveNaturalDeath } from './lifespanEngine'
 import { advanceTimeMonths } from './timeEngine'
 
@@ -52,14 +53,16 @@ export function applyEffect(
           spiritStones: Math.max(0, state.resources.spiritStones + effect.amount),
         },
       }
-    case 'addCultivation':
-      return {
+    case 'addCultivation': {
+      const withCultivation: GameState = {
         ...state,
         resources: {
           ...state.resources,
           cultivation: Math.max(0, state.resources.cultivation + effect.amount),
         },
       }
+      return applyAutomaticStageProgression(withCultivation)
+    }
     case 'addTag':
       return state.tags.includes(effect.tag)
         ? state

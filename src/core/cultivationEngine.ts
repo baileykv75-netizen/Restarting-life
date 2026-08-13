@@ -24,11 +24,29 @@ export interface CultivationResult {
   reason?: CultivationBlockReason
 }
 
+export function getEffectiveSpiritRootMultiplier(state: GameState): number {
+  const root = getSpiritRootById(state.identity.spiritRootId)
+  if (root && root.cultivationMultiplier > 0) {
+    return root.cultivationMultiplier
+  }
+
+  const reformedMultiplier = state.flags.reformed_spirit_root_multiplier
+  if (
+    typeof reformedMultiplier === 'number' &&
+    Number.isFinite(reformedMultiplier) &&
+    reformedMultiplier > 0
+  ) {
+    return reformedMultiplier
+  }
+
+  return 0
+}
+
 export function calculateCultivationGain(state: GameState): number {
   const realmFactor = REALM_CULTIVATION_FACTOR[state.cultivation.realm]
-  const root = getSpiritRootById(state.identity.spiritRootId)
+  const rootFactor = getEffectiveSpiritRootMultiplier(state)
 
-  if (!root || realmFactor <= 0) {
+  if (rootFactor <= 0 || realmFactor <= 0) {
     return 0
   }
 
@@ -37,12 +55,7 @@ export function calculateCultivationGain(state: GameState): number {
 
   return Math.max(
     0,
-    Math.round(
-      BASIC_CULTIVATION_GAIN *
-        attributeFactor *
-        root.cultivationMultiplier *
-        realmFactor,
-    ),
+    Math.round(BASIC_CULTIVATION_GAIN * attributeFactor * rootFactor * realmFactor),
   )
 }
 

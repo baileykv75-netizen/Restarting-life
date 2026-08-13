@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { GameState } from '../types/game'
 import { applyEffects } from './effectEngine'
 import { createInitialGameState } from './gameState'
 
@@ -16,6 +17,19 @@ describe('effectEngine', () => {
     expect(result.resources.cultivation).toBe(0)
     expect(result.stats.constitution).toBe(1)
     expect(result.relationships.elder).toBe(100)
+  })
+
+  it('applies automatic small-stage progression to cultivation gained from events', () => {
+    const base = createInitialGameState({ runSeed: 'event-cultivation' })
+    const state: GameState = {
+      ...base,
+      cultivation: { realm: 'qi', stage: 1 },
+      resources: { ...base.resources, cultivation: 90 },
+    }
+
+    const result = applyEffects(state, [{ type: 'addCultivation', amount: 25 }])
+    expect(result.cultivation.stage).toBe(2)
+    expect(result.resources.cultivation).toBe(15)
   })
 
   it('stops remaining effects immediately when time advancement causes natural death', () => {

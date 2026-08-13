@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAL_EVENTS } from '../data/events/formalEvents'
+import type { GameState } from '../types/game'
 import { performPlayerAction, getAvailableActions } from './actionEngine'
 import { createEventCatalog, resolveEventChoice } from './eventEngine'
 import { createInitialGameState } from './gameState'
@@ -9,8 +10,9 @@ const catalog = createEventCatalog(FORMAL_EVENTS)
 describe('actionEngine', () => {
   it('uses livelihood to find the first immortal opportunity and unlock breakthrough', () => {
     const base = createInitialGameState({ runSeed: 'immortal-opportunity' })
-    let state = {
+    let state: GameState = {
       ...base,
+      rngState: 1,
       timeMonths: 18 * 12,
       identity: { ...base.identity, spiritRootId: 'special' },
       tags: ['has_spirit_root', 'spirit_root:special'],
@@ -32,9 +34,30 @@ describe('actionEngine', () => {
     expect(getAvailableActions(state)).toContain('breakthrough')
   })
 
+  it('draws a cultivation event after a completed cultivation action', () => {
+    const base = createInitialGameState({ runSeed: 'cultivation-event' })
+    const state: GameState = {
+      ...base,
+      rngState: 1,
+      identity: { ...base.identity, spiritRootId: 'special' },
+      cultivation: { realm: 'qi', stage: 1 },
+    }
+
+    const result = performPlayerAction(
+      state,
+      'cultivate',
+      FORMAL_EVENTS,
+      catalog,
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.state.timeMonths).toBe(12)
+    expect(result.state.events.currentEventId).toBe('cultivation_steady_breathing')
+  })
+
   it('blocks normal actions while an event is active', () => {
     const base = createInitialGameState({ runSeed: 'active-event' })
-    const state = {
+    const state: GameState = {
       ...base,
       events: { ...base.events, currentEventId: 'some_event' },
     }

@@ -83,7 +83,14 @@ export function performPlayerAction(
       }
     }
 
-    return { state: result.state, applied: true }
+    if (result.state.status !== 'playing') {
+      return { state: result.state, applied: true }
+    }
+
+    return {
+      state: drawEvent(result.state, events, 'cultivation').state,
+      applied: true,
+    }
   }
 
   if (action === 'breakthrough') {
