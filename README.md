@@ -6,127 +6,144 @@
 
 ## 当前开发阶段
 
-**阶段 3：事件引擎**
+**阶段 4：完整修仙闭环**
 
-阶段 0、1、2 已通过 GitHub Actions 自动验收。阶段 3 只建立数据驱动事件系统，并使用 8 个明确以 `test_` 开头的测试事件验证机制；这些测试事件不是正式游戏剧情。
+阶段 0～3 已通过 GitHub Actions。阶段 4 第一次把出生、事件、行动、修炼、突破、寿元和结局串成一条纵向闭环；内容仍然刻意保持很少，先证明整个游戏能够从头运行到结局。
 
-## 阶段 3 固定结构
-
-```text
-GameEvent
-→ Condition[]
-→ EventChoice
-→ Effect[]
-→ nextEventId / EventQueue
-```
-
-事件数据不得直接修改 `GameState`。所有条件统一经过 `conditionEngine.ts`，所有效果统一经过 `effectEngine.ts`。
-
-### Condition 白名单
-
-- ageMin / ageMax
-- realm
-- stageMin / stageMax
-- statMin / statMax
-- hasTag / notTag
-- flagEquals / flagMissing
-- faction
-- relationshipMin
-- resourceMin
-
-### Effect 白名单
-
-- addStat
-- addSpiritStones
-- addCultivation
-- addTag / removeTag
-- setFlag
-- addRelationship
-- advanceTime
-- queueEvent
-- killPlayer
-- changeFaction
-- setRealm
-
-`setRealm` 默认禁止执行，只有 `breakthrough` 类事件解析时才获得权限。
-
-## 事件运行规则
-
-随机事件：
+## 当前可运行闭环
 
 ```text
-读取事件池
-→ category 过滤
-→ Condition 过滤
-→ 排除已经发生的 once 事件
-→ seeded weightedPick
-→ 写入 currentEventId + history
+凡人
+→ 谋生 / 寻找仙缘
+→ 青云宗或散修身份
+→ 引气入体
+→ 炼气 1～9 层
+→ 筑基
+→ 筑基前 / 中 / 后期
+→ 结丹
+→ 金丹通关
 ```
 
-事件选择：
+任何阶段都可能因寿元耗尽结束本世。突破可以失败，失败后保留当前境界并扣除对应资源，满足条件后可以再次尝试。
+
+## 四类行动
+
+- `cultivate`：闭关 12 个月，根据根骨、悟性、灵根和境界系数获得修为；
+- `explore`：推进 6 个月后进入历练事件池；
+- `livelihood`：推进 6 个月，凡人 / 散修进入凡俗生计池，青云宗弟子进入宗门事件池；
+- `breakthrough`：不直接判定结果，先进入专属突破事件。
+
+有事件正在处理时，普通行动全部锁定，必须先解决当前事件。
+
+## 修炼规则
+
+基础修为公式严格采用 V1 策划：
 
 ```text
-验证当前事件
-→ 验证 Choice Condition
-→ 清空当前事件
-→ 按顺序执行 Effect
-→ 每次时间推进立即检查寿终
-→ 死亡/通关立即停止后续 Effect
-→ nextEventId 放到队首
-→ 处理 EventQueue
+base = 55
+attributeFactor = 1 + (根骨 + 悟性 - 10) × 0.03
+rootFactor = 灵根倍率
+realmFactor = 当前境界效率
+finalGain = round(base × attributeFactor × rootFactor × realmFactor)
 ```
 
-`nextEventId` 和 `queueEvent` 是明确的事件链调度，不重新进入随机事件池；`nextEventId` 优先于同一选择中排队的普通 `queueEvent`。`once` 事件仍然只能激活一次。
+当前 `realmFactor`：炼气 `1.00`，筑基 `0.75`。
 
-## GameState 新增事件状态
+小境界是确定性成长：
 
-```ts
-events: {
-  currentEventId: string | null
-  queue: string[]
-  history: string[]
-}
-```
+- 炼气每层消耗 100 修为，自动从 1 层推进到 9 层；
+- 筑基前期 → 中期消耗 300；
+- 筑基中期 → 后期消耗 400；
+- 炼气九层保留至少 100 修为后才可尝试筑基；
+- 筑基后期保留至少 500 修为后才可尝试结丹。
 
-这些状态属于唯一真相来源。UI 后续只能读取并调用引擎，不得自行维护另一套事件历史。
+## 突破规则
 
-## 阶段 3 测试事件
-
-当前仅有 8 个测试事件，用于验证：
-
-- 年龄 / 属性 / 资源 / 势力 / Flag / Relationship 条件；
-- Tag 与 Flag 写入；
-- 资源与属性变化；
-- 时间推进；
-- `nextEventId`；
-- `queueEvent`；
-- `once`；
-- 死亡后立即停止；
-- Seeded RNG 的事件抽取复现。
-
-所有测试事件 ID 必须以 `test_` 开头，正式内容阶段再另建正式事件文件。
-
-## 主要文件
+突破是两步流程：
 
 ```text
-src/
-├─ core/
-│  ├─ conditionEngine.ts
-│  ├─ effectEngine.ts
-│  ├─ eventEngine.ts
-│  ├─ gameState.ts
-│  └─ rng.ts
-├─ data/events/
-│  ├─ testEvents.ts
-│  └─ eventDataIntegrity.test.ts
-└─ types/
-   ├─ event.ts
-   └─ game.ts
+选择 breakthrough
+→ 进入 breakthrough 专属事件
+→ 玩家选择 attempt
+→ breakthroughEngine 使用 Seeded RNG 判定
+```
+
+通用 `eventEngine` 被明确禁止直接解析 `breakthrough/attempt`，避免 UI 误接接口后跳过概率判定。
+
+基础成功率：
+
+- 引气入体：60%
+- 筑基：35%
+- 金丹：25%
+
+修正公式：
+
+```text
+chance = baseChance
+       + (根骨 - 5) × 0.03
+       + (悟性 - 5) × 0.03
+       + (心性 - 5) × 0.02
+```
+
+最终限制在 5%～95%。
+
+当前失败代价：
+
+| 突破 | 时间 | 修为损失 | 根骨损失 |
+|---|---:|---:|---:|
+| 引气入体 | 1个月 | 0 | 0 |
+| 筑基 | 6个月 | 50 | 1 |
+| 结丹 | 12个月 | 100 | 1 |
+
+这些数值集中在 `src/data/realms.ts`，以后平衡调整只改数据表。
+
+## 出生与事件连接
+
+出生时除了具体灵根 ID，还会写入：
+
+```text
+has_spirit_root / no_spirit_root
+spirit_root:<id>
+```
+
+正式事件只通过 Condition / Tag / Flag 判断资格，不在 UI 中硬编码“某灵根能不能触发某剧情”。
+
+## 阶段 4 正式事件
+
+当前只有 8 个极小正式事件，用来撑通闭环：
+
+- 山门来客；
+- 凡尘营生；
+- 散修委托；
+- 宗门差事；
+- 山涧灵草；
+- 引气入体；
+- 筑基；
+- 结丹。
+
+阶段 3 的 `test_` 事件仍保留，仅作为事件引擎回归测试，不会混入正式事件池。
+
+## 关键文件
+
+```text
+src/core/
+├─ actionEngine.ts
+├─ breakthroughEngine.ts
+├─ cultivationEngine.ts
+├─ conditionEngine.ts
+├─ effectEngine.ts
+└─ eventEngine.ts
+
+src/data/
+├─ realms.ts
+└─ events/
+   ├─ formalEvents.ts
+   └─ testEvents.ts
 ```
 
 ## 自动验收
 
-每次提交到 `main` 后，GitHub Actions 自动执行：
+每次提交到 `main` 后自动执行：
 
 ```bash
 npm install
@@ -135,8 +152,13 @@ npm test
 npm run build
 ```
 
-阶段 3 验收要求：Condition / Effect 白名单可用，事件抽取可复现，once 不重复，事件链顺序稳定，坏引用在启动测试中失败，死亡后不继续执行效果或后续事件，并且 TypeScript、单元测试和生产构建全部通过。
+阶段 4 的集成测试必须真实跑通两条路线：
+
+1. **金丹路线**：凡人 → 山门仙缘 → 青云宗 → 引气 → 炼气九层 → 筑基失败并重试 → 筑基后期 → 结丹失败并重试 → 金丹通关；
+2. **寿终路线**：无灵根凡人在时间推进到 80 岁时寿元耗尽，死亡后不得继续抽取事件。
+
+只有这两条路线与全部单元测试、TypeScript、生产构建同时通过，阶段 4 才算封板。
 
 ## 下一阶段
 
-阶段 4 才开始搭建第一条真正可玩的纵向闭环：凡人 → 寻找仙缘 → 炼气 → 筑基 → 金丹 / 死亡，并逐步接入青云宗、散修和四类行动。阶段 4 仍然先用少量内容验证闭环，不一次性填充 30+ 正式事件。
+阶段 5 才开始扩充正式内容：把事件从“验证闭环用的 8 个”逐步扩充到约 30 个普通事件、8～10 个奇遇和 5 条长期事件链。阶段 5 不再发明新的核心引擎，主要工作应当是填数据、调权重和做内容一致性测试。

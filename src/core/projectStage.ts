@@ -1,1 +1,1 @@
-export const PROJECT_STAGE = '阶段 3：事件引擎' as const
+export const PROJECT_STAGE = '阶段 4：完整修仙闭环' as const

@@ -76,6 +76,9 @@ export function generateBirthState(options: CreateGameStateOptions): GameState {
     spiritStones += talent.spiritStones
   }
 
+  const rootAvailabilityTag =
+    rootRoll.item.id === 'none' ? 'no_spirit_root' : 'has_spirit_root'
+
   return {
     ...initial,
     rngState: secondTalentRoll.nextState,
@@ -90,6 +93,10 @@ export function generateBirthState(options: CreateGameStateOptions): GameState {
       ...initial.resources,
       spiritStones,
     },
-    tags: [...backgroundRoll.item.tags],
+    tags: [
+      ...backgroundRoll.item.tags,
+      rootAvailabilityTag,
+      `spirit_root:${rootRoll.item.id}`,
+    ],
   }
 }

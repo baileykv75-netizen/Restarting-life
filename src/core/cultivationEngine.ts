@@ -1,3 +1,10 @@
+import { getSpiritRootById } from '../data/spiritRoots'
+import {
+  FOUNDATION_EARLY_TO_MIDDLE_THRESHOLD,
+  FOUNDATION_MIDDLE_TO_LATE_THRESHOLD,
+  QI_LAYER_THRESHOLD,
+  REALM_CULTIVATION_FACTOR,
+} from '../data/realms'
 import type { GameState } from '../types/game'
 import { resolveNaturalDeath } from './lifespanEngine'
 import { advanceTimeMonths, MONTHS_PER_YEAR } from './timeEngine'
@@ -13,45 +20,98 @@ export type CultivationBlockReason =
 export interface CultivationResult {
   state: GameState
   applied: boolean
+  gain?: number
   reason?: CultivationBlockReason
+}
+
+export function calculateCultivationGain(state: GameState): number {
+  const realmFactor = REALM_CULTIVATION_FACTOR[state.cultivation.realm]
+  const root = getSpiritRootById(state.identity.spiritRootId)
+
+  if (!root || realmFactor <= 0) {
+    return 0
+  }
+
+  const attributeFactor =
+    1 + (state.stats.constitution + state.stats.comprehension - 10) * 0.03
+
+  return Math.max(
+    0,
+    Math.round(
+      BASIC_CULTIVATION_GAIN *
+        attributeFactor *
+        root.cultivationMultiplier *
+        realmFactor,
+    ),
+  )
+}
+
+export function applyAutomaticStageProgression(state: GameState): GameState {
+  if (state.status !== 'playing') {
+    return state
+  }
+
+  let stage = state.cultivation.stage
+  let cultivation = state.resources.cultivation
+
+  if (state.cultivation.realm === 'qi') {
+    while (stage < 9 && cultivation >= QI_LAYER_THRESHOLD) {
+      cultivation -= QI_LAYER_THRESHOLD
+      stage += 1
+    }
+  } else if (state.cultivation.realm === 'foundation') {
+    if (stage === 1 && cultivation >= FOUNDATION_EARLY_TO_MIDDLE_THRESHOLD) {
+      cultivation -= FOUNDATION_EARLY_TO_MIDDLE_THRESHOLD
+      stage = 2
+    }
+
+    if (stage === 2 && cultivation >= FOUNDATION_MIDDLE_TO_LATE_THRESHOLD) {
+      cultivation -= FOUNDATION_MIDDLE_TO_LATE_THRESHOLD
+      stage = 3
+    }
+  }
+
+  if (
+    stage === state.cultivation.stage &&
+    cultivation === state.resources.cultivation
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    cultivation: { ...state.cultivation, stage },
+    resources: { ...state.resources, cultivation },
+  }
 }
 
 export function performBasicCultivation(state: GameState): CultivationResult {
   if (state.status !== 'playing') {
-    return {
-      state,
-      applied: false,
-      reason: 'GAME_ENDED',
-    }
+    return { state, applied: false, reason: 'GAME_ENDED' }
   }
 
   if (state.cultivation.realm === 'mortal') {
-    return {
-      state,
-      applied: false,
-      reason: 'NOT_A_CULTIVATOR',
-    }
+    return { state, applied: false, reason: 'NOT_A_CULTIVATOR' }
   }
 
   if (state.cultivation.realm === 'golden_core') {
-    return {
-      state,
-      applied: false,
-      reason: 'REALM_COMPLETE',
-    }
+    return { state, applied: false, reason: 'REALM_COMPLETE' }
   }
 
+  const gain = calculateCultivationGain(state)
   const advanced = advanceTimeMonths(state, BASIC_CULTIVATION_MONTHS)
-  const withCultivationGain: GameState = {
+  const withGain: GameState = {
     ...advanced,
     resources: {
       ...advanced.resources,
-      cultivation: advanced.resources.cultivation + BASIC_CULTIVATION_GAIN,
+      cultivation: advanced.resources.cultivation + gain,
     },
   }
+  const progressed = applyAutomaticStageProgression(withGain)
 
   return {
-    state: resolveNaturalDeath(withCultivationGain),
+    state: resolveNaturalDeath(progressed),
     applied: true,
+    gain,
   }
 }

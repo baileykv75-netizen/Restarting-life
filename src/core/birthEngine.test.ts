@@ -23,15 +23,26 @@ describe('birth engine', () => {
     }
   })
 
-  it('only emits valid background and spirit-root IDs', () => {
-    const state = generateBirthState({ runSeed: 'valid-content' })
+  it('only emits valid background and spirit-root IDs and matching root tags', () => {
+    for (let index = 0; index < 100; index += 1) {
+      const state = generateBirthState({ runSeed: `valid-content-${index}` })
 
-    expect(BACKGROUNDS.some((item) => item.id === state.identity.backgroundId)).toBe(
-      true,
-    )
-    expect(SPIRIT_ROOTS.some((item) => item.id === state.identity.spiritRootId)).toBe(
-      true,
-    )
+      expect(
+        BACKGROUNDS.some((item) => item.id === state.identity.backgroundId),
+      ).toBe(true)
+      expect(
+        SPIRIT_ROOTS.some((item) => item.id === state.identity.spiritRootId),
+      ).toBe(true)
+      expect(state.tags).toContain(`spirit_root:${state.identity.spiritRootId}`)
+
+      if (state.identity.spiritRootId === 'none') {
+        expect(state.tags).toContain('no_spirit_root')
+        expect(state.tags).not.toContain('has_spirit_root')
+      } else {
+        expect(state.tags).toContain('has_spirit_root')
+        expect(state.tags).not.toContain('no_spirit_root')
+      }
+    }
   })
 
   it('keeps every generated starting stat at one or above', () => {

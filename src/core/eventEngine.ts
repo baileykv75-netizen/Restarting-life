@@ -200,6 +200,10 @@ export function resolveEventChoice(
     throw new Error(`Choice is not available: ${choiceId}`)
   }
 
+  if (event.category === 'breakthrough' && choice.id === 'attempt') {
+    throw new Error('Breakthrough attempt must be resolved by breakthroughEngine')
+  }
+
   let nextState: GameState = {
     ...state,
     events: {
