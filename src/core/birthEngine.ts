@@ -5,9 +5,11 @@ import type { StatModifiers } from '../types/content'
 import type { GameState } from '../types/game'
 import { createInitialGameState, type CreateGameStateOptions } from './gameState'
 import { randomInt, weightedPick } from './rng'
+import { MONTHS_PER_YEAR } from './timeEngine'
 
 const BASE_STAT_MIN = 4
 const BASE_STAT_MAX = 6
+export const PLAYABLE_START_AGE_YEARS = 16
 
 function applyStatModifiers(
   stats: GameState['stats'],
@@ -81,6 +83,7 @@ export function generateBirthState(options: CreateGameStateOptions): GameState {
 
   return {
     ...initial,
+    timeMonths: PLAYABLE_START_AGE_YEARS * MONTHS_PER_YEAR,
     rngState: secondTalentRoll.nextState,
     identity: {
       ...initial.identity,
