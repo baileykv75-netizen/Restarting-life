@@ -2,6 +2,7 @@ import type { GameState } from '../types/game'
 import { BACKGROUNDS } from '../data/backgrounds'
 import { SPIRIT_ROOTS } from '../data/spiritRoots'
 import { TALENTS } from '../data/talents'
+import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
 import { formatAge, formatFaction, formatRealm, formatRemainingLifespan } from '../ui/formatters'
 
 interface CharacterPanelProps {
@@ -13,21 +14,13 @@ function findName<T extends { id: string; name: string }>(items: readonly T[], i
   return items.find((item) => item.id === id)?.name ?? id
 }
 
-function spiritSenseRealmBonus(state: GameState): number {
-  const { realm, stage } = state.cultivation
-  if (realm === 'mortal') return 0
-  if (realm === 'qi') return Math.max(1, Math.min(9, stage))
-  if (realm === 'foundation') return stage <= 1 ? 14 : stage === 2 ? 18 : 22
-  return 30
-}
-
 export function CharacterPanel({ state, runNumber }: CharacterPanelProps) {
   const rootName = state.tags.includes('spirit_root:reformed')
     ? '后天杂灵根'
     : findName(SPIRIT_ROOTS, state.identity.spiritRootId)
   const talentNames = state.identity.talentIds.map((id) => findName(TALENTS, id))
-  const spiritBonus = spiritSenseRealmBonus(state)
-  const effectiveSpiritSense = state.stats.spiritSense + spiritBonus
+  const spiritBonus = getRealmStatBonus(state, 'spiritSense')
+  const effectiveSpiritSense = getEffectiveStat(state, 'spiritSense')
 
   return (
     <aside className="panel character-panel" aria-label="角色状态">
