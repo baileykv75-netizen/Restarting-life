@@ -1,4 +1,5 @@
-import type { SessionCommand } from './command'
+import type { PlayerAction, SessionCommand } from './command'
+import type { StatKey } from './content'
 import type { GameState } from './game'
 
 export interface DebugLogEntry {
@@ -15,9 +16,41 @@ export interface DebugLogEntry {
   stateDigestAfter: string
 }
 
+export interface OutcomeSnapshot {
+  timeMonths: number
+  spiritStones: number
+  cultivation: number
+  realm: GameState['cultivation']['realm']
+  stage: number
+  stats: Record<StatKey, number>
+  relationships: Record<string, number>
+  tags: string[]
+  flags: Record<string, boolean | number | string>
+}
+
+export interface StateChange {
+  label: string
+  value: string
+  tone: 'positive' | 'negative' | 'neutral'
+}
+
+export interface ResolvedOutcome {
+  title: string
+  narrative: string
+  changes: StateChange[]
+  consequence: string | null
+}
+
+export interface PendingActionContext {
+  action: PlayerAction
+  snapshot: OutcomeSnapshot
+}
+
 export interface GameSession {
   state: GameState
   debugLog: DebugLogEntry[]
+  pendingResult: ResolvedOutcome | null
+  pendingAction: PendingActionContext | null
 }
 
 export interface LifeSummary {

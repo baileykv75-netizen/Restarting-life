@@ -3,3 +3,4 @@ export type PlayerAction = 'cultivate' | 'explore' | 'livelihood' | 'breakthroug
 export type SessionCommand =
   | { type: 'action'; action: PlayerAction }
   | { type: 'choice'; choiceId: string }
+  | { type: 'continue' }
