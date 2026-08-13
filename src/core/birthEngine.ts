@@ -8,7 +8,6 @@ import { randomInt, weightedPick } from './rng'
 
 const BASE_STAT_MIN = 4
 const BASE_STAT_MAX = 6
-const TALENTS_PER_RUN = 2
 
 function applyStatModifiers(
   stats: GameState['stats'],
