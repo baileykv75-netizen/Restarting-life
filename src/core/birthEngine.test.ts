@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { BACKGROUNDS } from '../data/backgrounds'
 import { SPIRIT_ROOTS } from '../data/spiritRoots'
 import { TALENTS } from '../data/talents'
-import { generateBirthState } from './birthEngine'
+import { generateBirthState, PLAYABLE_START_AGE_YEARS } from './birthEngine'
+import { MONTHS_PER_YEAR } from './timeEngine'
 
 describe('birth engine', () => {
   it('produces exactly the same birth from the same seed', () => {
@@ -10,6 +11,12 @@ describe('birth engine', () => {
     const second = generateBirthState({ runSeed: 'same-life-seed' })
 
     expect(first).toEqual(second)
+  })
+
+  it('starts a real playable life at age sixteen', () => {
+    const state = generateBirthState({ runSeed: 'playable-start' })
+    expect(state.timeMonths).toBe(PLAYABLE_START_AGE_YEARS * MONTHS_PER_YEAR)
+    expect(PLAYABLE_START_AGE_YEARS).toBe(16)
   })
 
   it('produces two unique talents from the fixed content table', () => {
