@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextRandom, randomInt, seedToState } from './rng'
+import { nextRandom, randomInt, seedToState, weightedPick } from './rng'
 
 describe('seeded RNG', () => {
   it('replays the same sequence from the same seed', () => {
@@ -31,5 +31,15 @@ describe('seeded RNG', () => {
       expect(step.value).toBeLessThanOrEqual(6)
       state = step.nextState
     }
+  })
+
+  it('makes weighted choices deterministically', () => {
+    const items = [
+      { id: 'a', weight: 1 },
+      { id: 'b', weight: 3 },
+    ] as const
+    const state = seedToState('weighted-choice')
+
+    expect(weightedPick(state, items)).toEqual(weightedPick(state, items))
   })
 })

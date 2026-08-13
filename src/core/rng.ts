@@ -59,3 +59,37 @@ export function randomInt(
     nextState: step.nextState,
   }
 }
+
+export function weightedPick<T extends { weight: number }>(
+  state: number,
+  items: readonly T[],
+): { item: T; nextState: number } {
+  if (items.length === 0) {
+    throw new RangeError('weightedPick requires at least one item')
+  }
+
+  let totalWeight = 0
+
+  for (const item of items) {
+    if (!Number.isFinite(item.weight) || item.weight <= 0) {
+      throw new RangeError('weightedPick weights must be positive finite numbers')
+    }
+    totalWeight += item.weight
+  }
+
+  const step = nextRandom(state)
+  const target = step.value * totalWeight
+  let cumulativeWeight = 0
+
+  for (const item of items) {
+    cumulativeWeight += item.weight
+    if (target < cumulativeWeight) {
+      return { item, nextState: step.nextState }
+    }
+  }
+
+  return {
+    item: items[items.length - 1] as T,
+    nextState: step.nextState,
+  }
+}

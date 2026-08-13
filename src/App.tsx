@@ -8,7 +8,7 @@ function App() {
         <h1 id="project-title">修仙人生重开模拟器</h1>
         <p className="status">当前阶段：{PROJECT_STAGE}</p>
         <p className="description">
-          底层正在建立可复现的 GameState、随机数、时间、寿元、修炼与死亡规则；正式剧情仍未接入。
+          出生系统正在接入：同一个 Seed 必须得到相同的出身、灵根、天赋与初始属性。
         </p>
       </section>
     </main>

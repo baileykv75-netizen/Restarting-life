@@ -3,6 +3,6 @@ import { PROJECT_STAGE } from './projectStage'
 
 describe('project development stage', () => {
   it('exposes the expected development stage', () => {
-    expect(PROJECT_STAGE).toBe('阶段 1：最小核心引擎')
+    expect(PROJECT_STAGE).toBe('阶段 2：出生系统')
   })
 })
