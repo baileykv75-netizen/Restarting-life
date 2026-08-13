@@ -8,7 +8,7 @@ function App() {
         <h1 id="project-title">修仙人生重开模拟器</h1>
         <p className="status">当前阶段：{PROJECT_STAGE}</p>
         <p className="description">
-          工程骨架已建立。正式游戏逻辑将在后续阶段按照 GAME_DESIGN_V1.md 逐步接入。
+          底层正在建立可复现的 GameState、随机数、时间、寿元、修炼与死亡规则；正式剧情仍未接入。
         </p>
       </section>
     </main>
