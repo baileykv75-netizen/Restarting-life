@@ -43,5 +43,11 @@ export interface GameState {
   flags: Record<string, boolean | number | string>
   relationships: Record<string, number>
 
+  events: {
+    currentEventId: string | null
+    queue: string[]
+    history: string[]
+  }
+
   endReason: string | null
 }

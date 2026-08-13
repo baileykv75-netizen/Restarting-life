@@ -1,1 +1,1 @@
-export const PROJECT_STAGE = '阶段 2：出生系统' as const
+export const PROJECT_STAGE = '阶段 3：事件引擎' as const

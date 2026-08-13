@@ -46,6 +46,11 @@ export function createInitialGameState({
     tags: [],
     flags: {},
     relationships: {},
+    events: {
+      currentEventId: null,
+      queue: [],
+      history: [],
+    },
     endReason: null,
   }
 }
