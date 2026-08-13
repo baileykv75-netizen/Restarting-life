@@ -9,6 +9,7 @@ export type EventCategory =
   | 'breakthrough'
   | 'chain'
 
+export type EventImportance = 'ambient' | 'notable' | 'major'
 export type ResourceKey = 'spiritStones' | 'cultivation'
 export type FlagValue = boolean | number | string
 
@@ -48,6 +49,8 @@ export interface EventChoice {
   conditions?: Condition[]
   effects: Effect[]
   nextEventId?: string
+  resultText?: string
+  consequenceText?: string
 }
 
 export interface GameEvent {
@@ -59,4 +62,9 @@ export interface GameEvent {
   once?: boolean
   conditions?: Condition[]
   choices: EventChoice[]
+  cooldown?: number
+  maxOccurrences?: number
+  importance?: EventImportance
+  variantGroup?: string
+  chronicleText?: string
 }
