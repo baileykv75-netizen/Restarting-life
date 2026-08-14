@@ -62,9 +62,9 @@ function StoryEntry({ entry, birthDay }: { entry: ChronicleEntry; birthDay: numb
 
 export function ChroniclePanel({ entries, birthDay }: ChroniclePanelProps) {
   return (
-    <aside className="panel chronicle-panel" aria-label="此世传">
+    <aside className="panel chronicle-panel" aria-label="此世记">
       <div className="panel-heading">
-        <span>此世传</span>
+        <span>此世记</span>
         <strong>{entries.length} 段经历</strong>
       </div>
 
