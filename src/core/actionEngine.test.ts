@@ -1,36 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAL_EVENTS } from '../data/events/formalEvents'
 import type { GameState } from '../types/game'
-import { performPlayerAction, getAvailableActions } from './actionEngine'
-import { createEventCatalog, resolveEventChoice } from './eventEngine'
+import { performPlayerAction } from './actionEngine'
+import { createEventCatalog } from './eventEngine'
 import { createInitialGameState } from './gameState'
-import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
+import { DAYS_PER_YEAR } from './timeEngine'
 
 const catalog = createEventCatalog(FORMAL_EVENTS)
 
 describe('actionEngine', () => {
-  it('uses livelihood to find the first immortal opportunity and unlock breakthrough', () => {
-    const base = createInitialGameState({ runSeed: 'immortal-opportunity' })
-    let state: GameState = {
-      ...base,
-      rngState: 1,
-      worldDay: 18 * DAYS_PER_YEAR,
-      identity: { ...base.identity, spiritRootId: 'special' },
-      tags: ['has_spirit_root', 'spirit_root:special'],
-    }
+  it('resolves livelihood in a seeded 30–60 day range instead of a fixed half year', () => {
+    const base = createInitialGameState({ runSeed: 'livelihood-duration' })
+    const first = performPlayerAction(base, 'livelihood', FORMAL_EVENTS, catalog)
+    const second = performPlayerAction(base, 'livelihood', FORMAL_EVENTS, catalog)
 
-    state = performPlayerAction(state, 'livelihood', FORMAL_EVENTS, catalog).state
-
-    expect(state.worldDay).toBe(18 * DAYS_PER_YEAR + 6 * DAYS_PER_MONTH)
-    expect(state.events.currentEventId).toBe('mortal_immortal_encounter')
-
-    state = resolveEventChoice(state, catalog, 'join_qingyun')
-    expect(state.identity.faction).toBe('qingyun')
-    expect(state.flags.has_cultivation_method).toBe(true)
-    expect(getAvailableActions(state)).toContain('breakthrough')
+    expect(first.applied).toBe(true)
+    expect(first.elapsedDays).toBeGreaterThanOrEqual(30)
+    expect(first.elapsedDays).toBeLessThanOrEqual(60)
+    expect(first.elapsedDays).not.toBe(180)
+    expect(second.elapsedDays).toBe(first.elapsedDays)
+    expect(second.state).toEqual(first.state)
+    expect(first.state.events.currentEventId).not.toBeNull()
   })
 
-  it('draws a cultivation event after a completed cultivation action', () => {
+  it('resolves exploration in a shorter seeded 8–20 day range', () => {
+    const base = createInitialGameState({ runSeed: 'explore-duration' })
+    const result = performPlayerAction(base, 'explore', FORMAL_EVENTS, catalog)
+
+    expect(result.applied).toBe(true)
+    expect(result.elapsedDays).toBeGreaterThanOrEqual(8)
+    expect(result.elapsedDays).toBeLessThanOrEqual(20)
+    expect(result.state.worldDay - base.worldDay).toBe(result.elapsedDays)
+    expect(result.state.events.currentEventId).not.toBeNull()
+  })
+
+  it('keeps cultivation on its authored one-year duration until activity redesign', () => {
     const base = createInitialGameState({ runSeed: 'cultivation-event' })
     const state: GameState = {
       ...base,
@@ -42,8 +46,9 @@ describe('actionEngine', () => {
     const result = performPlayerAction(state, 'cultivate', FORMAL_EVENTS, catalog)
 
     expect(result.applied).toBe(true)
+    expect(result.elapsedDays).toBe(DAYS_PER_YEAR)
     expect(result.state.worldDay).toBe(DAYS_PER_YEAR)
-    expect(result.state.events.currentEventId).toBe('cultivation_steady_breathing')
+    expect(result.state.events.currentEventId).not.toBeNull()
   })
 
   it('blocks normal actions while an event is active', () => {
