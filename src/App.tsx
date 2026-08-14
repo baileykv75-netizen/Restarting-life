@@ -5,6 +5,7 @@ import { CharacterPanel } from './components/CharacterPanel'
 import { ChroniclePanel } from './components/ChroniclePanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
+import { GameStatusBar } from './components/GameStatusBar'
 import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
@@ -107,7 +108,7 @@ function App() {
     return (
       <main className="landing-shell">
         <section className="landing-card danger-card">
-          <p className="eyebrow">RESTARTING LIFE</p>
+          <p className="eyebrow">此世问长生 · V2.0</p>
           <h1>本地存档需要处理</h1>
           <p className="story-text">这份存档没有通过完整性校验。为避免继续损坏记录，游戏没有加载它。</p>
           <p className="error-text">{error}</p>
@@ -122,7 +123,7 @@ function App() {
     return (
       <main className="landing-shell">
         <section className="landing-card">
-          <p className="eyebrow">RESTARTING LIFE · V1.2</p>
+          <p className="eyebrow">此世问长生 · V2.0</p>
           <h1>此世问长生</h1>
           <p className="landing-lead">每一次开始，都是另一个人的一生。</p>
           <p className="muted">有人生来近仙，有人一辈子也未必摸得到那道门。</p>
@@ -145,9 +146,9 @@ function App() {
 
   return (
     <main className="game-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">RESTARTING LIFE · V1.2</p>
+      <header className="topbar app-header">
+        <div className="shell-brand">
+          <p className="eyebrow">此世问长生 · V2.0</p>
           <h1>此世问长生</h1>
         </div>
         <div className="topbar-actions">
@@ -155,10 +156,12 @@ function App() {
         </div>
       </header>
 
+      <GameStatusBar state={state} />
+
       <div className="game-grid">
         <CharacterPanel state={state} />
 
-        <section className="main-stage">
+        <section className="main-stage" aria-label="当前经历">
           {session.pendingResult ? (
             <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
           ) : state.status !== 'playing' ? (
