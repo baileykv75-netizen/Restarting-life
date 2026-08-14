@@ -1,7 +1,7 @@
 import type { GameState } from '../types/game'
 import type { DebugLogEntry, LifeRecord, LifeSummary } from '../types/persistence'
 import { getGameStateDigest } from './stateDigest'
-import { MONTHS_PER_YEAR } from './timeEngine'
+import { getAgeParts } from './timeEngine'
 
 function getLifeTitle(state: GameState): string {
   if (state.status === 'won' || state.cultivation.realm === 'golden_core') return '金丹真人'
@@ -33,11 +33,12 @@ function getRegret(state: GameState): string {
 
 export function createLifeSummary(state: GameState): LifeSummary {
   if (state.status === 'playing') throw new Error('Cannot summarize a life that is still playing')
+  const age = getAgeParts(state.identity.birthDay, state.worldDay)
   return {
     title: getLifeTitle(state),
     finalRealm: state.cultivation.realm,
-    ageYears: Math.floor(state.timeMonths / MONTHS_PER_YEAR),
-    ageMonths: state.timeMonths % MONTHS_PER_YEAR,
+    ageYears: age.years,
+    ageMonths: age.months,
     outcome: state.status,
     endReason: state.endReason ?? '未知结局',
     largestOpportunity: getLargestOpportunity(state),
