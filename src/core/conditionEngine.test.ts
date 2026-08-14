@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { Condition } from '../types/event'
 import { createInitialGameState } from './gameState'
 import { matchesAllConditions, matchesCondition } from './conditionEngine'
+import { DAYS_PER_YEAR } from './timeEngine'
 
 function createRichState() {
   const base = createInitialGameState({ runSeed: 'condition-seed' })
   return {
     ...base,
-    timeMonths: 18 * 12,
+    worldDay: base.identity.birthDay + 18 * DAYS_PER_YEAR,
     identity: { ...base.identity, faction: 'qingyun' as const },
     cultivation: { realm: 'qi' as const, stage: 3 },
     stats: { ...base.stats, spiritSense: 8, luck: 4 },
@@ -19,7 +20,7 @@ function createRichState() {
 }
 
 describe('conditionEngine', () => {
-  it('supports the full V1 condition whitelist', () => {
+  it('supports the full V1 condition whitelist on the day clock', () => {
     const state = createRichState()
     const conditions: Condition[] = [
       { type: 'ageMin', years: 18 },
