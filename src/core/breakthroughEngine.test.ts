@@ -10,6 +10,7 @@ import {
   startBreakthrough,
 } from './breakthroughEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_MONTH } from './timeEngine'
 
 const catalog = createEventCatalog(FORMAL_EVENTS)
 
@@ -51,7 +52,7 @@ describe('breakthroughEngine', () => {
     expect(result.roll).toBeLessThan(result.chance)
     expect(result.state.cultivation.realm).toBe('qi')
     expect(result.state.cultivation.stage).toBe(1)
-    expect(result.state.timeMonths).toBe(1)
+    expect(result.state.worldDay).toBe(DAYS_PER_MONTH)
     expect(result.state.events.currentEventId).toBeNull()
   })
 
@@ -73,7 +74,7 @@ describe('breakthroughEngine', () => {
     expect(result.state.cultivation.stage).toBe(9)
     expect(result.state.resources.cultivation).toBe(50)
     expect(result.state.stats.constitution).toBe(4)
-    expect(result.state.timeMonths).toBe(6)
+    expect(result.state.worldDay).toBe(6 * DAYS_PER_MONTH)
     expect(result.state.events.currentEventId).toBeNull()
   })
 })

@@ -8,6 +8,7 @@ import { resolveBreakthroughAttempt } from './breakthroughEngine'
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import type { CreateGameStateOptions } from './gameState'
 import { getGameStateDigest } from './stateDigest'
+import { formatDuration } from './timeEngine'
 
 export const FORMAL_EVENT_CATALOG = createEventCatalog(FORMAL_EVENTS)
 
@@ -48,7 +49,7 @@ function effectiveStat(state: GameSession['state'], stat: StatKey): number {
 
 function captureOutcomeSnapshot(state: GameSession['state']): OutcomeSnapshot {
   return {
-    timeMonths: state.timeMonths,
+    worldDay: state.worldDay,
     spiritStones: state.resources.spiritStones,
     cultivation: state.resources.cultivation,
     realm: state.cultivation.realm,
@@ -79,8 +80,10 @@ function realmText(realm: GameSession['state']['cultivation']['realm'], stage: n
 
 function buildChanges(before: OutcomeSnapshot, after: GameSession['state']): StateChange[] {
   const changes: StateChange[] = []
-  const elapsed = after.timeMonths - before.timeMonths
-  if (elapsed !== 0) changes.push({ label: '时间', value: signed(elapsed, '个月'), tone: 'neutral' })
+  const elapsedDays = after.worldDay - before.worldDay
+  if (elapsedDays > 0) {
+    changes.push({ label: '时间', value: `+${formatDuration(elapsedDays)}`, tone: 'neutral' })
+  }
 
   const stones = after.resources.spiritStones - before.spiritStones
   if (stones !== 0) {
@@ -241,8 +244,8 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
   const logEntry = {
     seq: workingSession.debugLog.length + 1,
     command,
-    timeMonthsBefore: before.timeMonths,
-    timeMonthsAfter: nextState.timeMonths,
+    worldDayBefore: before.worldDay,
+    worldDayAfter: nextState.worldDay,
     eventIdBefore: before.events.currentEventId,
     eventIdAfter: nextState.events.currentEventId,
     rngBefore: before.rngState,

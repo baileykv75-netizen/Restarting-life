@@ -1,12 +1,12 @@
 import type { PlayerAction, SessionCommand } from './command'
 import type { StatKey } from './content'
-import type { GameState } from './game'
+import type { Faction, GameState, Realm } from './game'
 
 export interface DebugLogEntry {
   seq: number
   command: SessionCommand
-  timeMonthsBefore: number
-  timeMonthsAfter: number
+  worldDayBefore: number
+  worldDayAfter: number
   eventIdBefore: string | null
   eventIdAfter: string | null
   rngBefore: number
@@ -17,7 +17,7 @@ export interface DebugLogEntry {
 }
 
 export interface OutcomeSnapshot {
-  timeMonths: number
+  worldDay: number
   spiritStones: number
   cultivation: number
   realm: GameState['cultivation']['realm']
@@ -85,11 +85,6 @@ export interface LifeRecord {
   legacy?: LegacyLifeMetadata
 }
 
-/**
- * Stage 1 deliberately upgrades only the persistent envelope. The live
- * GameSession still uses the V1/V1.1 GameState contract until Stage 2 moves
- * rule time from months to worldDay.
- */
 export interface PersistentGame {
   schemaVersion: 2
   currentSession: GameSession | null
@@ -99,14 +94,129 @@ export interface PersistentGame {
   }
 }
 
-/**
- * Exact top-level shape accepted from the existing localStorage save before
- * the V1.2 migration. It is read-only input to saveMigration.ts.
- */
+// ---------------------------------------------------------------------------
+// Legacy V1/V1.1 shapes. These are read-only migration inputs and must not be
+// used by the live V1.2 engine.
+// ---------------------------------------------------------------------------
+
+export interface LegacyGameStateV1 {
+  schemaVersion: 1
+  runId: string
+  runSeed: string
+  rngState: number
+  status: 'playing' | 'dead' | 'won'
+  timeMonths: number
+  identity: {
+    name: string
+    backgroundId: string
+    spiritRootId: string
+    talentIds: string[]
+    faction: Faction
+  }
+  stats: {
+    constitution: number
+    comprehension: number
+    spiritSense: number
+    mentality: number
+    luck: number
+  }
+  resources: {
+    spiritStones: number
+    cultivation: number
+  }
+  cultivation: {
+    realm: Realm
+    stage: number
+  }
+  tags: string[]
+  flags: Record<string, boolean | number | string>
+  relationships: Record<string, number>
+  events: {
+    currentEventId: string | null
+    queue: string[]
+    history: string[]
+  }
+  endReason: string | null
+}
+
+export interface LegacyDebugLogEntryV1 {
+  seq: number
+  command: SessionCommand
+  timeMonthsBefore: number
+  timeMonthsAfter: number
+  eventIdBefore: string | null
+  eventIdAfter: string | null
+  rngBefore: number
+  rngAfter: number
+  effectTypes: string[]
+  stateDigestBefore: string
+  stateDigestAfter: string
+}
+
+export interface LegacyOutcomeSnapshotV1 {
+  timeMonths: number
+  spiritStones: number
+  cultivation: number
+  realm: Realm
+  stage: number
+  stats: Record<StatKey, number>
+  relationships: Record<string, number>
+  tags: string[]
+  flags: Record<string, boolean | number | string>
+}
+
+export interface LegacyGameSessionV1 {
+  state: LegacyGameStateV1
+  debugLog: LegacyDebugLogEntryV1[]
+  pendingResult: ResolvedOutcome | null
+  pendingAction: {
+    action: PlayerAction
+    snapshot: LegacyOutcomeSnapshotV1
+  } | null
+}
+
+export interface LegacyLifeRecordV1 {
+  sequence: number
+  runId: string
+  runSeed: string
+  stateDigest: string
+  identity: LegacyGameStateV1['identity']
+  stats: LegacyGameStateV1['stats']
+  resources: LegacyGameStateV1['resources']
+  cultivation: LegacyGameStateV1['cultivation']
+  eventHistory: string[]
+  summary: {
+    title: string
+    finalRealm: Realm
+    ageYears: number
+    ageMonths: number
+    outcome: 'dead' | 'won' | 'migrated'
+    endReason: string
+    largestOpportunity: string
+    regret: string
+  }
+  debugLog: LegacyDebugLogEntryV1[]
+  legacy?: LegacyLifeMetadata
+}
+
 export interface LegacyPersistentGameV1 {
   schemaVersion: 1
-  currentSession: GameSession | null
-  archives: LifeRecord[]
+  currentSession: LegacyGameSessionV1 | null
+  archives: LegacyLifeRecordV1[]
+  meta: {
+    totalRuns: number
+  }
+}
+
+/**
+ * Stage 1 briefly wrote schemaVersion 2 envelopes whose live GameState still
+ * used the V1 month clock. Stage 2 accepts this transitional shape once and
+ * normalizes it into the current day-based schema without losing archives.
+ */
+export interface TransitionalPersistentGameV2 {
+  schemaVersion: 2
+  currentSession: LegacyGameSessionV1 | GameSession | null
+  archives: Array<LegacyLifeRecordV1 | LifeRecord>
   meta: {
     totalRuns: number
   }

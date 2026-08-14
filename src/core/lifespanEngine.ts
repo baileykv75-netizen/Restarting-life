@@ -1,5 +1,5 @@
 import type { GameState, Realm } from '../types/game'
-import { MONTHS_PER_YEAR } from './timeEngine'
+import { DAYS_PER_YEAR } from './timeEngine'
 
 const MAX_LIFESPAN_YEARS: Record<Exclude<Realm, 'golden_core'>, number> = {
   mortal: 80,
@@ -7,22 +7,23 @@ const MAX_LIFESPAN_YEARS: Record<Exclude<Realm, 'golden_core'>, number> = {
   foundation: 220,
 }
 
-export function getMaxLifespanMonths(realm: Realm): number | null {
+export function getMaxLifespanDays(realm: Realm): number | null {
   if (realm === 'golden_core') {
     return null
   }
 
-  return MAX_LIFESPAN_YEARS[realm] * MONTHS_PER_YEAR
+  return MAX_LIFESPAN_YEARS[realm] * DAYS_PER_YEAR
 }
 
-export function getRemainingLifespanMonths(state: GameState): number | null {
-  const maxLifespanMonths = getMaxLifespanMonths(state.cultivation.realm)
+export function getRemainingLifespanDays(state: GameState): number | null {
+  const maxLifespanDays = getMaxLifespanDays(state.cultivation.realm)
 
-  if (maxLifespanMonths === null) {
+  if (maxLifespanDays === null) {
     return null
   }
 
-  return Math.max(0, maxLifespanMonths - state.timeMonths)
+  const ageDays = state.worldDay - state.identity.birthDay
+  return Math.max(0, maxLifespanDays - ageDays)
 }
 
 export function resolveNaturalDeath(state: GameState): GameState {
@@ -30,9 +31,10 @@ export function resolveNaturalDeath(state: GameState): GameState {
     return state
   }
 
-  const maxLifespanMonths = getMaxLifespanMonths(state.cultivation.realm)
+  const maxLifespanDays = getMaxLifespanDays(state.cultivation.realm)
+  const ageDays = state.worldDay - state.identity.birthDay
 
-  if (maxLifespanMonths === null || state.timeMonths < maxLifespanMonths) {
+  if (maxLifespanDays === null || ageDays < maxLifespanDays) {
     return state
   }
 

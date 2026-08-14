@@ -2,7 +2,7 @@ import type { Effect } from '../types/event'
 import type { GameState } from '../types/game'
 import { applyAutomaticStageProgression } from './cultivationEngine'
 import { resolveNaturalDeath } from './lifespanEngine'
-import { advanceTimeMonths } from './timeEngine'
+import { advanceTimeDays, DAYS_PER_MONTH } from './timeEngine'
 
 export interface EffectContext {
   allowSetRealm?: boolean
@@ -85,7 +85,8 @@ export function applyEffect(
         },
       }
     case 'advanceTime': {
-      const advanced = resolveNaturalDeath(advanceTimeMonths(state, effect.months))
+      const days = effect.days ?? effect.months * DAYS_PER_MONTH
+      const advanced = resolveNaturalDeath(advanceTimeDays(state, days))
       return advanced.status === 'playing' ? advanced : clearPendingEvents(advanced)
     }
     case 'queueEvent':

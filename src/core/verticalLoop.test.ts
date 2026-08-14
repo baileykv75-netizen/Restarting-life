@@ -6,6 +6,7 @@ import { performPlayerAction } from './actionEngine'
 import { resolveBreakthroughAttempt } from './breakthroughEngine'
 import { createEventCatalog, resolveEventChoice } from './eventEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
 
 const CORE_LOOP_IDS = new Set([
   'mortal_immortal_encounter',
@@ -26,12 +27,7 @@ function cultivateUntil(
   let steps = 0
 
   while (!predicate(state)) {
-    const result = performPlayerAction(
-      state,
-      'cultivate',
-      CORE_LOOP_EVENTS,
-      catalog,
-    )
+    const result = performPlayerAction(state, 'cultivate', CORE_LOOP_EVENTS, catalog)
     expect(result.applied).toBe(true)
     state = result.state
     steps += 1
@@ -48,27 +44,17 @@ describe('stage-4 vertical gameplay regression loop', () => {
     const base = createInitialGameState({ runSeed: 'vertical-golden-core' })
     let state: GameState = {
       ...base,
-      timeMonths: 18 * 12,
+      worldDay: 18 * DAYS_PER_YEAR,
       rngState: 1,
       identity: { ...base.identity, spiritRootId: 'special' },
       tags: ['has_spirit_root', 'spirit_root:special'],
     }
 
-    state = performPlayerAction(
-      state,
-      'livelihood',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'livelihood', CORE_LOOP_EVENTS, catalog).state
     expect(state.events.currentEventId).toBe('mortal_immortal_encounter')
 
     state = resolveEventChoice(state, catalog, 'join_qingyun')
-    state = performPlayerAction(
-      state,
-      'breakthrough',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
     let breakthrough = resolveBreakthroughAttempt(state, catalog)
     expect(breakthrough.success).toBe(true)
     state = breakthrough.state
@@ -81,23 +67,13 @@ describe('stage-4 vertical gameplay regression loop', () => {
         current.resources.cultivation >= 100,
     )
 
-    state = performPlayerAction(
-      state,
-      'breakthrough',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
     breakthrough = resolveBreakthroughAttempt(state, catalog)
     expect(breakthrough.success).toBe(false)
     state = breakthrough.state
 
     state = cultivateUntil(state, (current) => current.resources.cultivation >= 100)
-    state = performPlayerAction(
-      state,
-      'breakthrough',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
     breakthrough = resolveBreakthroughAttempt(state, catalog)
     expect(breakthrough.success).toBe(true)
     state = breakthrough.state
@@ -110,23 +86,13 @@ describe('stage-4 vertical gameplay regression loop', () => {
         current.resources.cultivation >= 500,
     )
 
-    state = performPlayerAction(
-      state,
-      'breakthrough',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
     breakthrough = resolveBreakthroughAttempt(state, catalog)
     expect(breakthrough.success).toBe(false)
     state = breakthrough.state
 
     state = cultivateUntil(state, (current) => current.resources.cultivation >= 500)
-    state = performPlayerAction(
-      state,
-      'breakthrough',
-      CORE_LOOP_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
     breakthrough = resolveBreakthroughAttempt(state, catalog)
     expect(breakthrough.success).toBe(true)
     state = breakthrough.state
@@ -141,17 +107,12 @@ describe('stage-4 vertical gameplay regression loop', () => {
     const base = createInitialGameState({ runSeed: 'vertical-natural-death' })
     const state: GameState = {
       ...base,
-      timeMonths: 80 * 12 - 6,
+      worldDay: base.identity.birthDay + 80 * DAYS_PER_YEAR - 6 * DAYS_PER_MONTH,
       identity: { ...base.identity, spiritRootId: 'none' },
       tags: ['no_spirit_root', 'spirit_root:none'],
     }
 
-    const result = performPlayerAction(
-      state,
-      'livelihood',
-      CORE_LOOP_EVENTS,
-      catalog,
-    )
+    const result = performPlayerAction(state, 'livelihood', CORE_LOOP_EVENTS, catalog)
 
     expect(result.applied).toBe(true)
     expect(result.state.status).toBe('dead')

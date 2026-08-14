@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TEST_EVENTS } from '../data/events/testEvents'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
 import {
   createEventCatalog,
   drawEvent,
@@ -15,7 +16,7 @@ const catalog = createEventCatalog(TEST_EVENTS)
 function createAdultState(seed = 'event-seed') {
   return {
     ...createInitialGameState({ runSeed: seed }),
-    timeMonths: 18 * 12,
+    worldDay: 18 * DAYS_PER_YEAR,
   }
 }
 
@@ -36,9 +37,7 @@ describe('eventEngine', () => {
       ...state,
       events: { ...state.events, history: ['test_mountain_glimmer'] },
     }
-    expect(
-      getEligibleEvents(repeated, TEST_EVENTS, 'mortal').map((event) => event.id),
-    ).not.toContain('test_mountain_glimmer')
+    expect(getEligibleEvents(repeated, TEST_EVENTS, 'mortal').map((event) => event.id)).not.toContain('test_mountain_glimmer')
   })
 
   it('draws deterministically from the same state and seed', () => {
@@ -56,14 +55,12 @@ describe('eventEngine', () => {
 
     const mountain = catalog.get('test_mountain_glimmer')
     expect(mountain).toBeDefined()
-    expect(getAvailableChoices(state, mountain!).map((choice) => choice.id)).toContain(
-      'investigate',
-    )
+    expect(getAvailableChoices(state, mountain!).map((choice) => choice.id)).toContain('investigate')
 
     state = resolveEventChoice(state, catalog, 'investigate')
     expect(state.flags.test_saw_glimmer).toBe(true)
     expect(state.tags).toContain('test_cave_clue')
-    expect(state.timeMonths).toBe(18 * 12 + 1)
+    expect(state.worldDay).toBe(18 * DAYS_PER_YEAR + DAYS_PER_MONTH)
     expect(state.events.currentEventId).toBe('test_cave_echo')
 
     state = resolveEventChoice(state, catalog, 'collect')
@@ -83,9 +80,7 @@ describe('eventEngine', () => {
     }
     const active = startEventById(lowSense, catalog, 'test_mountain_glimmer')
 
-    expect(() => resolveEventChoice(active, catalog, 'investigate')).toThrow(
-      'Choice is not available: investigate',
-    )
+    expect(() => resolveEventChoice(active, catalog, 'investigate')).toThrow('Choice is not available: investigate')
   })
 
   it('stops effects and event chains immediately after death', () => {

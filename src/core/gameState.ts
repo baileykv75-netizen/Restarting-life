@@ -15,14 +15,15 @@ export function createInitialGameState({
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runId,
     runSeed,
     rngState: seedToState(runSeed),
     status: 'playing',
-    timeMonths: 0,
+    worldDay: 0,
     identity: {
       name: '未命名',
+      birthDay: 0,
       backgroundId: '',
       spiritRootId: '',
       talentIds: [],

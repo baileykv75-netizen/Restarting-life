@@ -29,6 +29,10 @@ export type Condition =
   | { type: 'relationshipMin'; id: string; value: number }
   | { type: 'resourceMin'; resource: ResourceKey; value: number }
 
+type DayAdvanceEffect = { type: 'advanceTime'; days: number; months?: never }
+/** Stage 2 compatibility for authored V1.1 content; removed by Stage 3 Duration migration. */
+type LegacyMonthAdvanceEffect = { type: 'advanceTime'; months: number; days?: never }
+
 export type Effect =
   | { type: 'addStat'; stat: StatKey; amount: number }
   | { type: 'addSpiritStones'; amount: number }
@@ -37,7 +41,8 @@ export type Effect =
   | { type: 'removeTag'; tag: string }
   | { type: 'setFlag'; key: string; value: FlagValue }
   | { type: 'addRelationship'; id: string; amount: number }
-  | { type: 'advanceTime'; months: number }
+  | DayAdvanceEffect
+  | LegacyMonthAdvanceEffect
   | { type: 'queueEvent'; eventId: string }
   | { type: 'killPlayer'; reason: string }
   | { type: 'changeFaction'; faction: Faction }

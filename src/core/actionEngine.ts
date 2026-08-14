@@ -5,6 +5,7 @@ import { performBasicCultivation } from './cultivationEngine'
 import type { EventCatalog } from './eventEngine'
 import { drawEvent } from './eventEngine'
 import { progressTime } from './gameEngine'
+import { DAYS_PER_MONTH } from './timeEngine'
 
 export type PlayerAction = 'cultivate' | 'explore' | 'livelihood' | 'breakthrough'
 
@@ -20,14 +21,16 @@ export interface ActionResult {
   reason?: ActionBlockReason
 }
 
-const HALF_YEAR_MONTHS = 6
+// Stage 2 only changes the internal clock. Stage 3 will remove this legacy
+// fixed duration and replace it with per-activity Duration definitions.
+const LEGACY_HALF_YEAR_DAYS = 6 * DAYS_PER_MONTH
 
 function drawAfterTime(
   state: GameState,
   events: readonly GameEvent[],
   category: EventCategory,
 ): GameState {
-  const progressed = progressTime(state, HALF_YEAR_MONTHS).state
+  const progressed = progressTime(state, LEGACY_HALF_YEAR_DAYS).state
   if (progressed.status !== 'playing') {
     return progressed
   }
