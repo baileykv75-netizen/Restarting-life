@@ -5,6 +5,7 @@ import type { EventCatalog } from './eventEngine'
 import { getAvailableChoices, startEventById } from './eventEngine'
 import { applyEffects } from './effectEngine'
 import { nextRandom } from './rng'
+import { DAYS_PER_MONTH } from './timeEngine'
 
 export interface BreakthroughResult {
   state: GameState
@@ -96,6 +97,7 @@ export function resolveBreakthroughAttempt(
   const chance = calculateBreakthroughChance(state, rule)
   const randomStep = nextRandom(state.rngState)
   const rolledSuccess = randomStep.value < chance
+  const durationDays = rule.durationMonths * DAYS_PER_MONTH
 
   let nextState: GameState = {
     ...state,
@@ -110,7 +112,7 @@ export function resolveBreakthroughAttempt(
     nextState = applyEffects(
       nextState,
       [
-        { type: 'advanceTime', months: rule.durationMonths },
+        { type: 'advanceTime', days: durationDays },
         { type: 'addCultivation', amount: -rule.requiredCultivation },
         {
           type: 'setRealm',
@@ -122,7 +124,7 @@ export function resolveBreakthroughAttempt(
     )
   } else {
     nextState = applyEffects(nextState, [
-      { type: 'advanceTime', months: rule.durationMonths },
+      { type: 'advanceTime', days: durationDays },
       { type: 'addCultivation', amount: -rule.failureCultivationLoss },
       {
         type: 'addStat',
