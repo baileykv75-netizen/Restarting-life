@@ -1,6 +1,7 @@
 import type { ChronicleEntry } from '../types/chronicle'
-import { formatAge } from '../ui/formatters'
 import { formatDuration } from '../core/timeEngine'
+import { formatAge } from '../ui/formatters'
+import '../chronicle.css'
 
 interface ChroniclePanelProps {
   entries: readonly ChronicleEntry[]
