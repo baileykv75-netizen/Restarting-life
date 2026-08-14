@@ -27,7 +27,7 @@ export function CharacterPanel({ state, runNumber }: CharacterPanelProps) {
       <div className="panel-heading"><span>此世命格</span><strong>第 {runNumber} 世</strong></div>
       <div className="identity-block">
         <p className="realm-title">{formatRealm(state)}</p>
-        <p className="muted">{formatAge(state.timeMonths)} · {formatFaction(state)}</p>
+        <p className="muted">{formatAge(state.worldDay, state.identity.birthDay)} · {formatFaction(state)}</p>
       </div>
       <dl className="facts-grid">
         <div><dt>出身</dt><dd>{findName(BACKGROUNDS, state.identity.backgroundId)}</dd></div>
