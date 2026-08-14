@@ -1,5 +1,11 @@
 import type { GameEvent } from '../../types/event'
 
+/**
+ * V2 migration boundary: these are V1.2 authored fate chains kept as legacy
+ * content material. Do not add new global "life routes" here for V2. Existing
+ * events may later be split into NPC, location, rare encounter, or world-story
+ * content once those context systems exist.
+ */
 export const CHAIN_EVENTS: readonly GameEvent[] = [
   {
     id: 'chain_no_root_dream',

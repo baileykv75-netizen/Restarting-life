@@ -25,6 +25,17 @@
 
 R00.1 **未修改任何 `src/` 游戏代码**。
 
+### R00.2｜冻结 V1.2 旧玩法边界
+
+已在不改变运行逻辑的前提下冻结以下 legacy 边界：
+
+- `src/components/ActionPanel.tsx`：明确为 V1.2 legacy gameplay shell；V2 地点驱动 World Shell 验证后才退役。
+- `src/core/actionEngine.ts`：明确 `duration -> drawEvent(category)` 与四行为列表属于 V1.2 legacy 主循环职责；不得继续扩张为 V2 探索 / 地点 / 宗门 / 世界系统。
+- `src/data/events/formalEvents.ts`：明确 `FORMAL_EVENTS` 是 V1.2 全局主循环事件源；V2 事件应改由地点、宗门、功法、NPC、世界状态等上下文触发。
+- `src/data/events/chainEvents.ts`：明确现有固定人生链仅作为 legacy 内容素材，不得继续扩张为 V2 全局人生路线。
+
+本轮只增加迁移注释并更新交接，没有修改事件概率、事件内容、数值、时间、UI 行为、存档 schema 或 GameState 字段，也没有新增地点系统。
+
 ## 当前确认可复用的基础设施
 
 后续迁移优先保留并扩展：
@@ -81,16 +92,20 @@ Event Engine 保留，但不再作为整个世界的主驱动器。
 
 执行：
 
-> **R00.2｜冻结 V1.2 旧玩法边界**
-
-具体范围以 `CURRENT_TASK.md` 为准。
-
-本轮目标只是在代码中清晰标记 legacy 边界，不改变玩家当前行为。
-
-## 下一轮完成后的入口
-
-R00.2 通过 typecheck / test / build 和行为验收后，才进入：
-
 > **R00.3｜存档 V3 与可扩展 GameState 入口**
 
-R00.3 也必须保持最小迁移，不得一次性加入 inventory / combat / sect 等全部 V2 字段。
+下一轮必须先把 `CURRENT_TASK.md` 切换为 R00.3 的最小任务定义，再开始修改代码。
+
+R00.3 的目标是建立 V2 存档与状态迁移入口，不是一次性实现整个 V2 GameState。
+
+## R00.3 边界提醒
+
+R00.3 只应处理：
+
+- schemaVersion 3；
+- `restarting-life:v3`；
+- 旧 v2 存档保留 / 安全处理；
+- 新人生进入 V3 的最小 phase / birth 状态入口；
+- 对应存档与迁移测试。
+
+R00.3 不得提前加入完整 inventory / combat / sect / beast / world map 等 V2 系统。

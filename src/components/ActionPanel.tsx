@@ -4,6 +4,13 @@ import type { GameState } from '../types/game'
 import type { Duration } from '../types/time'
 import { formatDuration } from '../core/timeEngine'
 
+/**
+ * V2 migration boundary: this component is the V1.2 legacy gameplay shell.
+ * Keep its current behavior stable during migration, but do not expand it into
+ * the V2 world interaction model. It should retire only after the location-
+ * driven World Shell has been implemented and verified.
+ */
+
 interface ActionPanelProps {
   state: GameState
   actions: readonly PlayerAction[]

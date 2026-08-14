@@ -24,6 +24,13 @@ export interface ActionResult {
   reason?: ActionBlockReason
 }
 
+/**
+ * V2 migration boundary: `duration -> drawEvent(category)` is a V1.2 legacy
+ * main-loop responsibility. Keep it stable while the old UI is still live,
+ * but do not extend it into V2 exploration, location, sect, or world logic.
+ * V2 activities must eventually be derived from current location + character
+ * state + knowledge, with EventEngine used only when that context triggers one.
+ */
 function drawAfterDuration(
   state: GameState,
   action: PlayerAction,
@@ -51,6 +58,11 @@ function drawAfterDuration(
   }
 }
 
+/**
+ * V2 migration boundary: this list is the V1.2 four-action shell, not the
+ * future V2 activity discovery API. Do not add new V2 world actions here just
+ * to make them visible in the legacy ActionPanel.
+ */
 export function getAvailableActions(state: GameState): PlayerAction[] {
   if (state.status !== 'playing' || state.events.currentEventId !== null) {
     return []

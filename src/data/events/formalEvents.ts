@@ -7,6 +7,13 @@ import { EXPLORATION_EVENTS } from './explorationEvents'
 import { MORTAL_EVENTS } from './mortalEvents'
 import { SECT_EVENTS } from './sectEvents'
 
+/**
+ * V2 migration boundary: FORMAL_EVENTS is the V1.2 global main-loop event
+ * source. Keep it intact for the live legacy flow, but do not keep expanding
+ * it as the V2 world model. V2 events must eventually be selected by context
+ * such as location, sect state, technique, world event, NPC, or exploration.
+ */
+
 const V11_SLICE_EVENTS: readonly GameEvent[] = [
   {
     id: 'v11_mortal_herb_haggle', category: 'mortal', title: '药材议价', text: '你替山民把一篓药材送到镇上。药铺愿意给现钱，也愿意用修士常用的下品灵石结一部分账。', weight: 7, cooldown: 8, maxOccurrences: 3, choices: [
