@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GameState } from '../types/game'
 import { applyEffects } from './effectEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
 
 describe('effectEngine', () => {
   it('clamps resources, stats and relationships at their safety boundaries', () => {
@@ -33,12 +34,13 @@ describe('effectEngine', () => {
   })
 
   it('stops remaining effects immediately when time advancement causes natural death', () => {
+    const base = createInitialGameState({ runSeed: 'old-age' })
     const state = {
-      ...createInitialGameState({ runSeed: 'old-age' }),
-      timeMonths: 80 * 12 - 1,
+      ...base,
+      worldDay: base.identity.birthDay + 80 * DAYS_PER_YEAR - DAYS_PER_MONTH,
     }
     const result = applyEffects(state, [
-      { type: 'advanceTime', months: 1 },
+      { type: 'advanceTime', days: DAYS_PER_MONTH },
       { type: 'addSpiritStones', amount: 99 },
     ])
 
@@ -51,9 +53,9 @@ describe('effectEngine', () => {
   it('protects setRealm behind breakthrough permission and marks golden core as victory', () => {
     const state = createInitialGameState({ runSeed: 'realm-guard' })
 
-    expect(() =>
-      applyEffects(state, [{ type: 'setRealm', realm: 'qi', stage: 1 }]),
-    ).toThrow('setRealm effect requires breakthrough permission')
+    expect(() => applyEffects(state, [{ type: 'setRealm', realm: 'qi', stage: 1 }])).toThrow(
+      'setRealm effect requires breakthrough permission',
+    )
 
     const result = applyEffects(
       state,
