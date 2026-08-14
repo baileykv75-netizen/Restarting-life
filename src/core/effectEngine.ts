@@ -1,8 +1,8 @@
 import type { Effect } from '../types/event'
 import type { GameState } from '../types/game'
 import { applyAutomaticStageProgression } from './cultivationEngine'
-import { resolveNaturalDeath } from './lifespanEngine'
-import { advanceTimeDays, DAYS_PER_MONTH } from './timeEngine'
+import { DAYS_PER_MONTH } from './timeEngine'
+import { advanceWorldTime } from './worldEngine'
 
 export interface EffectContext {
   allowSetRealm?: boolean
@@ -32,9 +32,7 @@ export function applyEffect(
   effect: Effect,
   context: EffectContext = {},
 ): GameState {
-  if (state.status !== 'playing') {
-    return state
-  }
+  if (state.status !== 'playing') return state
 
   switch (effect.type) {
     case 'addStat':
@@ -64,54 +62,35 @@ export function applyEffect(
       return applyAutomaticStageProgression(withCultivation)
     }
     case 'addTag':
-      return state.tags.includes(effect.tag)
-        ? state
-        : { ...state, tags: [...state.tags, effect.tag] }
+      return state.tags.includes(effect.tag) ? state : { ...state, tags: [...state.tags, effect.tag] }
     case 'removeTag':
       return { ...state, tags: state.tags.filter((tag) => tag !== effect.tag) }
     case 'setFlag':
-      return {
-        ...state,
-        flags: { ...state.flags, [effect.key]: effect.value },
-      }
+      return { ...state, flags: { ...state.flags, [effect.key]: effect.value } }
     case 'addRelationship':
       return {
         ...state,
         relationships: {
           ...state.relationships,
-          [effect.id]: clampRelationship(
-            (state.relationships[effect.id] ?? 0) + effect.amount,
-          ),
+          [effect.id]: clampRelationship((state.relationships[effect.id] ?? 0) + effect.amount),
         },
       }
     case 'advanceTime': {
       const days = effect.days ?? effect.months * DAYS_PER_MONTH
-      const advanced = resolveNaturalDeath(advanceTimeDays(state, days))
+      const advanced = advanceWorldTime(state, days).state
       return advanced.status === 'playing' ? advanced : clearPendingEvents(advanced)
     }
     case 'queueEvent':
       return {
         ...state,
-        events: {
-          ...state.events,
-          queue: [...state.events.queue, effect.eventId],
-        },
+        events: { ...state.events, queue: [...state.events.queue, effect.eventId] },
       }
     case 'killPlayer':
-      return clearPendingEvents({
-        ...state,
-        status: 'dead',
-        endReason: effect.reason,
-      })
+      return clearPendingEvents({ ...state, status: 'dead', endReason: effect.reason })
     case 'changeFaction':
-      return {
-        ...state,
-        identity: { ...state.identity, faction: effect.faction },
-      }
+      return { ...state, identity: { ...state.identity, faction: effect.faction } }
     case 'setRealm': {
-      if (!context.allowSetRealm) {
-        throw new Error('setRealm effect requires breakthrough permission')
-      }
+      if (!context.allowSetRealm) throw new Error('setRealm effect requires breakthrough permission')
       if (!Number.isSafeInteger(effect.stage) || effect.stage < 0) {
         throw new RangeError('realm stage must be a non-negative safe integer')
       }
@@ -121,15 +100,9 @@ export function applyEffect(
         cultivation: { realm: effect.realm, stage: effect.stage },
       }
 
-      if (effect.realm !== 'golden_core') {
-        return nextState
-      }
+      if (effect.realm !== 'golden_core') return nextState
 
-      return clearPendingEvents({
-        ...nextState,
-        status: 'won',
-        endReason: '结成金丹',
-      })
+      return clearPendingEvents({ ...nextState, status: 'won', endReason: '结成金丹' })
     }
     default:
       return assertNever(effect)
@@ -145,9 +118,7 @@ export function applyEffects(
 
   for (const effect of effects) {
     nextState = applyEffect(nextState, effect, context)
-    if (nextState.status !== 'playing') {
-      break
-    }
+    if (nextState.status !== 'playing') break
   }
 
   return nextState
