@@ -37,7 +37,7 @@ export type Effect =
   | { type: 'removeTag'; tag: string }
   | { type: 'setFlag'; key: string; value: FlagValue }
   | { type: 'addRelationship'; id: string; amount: number }
-  | { type: 'advanceTime'; months: number }
+  | { type: 'advanceTime'; days: number }
   | { type: 'queueEvent'; eventId: string }
   | { type: 'killPlayer'; reason: string }
   | { type: 'changeFaction'; faction: Faction }
