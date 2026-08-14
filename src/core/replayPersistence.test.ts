@@ -57,7 +57,9 @@ describe('stage-6 replay and archives', () => {
         ...current,
         state: {
           ...current.state,
-          worldDay: current.state.identity.birthDay + 80 * DAYS_PER_YEAR - 6 * DAYS_PER_MONTH,
+          // Livelihood is now 30–60 days; starting 30 days before the mortal
+          // lifespan boundary guarantees the accepted operation reaches death.
+          worldDay: current.state.identity.birthDay + 80 * DAYS_PER_YEAR - DAYS_PER_MONTH,
           identity: { ...current.state.identity, spiritRootId: 'none' },
           tags: ['no_spirit_root', 'spirit_root:none'],
         },
