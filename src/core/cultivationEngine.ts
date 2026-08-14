@@ -6,8 +6,8 @@ import {
   REALM_CULTIVATION_FACTOR,
 } from '../data/realms'
 import type { GameState } from '../types/game'
-import { resolveNaturalDeath } from './lifespanEngine'
-import { advanceTimeDays, DAYS_PER_YEAR } from './timeEngine'
+import { DAYS_PER_YEAR } from './timeEngine'
+import { advanceWorldTime } from './worldEngine'
 
 export const BASIC_CULTIVATION_DAYS = DAYS_PER_YEAR
 export const BASIC_CULTIVATION_GAIN = 55
@@ -21,23 +21,20 @@ export interface CultivationResult {
   state: GameState
   applied: boolean
   gain?: number
+  elapsedDays?: number
   reason?: CultivationBlockReason
 }
 
 export function getEffectiveSpiritRootMultiplier(state: GameState): number {
   const root = getSpiritRootById(state.identity.spiritRootId)
-  if (root && root.cultivationMultiplier > 0) {
-    return root.cultivationMultiplier
-  }
+  if (root && root.cultivationMultiplier > 0) return root.cultivationMultiplier
 
   const reformedMultiplier = state.flags.reformed_spirit_root_multiplier
   if (
     typeof reformedMultiplier === 'number' &&
     Number.isFinite(reformedMultiplier) &&
     reformedMultiplier > 0
-  ) {
-    return reformedMultiplier
-  }
+  ) return reformedMultiplier
 
   return 0
 }
@@ -45,24 +42,14 @@ export function getEffectiveSpiritRootMultiplier(state: GameState): number {
 export function calculateCultivationGain(state: GameState): number {
   const realmFactor = REALM_CULTIVATION_FACTOR[state.cultivation.realm]
   const rootFactor = getEffectiveSpiritRootMultiplier(state)
+  if (rootFactor <= 0 || realmFactor <= 0) return 0
 
-  if (rootFactor <= 0 || realmFactor <= 0) {
-    return 0
-  }
-
-  const attributeFactor =
-    1 + (state.stats.constitution + state.stats.comprehension - 10) * 0.03
-
-  return Math.max(
-    0,
-    Math.round(BASIC_CULTIVATION_GAIN * attributeFactor * rootFactor * realmFactor),
-  )
+  const attributeFactor = 1 + (state.stats.constitution + state.stats.comprehension - 10) * 0.03
+  return Math.max(0, Math.round(BASIC_CULTIVATION_GAIN * attributeFactor * rootFactor * realmFactor))
 }
 
 export function applyAutomaticStageProgression(state: GameState): GameState {
-  if (state.status !== 'playing') {
-    return state
-  }
+  if (state.status !== 'playing') return state
 
   let stage = state.cultivation.stage
   let cultivation = state.resources.cultivation
@@ -77,19 +64,13 @@ export function applyAutomaticStageProgression(state: GameState): GameState {
       cultivation -= FOUNDATION_EARLY_TO_MIDDLE_THRESHOLD
       stage = 2
     }
-
     if (stage === 2 && cultivation >= FOUNDATION_MIDDLE_TO_LATE_THRESHOLD) {
       cultivation -= FOUNDATION_MIDDLE_TO_LATE_THRESHOLD
       stage = 3
     }
   }
 
-  if (
-    stage === state.cultivation.stage &&
-    cultivation === state.resources.cultivation
-  ) {
-    return state
-  }
+  if (stage === state.cultivation.stage && cultivation === state.resources.cultivation) return state
 
   return {
     ...state,
@@ -99,20 +80,12 @@ export function applyAutomaticStageProgression(state: GameState): GameState {
 }
 
 export function performBasicCultivation(state: GameState): CultivationResult {
-  if (state.status !== 'playing') {
-    return { state, applied: false, reason: 'GAME_ENDED' }
-  }
-
-  if (state.cultivation.realm === 'mortal') {
-    return { state, applied: false, reason: 'NOT_A_CULTIVATOR' }
-  }
-
-  if (state.cultivation.realm === 'golden_core') {
-    return { state, applied: false, reason: 'REALM_COMPLETE' }
-  }
+  if (state.status !== 'playing') return { state, applied: false, reason: 'GAME_ENDED' }
+  if (state.cultivation.realm === 'mortal') return { state, applied: false, reason: 'NOT_A_CULTIVATOR' }
+  if (state.cultivation.realm === 'golden_core') return { state, applied: false, reason: 'REALM_COMPLETE' }
 
   const gain = calculateCultivationGain(state)
-  const advanced = advanceTimeDays(state, BASIC_CULTIVATION_DAYS)
+  const advanced = advanceWorldTime(state, BASIC_CULTIVATION_DAYS).state
   const withGain: GameState = {
     ...advanced,
     resources: {
@@ -123,8 +96,9 @@ export function performBasicCultivation(state: GameState): CultivationResult {
   const progressed = applyAutomaticStageProgression(withGain)
 
   return {
-    state: resolveNaturalDeath(progressed),
+    state: progressed,
     applied: true,
     gain,
+    elapsedDays: BASIC_CULTIVATION_DAYS,
   }
 }

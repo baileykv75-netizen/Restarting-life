@@ -1,13 +1,15 @@
+import { getActionDuration } from '../data/actionDurations'
 import type { EventCategory, GameEvent } from '../types/event'
 import type { GameState } from '../types/game'
+import type { PlayerAction } from '../types/command'
 import { canAttemptBreakthrough, startBreakthrough } from './breakthroughEngine'
 import { performBasicCultivation } from './cultivationEngine'
+import { resolveDuration } from './durationEngine'
 import type { EventCatalog } from './eventEngine'
 import { drawEvent } from './eventEngine'
-import { progressTime } from './gameEngine'
-import { DAYS_PER_MONTH } from './timeEngine'
+import { advanceWorldTime } from './worldEngine'
 
-export type PlayerAction = 'cultivate' | 'explore' | 'livelihood' | 'breakthrough'
+export type { PlayerAction } from '../types/command'
 
 export type ActionBlockReason =
   | 'GAME_ENDED'
@@ -18,24 +20,35 @@ export type ActionBlockReason =
 export interface ActionResult {
   state: GameState
   applied: boolean
+  elapsedDays?: number
   reason?: ActionBlockReason
 }
 
-// Stage 2 only changes the internal clock. Stage 3 will remove this legacy
-// fixed duration and replace it with per-activity Duration definitions.
-const LEGACY_HALF_YEAR_DAYS = 6 * DAYS_PER_MONTH
-
-function drawAfterTime(
+function drawAfterDuration(
   state: GameState,
+  action: PlayerAction,
   events: readonly GameEvent[],
   category: EventCategory,
-): GameState {
-  const progressed = progressTime(state, LEGACY_HALF_YEAR_DAYS).state
+): ActionResult {
+  const duration = getActionDuration(action)
+  if (!duration) throw new Error(`Missing duration for action: ${action}`)
+
+  const resolved = resolveDuration(duration, state.rngState)
+  const withResolvedRng: GameState = {
+    ...state,
+    rngState: resolved.rngState,
+  }
+  const progressed = advanceWorldTime(withResolvedRng, resolved.days).state
+
   if (progressed.status !== 'playing') {
-    return progressed
+    return { state: progressed, applied: true, elapsedDays: resolved.days }
   }
 
-  return drawEvent(progressed, events, category).state
+  return {
+    state: drawEvent(progressed, events, category).state,
+    applied: true,
+    elapsedDays: resolved.days,
+  }
 }
 
 export function getAvailableActions(state: GameState): PlayerAction[] {
@@ -87,12 +100,13 @@ export function performPlayerAction(
     }
 
     if (result.state.status !== 'playing') {
-      return { state: result.state, applied: true }
+      return { state: result.state, applied: true, elapsedDays: result.elapsedDays }
     }
 
     return {
       state: drawEvent(result.state, events, 'cultivation').state,
       applied: true,
+      elapsedDays: result.elapsedDays,
     }
   }
 
@@ -101,21 +115,15 @@ export function performPlayerAction(
       return { state, applied: false, reason: 'BREAKTHROUGH_UNAVAILABLE' }
     }
 
-    return { state: startBreakthrough(state, catalog), applied: true }
+    return { state: startBreakthrough(state, catalog), applied: true, elapsedDays: 0 }
   }
 
   if (action === 'explore') {
-    return {
-      state: drawAfterTime(state, events, 'exploration'),
-      applied: true,
-    }
+    return drawAfterDuration(state, action, events, 'exploration')
   }
 
   const livelihoodCategory: EventCategory =
     state.identity.faction === 'qingyun' ? 'sect' : 'mortal'
 
-  return {
-    state: drawAfterTime(state, events, livelihoodCategory),
-    applied: true,
-  }
+  return drawAfterDuration(state, action, events, livelihoodCategory)
 }

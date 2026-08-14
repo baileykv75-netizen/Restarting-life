@@ -1,6 +1,5 @@
 import type { GameState } from '../types/game'
-import { resolveNaturalDeath } from './lifespanEngine'
-import { advanceTimeDays } from './timeEngine'
+import { advanceWorldTime } from './worldEngine'
 
 export interface TimeProgressResult {
   state: GameState
@@ -8,6 +7,11 @@ export interface TimeProgressResult {
   reason?: 'GAME_ENDED'
 }
 
+/**
+ * Compatibility wrapper retained for existing callers/tests. From Stage 3,
+ * all gameplay time advancement delegates to advanceWorldTime so future
+ * world systems have one clock entry point.
+ */
 export function progressTime(state: GameState, days: number): TimeProgressResult {
   if (state.status !== 'playing') {
     return {
@@ -17,10 +21,8 @@ export function progressTime(state: GameState, days: number): TimeProgressResult
     }
   }
 
-  const advanced = advanceTimeDays(state, days)
-
   return {
-    state: resolveNaturalDeath(advanced),
+    state: advanceWorldTime(state, days).state,
     applied: true,
   }
 }
