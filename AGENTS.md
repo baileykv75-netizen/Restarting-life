@@ -8,13 +8,16 @@
 
 1. `CURRENT_TASK.md`：当前轮唯一施工范围；
 2. `V2_GAME_DESIGN.md`：V2.0 玩法唯一真源；
-3. `V2_MIGRATION_AUDIT.md`：V1.2 → V2.0 迁移边界；
-4. `V2_GITHUB_ROADMAP.md`：总开发顺序；
-5. `HANDOFF.md`：当前进度、已知问题和上一轮交接；
-6. `README.md`：项目入口说明；
-7. V1 / V1.1 / V1.2 文档：只作为历史参考，不得覆盖 V2 决策。
+3. `V2_CONTENT_BIBLE.md`：V2.0 首个完整可玩版本的内容真源；
+4. `V2_MIGRATION_AUDIT.md`：V1.2 → V2.0 迁移边界；
+5. `V2_GITHUB_ROADMAP.md`：总开发顺序；
+6. `HANDOFF.md`：当前进度、已知问题和上一轮交接；
+7. `README.md`：项目入口说明；
+8. V1 / V1.1 / V1.2 文档：只作为历史参考，不得覆盖 V2 决策。
 
 如果 `CURRENT_TASK.md` 与 `V2_GAME_DESIGN.md` 明显矛盾，不得自行猜测扩大任务；应采用最小兼容实现，并在交付说明中指出冲突。
+
+如果当前轮涉及具体出身、地点、人物、功法、物品、妖兽、事件、资源或世界设定，必须先查 `V2_CONTENT_BIBLE.md`。不得用路线文档中的旧示例名、临时占位内容或 Codex 自行生成内容覆盖已冻结设定。
 
 ## 2. 一轮只做一件事
 
@@ -45,6 +48,7 @@
 ## 5. 内容与代码分离
 
 - 规则代码放在 core / engine 层；内容定义放在 data 层。
+- 具体世界内容优先来源于 `V2_CONTENT_BIBLE.md`；未冻结内容不得由 Codex 自行批量扩写并反向固化为正式设定。
 - 不允许为了单个事件不断加入特殊 hardcode。
 - 优先建立可复用 condition / effect / resolver。
 - 新内容应优先改变选择、世界入口、资源、地点、关系或规则，而不是只加属性数值。
