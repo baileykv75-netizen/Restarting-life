@@ -1,7 +1,9 @@
 import { digestText, stableStringify } from '../core/stateDigest'
-import type { PersistentGame } from '../types/persistence'
+import type { LegacyPersistentGameV1, PersistentGame } from '../types/persistence'
+import { migratePersistentGameV1ToV2 } from './saveMigration'
 
-export const SAVE_KEY = 'restarting-life:v1'
+export const SAVE_KEY = 'restarting-life:v2'
+export const LEGACY_SAVE_KEY = 'restarting-life:v1'
 
 export interface StorageLike {
   getItem(key: string): string | null
@@ -9,26 +11,94 @@ export interface StorageLike {
   removeItem(key: string): void
 }
 
-interface SaveEnvelope {
-  schemaVersion: 1
+interface SaveEnvelopeV2 {
+  schemaVersion: 2
   checksum: string
   payload: PersistentGame
 }
 
-function isPersistentGame(value: unknown): value is PersistentGame {
-  if (value === null || typeof value !== 'object') return false
-  const record = value as Partial<PersistentGame>
+interface SaveEnvelopeV1 {
+  schemaVersion: 1
+  checksum: string
+  payload: LegacyPersistentGameV1
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function hasValidMeta(value: unknown): value is { totalRuns: number } {
+  if (!isRecord(value)) return false
+  return typeof value.totalRuns === 'number' && Number.isFinite(value.totalRuns)
+}
+
+function isPersistentGameV2(value: unknown): value is PersistentGame {
+  if (!isRecord(value)) return false
   return (
-    record.schemaVersion === 1 &&
-    Array.isArray(record.archives) &&
-    record.meta !== undefined &&
-    typeof record.meta.totalRuns === 'number'
+    value.schemaVersion === 2 &&
+    (value.currentSession === null || isRecord(value.currentSession)) &&
+    Array.isArray(value.archives) &&
+    hasValidMeta(value.meta)
   )
 }
 
+function isPersistentGameV1(value: unknown): value is LegacyPersistentGameV1 {
+  if (!isRecord(value)) return false
+  return (
+    value.schemaVersion === 1 &&
+    (value.currentSession === null || isRecord(value.currentSession)) &&
+    Array.isArray(value.archives) &&
+    hasValidMeta(value.meta)
+  )
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error('Save data is not valid JSON')
+  }
+}
+
+function verifyChecksum(payload: unknown, checksum: unknown): void {
+  if (typeof checksum !== 'string' || checksum !== digestText(stableStringify(payload))) {
+    throw new Error('Save checksum mismatch')
+  }
+}
+
+function parseV2Save(raw: string): PersistentGame {
+  const parsed = parseJson(raw)
+  if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
+
+  const envelope = parsed as Partial<SaveEnvelopeV2>
+  if (envelope.schemaVersion !== 2 || !isPersistentGameV2(envelope.payload)) {
+    throw new Error('Unsupported or invalid save schema')
+  }
+
+  verifyChecksum(envelope.payload, envelope.checksum)
+  return envelope.payload
+}
+
+function parseV1Save(raw: string): LegacyPersistentGameV1 {
+  const parsed = parseJson(raw)
+  if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
+
+  const envelope = parsed as Partial<SaveEnvelopeV1>
+  if (envelope.schemaVersion !== 1 || !isPersistentGameV1(envelope.payload)) {
+    throw new Error('Unsupported or invalid legacy save schema')
+  }
+
+  verifyChecksum(envelope.payload, envelope.checksum)
+  return envelope.payload
+}
+
 export function savePersistentGame(storage: StorageLike, persistent: PersistentGame): void {
-  const envelope: SaveEnvelope = {
-    schemaVersion: 1,
+  if (persistent.schemaVersion !== 2) {
+    throw new Error('Only schemaVersion 2 can be written to the V1.2 save slot')
+  }
+
+  const envelope: SaveEnvelopeV2 = {
+    schemaVersion: 2,
     checksum: digestText(stableStringify(persistent)),
     payload: persistent,
   }
@@ -36,28 +106,20 @@ export function savePersistentGame(storage: StorageLike, persistent: PersistentG
 }
 
 export function loadPersistentGame(storage: StorageLike): PersistentGame | null {
-  const raw = storage.getItem(SAVE_KEY)
-  if (raw === null) return null
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    throw new Error('Save data is not valid JSON')
+  const currentRaw = storage.getItem(SAVE_KEY)
+  if (currentRaw !== null) {
+    return parseV2Save(currentRaw)
   }
 
-  if (parsed === null || typeof parsed !== 'object') throw new Error('Save envelope is invalid')
-  const envelope = parsed as Partial<SaveEnvelope>
-  if (envelope.schemaVersion !== 1 || !isPersistentGame(envelope.payload)) {
-    throw new Error('Unsupported or invalid save schema')
-  }
+  const legacyRaw = storage.getItem(LEGACY_SAVE_KEY)
+  if (legacyRaw === null) return null
 
-  if (envelope.checksum !== digestText(stableStringify(envelope.payload))) {
-    throw new Error('Save checksum mismatch')
-  }
-  return envelope.payload
+  const migrated = migratePersistentGameV1ToV2(parseV1Save(legacyRaw))
+  savePersistentGame(storage, migrated)
+  return migrated
 }
 
 export function deletePersistentGame(storage: StorageLike): void {
   storage.removeItem(SAVE_KEY)
+  storage.removeItem(LEGACY_SAVE_KEY)
 }

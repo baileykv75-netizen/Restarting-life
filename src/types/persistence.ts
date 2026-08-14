@@ -58,10 +58,16 @@ export interface LifeSummary {
   finalRealm: GameState['cultivation']['realm']
   ageYears: number
   ageMonths: number
-  outcome: 'dead' | 'won'
+  outcome: 'dead' | 'won' | 'migrated'
   endReason: string
   largestOpportunity: string
   regret: string
+}
+
+export interface LegacyLifeMetadata {
+  sourceSchemaVersion: 1
+  migrationReason: 'v2_schema_upgrade'
+  activeAtMigration: boolean
 }
 
 export interface LifeRecord {
@@ -76,9 +82,28 @@ export interface LifeRecord {
   eventHistory: string[]
   summary: LifeSummary
   debugLog: DebugLogEntry[]
+  legacy?: LegacyLifeMetadata
 }
 
+/**
+ * Stage 1 deliberately upgrades only the persistent envelope. The live
+ * GameSession still uses the V1/V1.1 GameState contract until Stage 2 moves
+ * rule time from months to worldDay.
+ */
 export interface PersistentGame {
+  schemaVersion: 2
+  currentSession: GameSession | null
+  archives: LifeRecord[]
+  meta: {
+    totalRuns: number
+  }
+}
+
+/**
+ * Exact top-level shape accepted from the existing localStorage save before
+ * the V1.2 migration. It is read-only input to saveMigration.ts.
+ */
+export interface LegacyPersistentGameV1 {
   schemaVersion: 1
   currentSession: GameSession | null
   archives: LifeRecord[]
