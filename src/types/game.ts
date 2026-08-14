@@ -15,6 +15,7 @@ export interface GameState {
 
   identity: {
     name: string
+    birthDay: number
     backgroundId: string
     spiritRootId: string
     talentIds: string[]
