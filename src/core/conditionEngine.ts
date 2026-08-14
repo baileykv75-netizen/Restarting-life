@@ -1,14 +1,14 @@
 import type { Condition } from '../types/event'
 import type { GameState } from '../types/game'
 import { getEffectiveStat } from './effectiveStats'
-import { MONTHS_PER_YEAR } from './timeEngine'
+import { getAgeParts } from './timeEngine'
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported condition: ${JSON.stringify(value)}`)
 }
 
 export function matchesCondition(state: GameState, condition: Condition): boolean {
-  const ageYears = Math.floor(state.timeMonths / MONTHS_PER_YEAR)
+  const ageYears = getAgeParts(state.identity.birthDay, state.worldDay).years
 
   switch (condition.type) {
     case 'ageMin': return ageYears >= condition.years
