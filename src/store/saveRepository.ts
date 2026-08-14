@@ -1,6 +1,13 @@
 import { digestText, stableStringify } from '../core/stateDigest'
-import type { LegacyPersistentGameV1, PersistentGame } from '../types/persistence'
-import { migratePersistentGameV1ToV2 } from './saveMigration'
+import type {
+  LegacyPersistentGameV1,
+  PersistentGame,
+  TransitionalPersistentGameV2,
+} from '../types/persistence'
+import {
+  migratePersistentGameV1ToV2,
+  normalizePersistentGameV2,
+} from './saveMigration'
 
 export const SAVE_KEY = 'restarting-life:v2'
 export const LEGACY_SAVE_KEY = 'restarting-life:v1'
@@ -14,7 +21,7 @@ export interface StorageLike {
 interface SaveEnvelopeV2 {
   schemaVersion: 2
   checksum: string
-  payload: PersistentGame
+  payload: TransitionalPersistentGameV2
 }
 
 interface SaveEnvelopeV1 {
@@ -29,10 +36,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasValidMeta(value: unknown): value is { totalRuns: number } {
   if (!isRecord(value)) return false
-  return typeof value.totalRuns === 'number' && Number.isFinite(value.totalRuns)
+  return Number.isSafeInteger(value.totalRuns) && (value.totalRuns as number) >= 0
 }
 
-function isPersistentGameV2(value: unknown): value is PersistentGame {
+function isPersistentGameV2EnvelopePayload(value: unknown): value is TransitionalPersistentGameV2 {
   if (!isRecord(value)) return false
   return (
     value.schemaVersion === 2 &&
@@ -71,12 +78,12 @@ function parseV2Save(raw: string): PersistentGame {
   if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
 
   const envelope = parsed as Partial<SaveEnvelopeV2>
-  if (envelope.schemaVersion !== 2 || !isPersistentGameV2(envelope.payload)) {
+  if (envelope.schemaVersion !== 2 || !isPersistentGameV2EnvelopePayload(envelope.payload)) {
     throw new Error('Unsupported or invalid save schema')
   }
 
   verifyChecksum(envelope.payload, envelope.checksum)
-  return envelope.payload
+  return normalizePersistentGameV2(envelope.payload)
 }
 
 function parseV1Save(raw: string): LegacyPersistentGameV1 {
@@ -97,8 +104,8 @@ export function savePersistentGame(storage: StorageLike, persistent: PersistentG
     throw new Error('Only schemaVersion 2 can be written to the V1.2 save slot')
   }
 
-  const envelope: SaveEnvelopeV2 = {
-    schemaVersion: 2,
+  const envelope = {
+    schemaVersion: 2 as const,
     checksum: digestText(stableStringify(persistent)),
     payload: persistent,
   }
@@ -108,7 +115,11 @@ export function savePersistentGame(storage: StorageLike, persistent: PersistentG
 export function loadPersistentGame(storage: StorageLike): PersistentGame | null {
   const currentRaw = storage.getItem(SAVE_KEY)
   if (currentRaw !== null) {
-    return parseV2Save(currentRaw)
+    const normalized = parseV2Save(currentRaw)
+    // Persist normalization so Stage 1's temporary month-clock V2 payload is
+    // converted once rather than reinterpreted on every future load.
+    savePersistentGame(storage, normalized)
+    return normalized
   }
 
   const legacyRaw = storage.getItem(LEGACY_SAVE_KEY)
