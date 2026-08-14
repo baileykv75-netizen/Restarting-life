@@ -1,3 +1,4 @@
+import type { ChronicleEntry, StateChange } from './chronicle'
 import type { PlayerAction, SessionCommand } from './command'
 import type { StatKey } from './content'
 import type { Faction, GameState, Realm } from './game'
@@ -26,12 +27,6 @@ export interface OutcomeSnapshot {
   relationships: Record<string, number>
   tags: string[]
   flags: Record<string, boolean | number | string>
-}
-
-export interface StateChange {
-  label: string
-  value: string
-  tone: 'positive' | 'negative' | 'neutral'
 }
 
 export interface ResolvedOutcome {
@@ -80,6 +75,7 @@ export interface LifeRecord {
   resources: GameState['resources']
   cultivation: GameState['cultivation']
   eventHistory: string[]
+  chronicle: ChronicleEntry[]
   summary: LifeSummary
   debugLog: DebugLogEntry[]
   legacy?: LegacyLifeMetadata
@@ -209,9 +205,9 @@ export interface LegacyPersistentGameV1 {
 }
 
 /**
- * Stage 1 briefly wrote schemaVersion 2 envelopes whose live GameState still
- * used the V1 month clock. Stage 2 accepts this transitional shape once and
- * normalizes it into the current day-based schema without losing archives.
+ * Older schemaVersion 2 payloads may not yet contain Chronicle V2 fields.
+ * Runtime normalization defaults those fields instead of bumping the save
+ * schema again during the V1.2 staged rollout.
  */
 export interface TransitionalPersistentGameV2 {
   schemaVersion: 2

@@ -52,6 +52,7 @@ export function createInitialGameState({
       queue: [],
       history: [],
     },
+    chronicle: [],
     endReason: null,
   }
 }

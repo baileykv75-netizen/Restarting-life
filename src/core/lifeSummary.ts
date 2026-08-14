@@ -61,6 +61,11 @@ export function createLifeRecord(
     resources: { ...state.resources },
     cultivation: { ...state.cultivation },
     eventHistory: [...state.events.history],
+    chronicle: state.chronicle.map((entry) => ({
+      ...entry,
+      changes: entry.changes.map((change) => ({ ...change })),
+      check: entry.check ? { ...entry.check } : undefined,
+    })),
     summary: createLifeSummary(state),
     debugLog: debugLog.map((entry) => ({ ...entry, effectTypes: [...entry.effectTypes] })),
   }

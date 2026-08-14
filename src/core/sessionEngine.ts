@@ -1,10 +1,16 @@
 import { FORMAL_EVENTS } from '../data/events/formalEvents'
+import type { StateChange } from '../types/chronicle'
 import type { PlayerAction, SessionCommand } from '../types/command'
 import type { StatKey } from '../types/content'
-import type { GameSession, OutcomeSnapshot, ResolvedOutcome, StateChange } from '../types/persistence'
+import type { GameSession, OutcomeSnapshot, ResolvedOutcome } from '../types/persistence'
 import { performPlayerAction } from './actionEngine'
 import { generateBirthState } from './birthEngine'
 import { resolveBreakthroughAttempt } from './breakthroughEngine'
+import {
+  appendChronicleEntry,
+  createActionChronicleEntry,
+  createEventChronicleEntry,
+} from './chronicleEngine'
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import type { CreateGameStateOptions } from './gameState'
 import { getGameStateDigest } from './stateDigest'
@@ -211,6 +217,16 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
       } else {
         pendingAction = null
         pendingResult = buildOutcome(snapshot, nextState, actionTitle(command.action), actionNarrative(command.action))
+        nextState = appendChronicleEntry(
+          nextState,
+          createActionChronicleEntry(
+            command.action,
+            pendingResult,
+            snapshot,
+            nextState.worldDay,
+            nextState.chronicle.length + 1,
+          ),
+        )
       }
     }
   } else {
@@ -236,6 +252,17 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
       event.title,
       choice.resultText ?? `你选择了“${choice.text}”。事情有了结果，而代价也已经落在这一世。`,
       choice.consequenceText,
+    )
+    nextState = appendChronicleEntry(
+      nextState,
+      createEventChronicleEntry(
+        event,
+        choice,
+        pendingResult,
+        snapshot,
+        nextState.worldDay,
+        nextState.chronicle.length + 1,
+      ),
     )
   }
 

@@ -37,6 +37,15 @@ function convertLegacyDebugLog(entries: readonly LegacyDebugLogEntryV1[]): Debug
   }))
 }
 
+function cloneChronicle(entries: GameState['chronicle'] | undefined): GameState['chronicle'] {
+  if (!Array.isArray(entries)) return []
+  return entries.map((entry) => ({
+    ...entry,
+    changes: entry.changes.map((change) => ({ ...change })),
+    check: entry.check ? { ...entry.check } : undefined,
+  }))
+}
+
 function convertLegacyIdentity(
   identity: LegacyLifeRecordV1['identity'] | LegacyGameSessionV1['state']['identity'],
 ): GameState['identity'] {
@@ -58,6 +67,7 @@ function convertLegacyRecord(record: LegacyLifeRecordV1, activeAtMigration: bool
     resources: { ...record.resources },
     cultivation: { ...record.cultivation },
     eventHistory: [...record.eventHistory],
+    chronicle: [],
     summary: { ...record.summary },
     debugLog: convertLegacyDebugLog(record.debugLog),
     legacy: {
@@ -76,6 +86,7 @@ function cloneCurrentRecord(record: LifeRecord): LifeRecord {
     resources: { ...record.resources },
     cultivation: { ...record.cultivation },
     eventHistory: [...record.eventHistory],
+    chronicle: cloneChronicle(record.chronicle),
     summary: { ...record.summary },
     debugLog: cloneCurrentDebugLog(record.debugLog),
     legacy: record.legacy ? { ...record.legacy } : undefined,
@@ -109,6 +120,7 @@ function createLegacySessionRecord(
     resources: { ...state.resources },
     cultivation: { ...state.cultivation },
     eventHistory: [...state.events.history],
+    chronicle: [],
     summary: {
       title: getLegacyLifeTitle(session),
       finalRealm: state.cultivation.realm,
@@ -194,6 +206,7 @@ export function normalizePersistentGameV2(
             queue: [...session.state.events.queue],
             history: [...session.state.events.history],
           },
+          chronicle: cloneChronicle(session.state.chronicle),
         },
         debugLog: cloneCurrentDebugLog(session.debugLog),
         pendingResult: session.pendingResult

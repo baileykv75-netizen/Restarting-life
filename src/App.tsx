@@ -2,17 +2,16 @@ import { useState } from 'react'
 import { ActionPanel } from './components/ActionPanel'
 import { ArchivePanel } from './components/ArchivePanel'
 import { CharacterPanel } from './components/CharacterPanel'
+import { ChroniclePanel } from './components/ChroniclePanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
-import type { GameEvent } from './types/event'
 import type { PlayerAction, SessionCommand } from './types/command'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
 import { clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
-import { formatAge } from './ui/formatters'
 
 interface InitialViewState {
   game: PersistentGame
@@ -28,13 +27,6 @@ function readInitialGame(): InitialViewState {
       error: error instanceof Error ? error.message : '本地存档无法读取',
     }
   }
-}
-
-function eventImportance(event: GameEvent): 'ambient' | 'notable' | 'major' {
-  if (event.importance) return event.importance
-  if (event.category === 'breakthrough' || event.category === 'chain') return 'major'
-  if (event.once) return 'notable'
-  return 'ambient'
 }
 
 function ResultPanel({ result, onContinue }: { result: ResolvedOutcome; onContinue: () => void }) {
@@ -150,21 +142,6 @@ function App() {
   const choices = activeEvent ? getAvailableChoices(state, activeEvent) : []
   const latestRecord = game.archives.find((record) => record.runId === state.runId)
 
-  const chronicleEntries = session.debugLog
-    .filter((entry) => entry.command.type === 'choice' && entry.eventIdBefore !== null)
-    .map((entry) => {
-      const event = FORMAL_EVENT_CATALOG.get(entry.eventIdBefore!)
-      return event && eventImportance(event) !== 'ambient'
-        ? {
-            eventId: event.id,
-            text: event.chronicleText ?? event.title,
-            worldDay: entry.worldDayAfter,
-            importance: eventImportance(event),
-          }
-        : null
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-
   return (
     <main className="game-shell">
       <header className="topbar">
@@ -207,25 +184,11 @@ function App() {
           {notice && <p className="notice">{notice}</p>}
         </section>
 
-        <aside className="panel chronicle-panel" aria-label="此世传">
-          <div className="panel-heading"><span>此世传</span><strong>{chronicleEntries.length} 个人生节点</strong></div>
-          {chronicleEntries.length === 0 ? (
-            <p className="muted">真正值得写进传记的事，还没有发生。</p>
-          ) : (
-            <ol className="chronicle-list">
-              {chronicleEntries.slice(-8).reverse().map((entry, index) => (
-                <li className={entry.importance === 'major' ? 'chronicle-major' : ''} key={`${entry.eventId}-${entry.worldDay}-${index}`}>
-                  <span className="chronicle-dot" />
-                  <span><small>{formatAge(entry.worldDay, state.identity.birthDay)}</small>{entry.text}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-          <div className="debug-note">
-            <span>本世种子 · 可重放</span>
-            <code>{state.runSeed}</code>
-          </div>
-        </aside>
+        <ChroniclePanel
+          entries={state.chronicle}
+          birthDay={state.identity.birthDay}
+          runSeed={state.runSeed}
+        />
       </div>
 
       {archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}
