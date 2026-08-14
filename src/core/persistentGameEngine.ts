@@ -6,7 +6,7 @@ import { createGameSession, executeSessionCommand } from './sessionEngine'
 
 export function createEmptyPersistentGame(): PersistentGame {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     currentSession: null,
     archives: [],
     meta: { totalRuns: 0 },
