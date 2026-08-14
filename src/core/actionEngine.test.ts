@@ -4,6 +4,7 @@ import type { GameState } from '../types/game'
 import { performPlayerAction, getAvailableActions } from './actionEngine'
 import { createEventCatalog, resolveEventChoice } from './eventEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
 
 const catalog = createEventCatalog(FORMAL_EVENTS)
 
@@ -13,19 +14,14 @@ describe('actionEngine', () => {
     let state: GameState = {
       ...base,
       rngState: 1,
-      timeMonths: 18 * 12,
+      worldDay: 18 * DAYS_PER_YEAR,
       identity: { ...base.identity, spiritRootId: 'special' },
       tags: ['has_spirit_root', 'spirit_root:special'],
     }
 
-    state = performPlayerAction(
-      state,
-      'livelihood',
-      FORMAL_EVENTS,
-      catalog,
-    ).state
+    state = performPlayerAction(state, 'livelihood', FORMAL_EVENTS, catalog).state
 
-    expect(state.timeMonths).toBe(18 * 12 + 6)
+    expect(state.worldDay).toBe(18 * DAYS_PER_YEAR + 6 * DAYS_PER_MONTH)
     expect(state.events.currentEventId).toBe('mortal_immortal_encounter')
 
     state = resolveEventChoice(state, catalog, 'join_qingyun')
@@ -43,15 +39,10 @@ describe('actionEngine', () => {
       cultivation: { realm: 'qi', stage: 1 },
     }
 
-    const result = performPlayerAction(
-      state,
-      'cultivate',
-      FORMAL_EVENTS,
-      catalog,
-    )
+    const result = performPlayerAction(state, 'cultivate', FORMAL_EVENTS, catalog)
 
     expect(result.applied).toBe(true)
-    expect(result.state.timeMonths).toBe(12)
+    expect(result.state.worldDay).toBe(DAYS_PER_YEAR)
     expect(result.state.events.currentEventId).toBe('cultivation_steady_breathing')
   })
 
@@ -62,12 +53,7 @@ describe('actionEngine', () => {
       events: { ...base.events, currentEventId: 'some_event' },
     }
 
-    const result = performPlayerAction(
-      state,
-      'explore',
-      FORMAL_EVENTS,
-      catalog,
-    )
+    const result = performPlayerAction(state, 'explore', FORMAL_EVENTS, catalog)
     expect(result.applied).toBe(false)
     expect(result.reason).toBe('EVENT_ACTIVE')
   })
