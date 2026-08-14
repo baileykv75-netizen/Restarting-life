@@ -4,6 +4,7 @@ export const TALENTS = [
   {
     id: 'strong_body',
     name: '天生强健',
+    description: '你从小少病少痛，筋骨比同龄人更扎实。',
     weight: 10,
     statModifiers: { constitution: 2 },
     spiritStones: 0,
@@ -11,6 +12,7 @@ export const TALENTS = [
   {
     id: 'photographic_memory',
     name: '过目不忘',
+    description: '见过的文字与图样很难从你的记忆里消失。',
     weight: 10,
     statModifiers: { comprehension: 2 },
     spiritStones: 0,
@@ -18,6 +20,7 @@ export const TALENTS = [
   {
     id: 'keen_soul',
     name: '神魂敏锐',
+    description: '你对细微声息和灵机变化总比旁人更敏感。',
     weight: 10,
     statModifiers: { spiritSense: 2 },
     spiritStones: 0,
@@ -25,6 +28,7 @@ export const TALENTS = [
   {
     id: 'pure_heart',
     name: '赤子之心',
+    description: '许多事情在你心里来得直接，也更少被杂念牵着走。',
     weight: 10,
     statModifiers: { mentality: 2 },
     spiritStones: 0,
@@ -32,6 +36,7 @@ export const TALENTS = [
   {
     id: 'fortunate',
     name: '福缘深厚',
+    description: '你的人生里，偶尔会多出一点说不清来由的好运。',
     weight: 8,
     statModifiers: { luck: 2 },
     spiritStones: 0,
@@ -39,6 +44,7 @@ export const TALENTS = [
   {
     id: 'hard_worker',
     name: '吃苦耐劳',
+    description: '枯燥和劳累很难让你轻易停下来。',
     weight: 10,
     statModifiers: { constitution: 1, mentality: 1 },
     spiritStones: 0,
@@ -46,6 +52,7 @@ export const TALENTS = [
   {
     id: 'dao_seed',
     name: '悟道种子',
+    description: '你常会在寻常事情里多想一步，也更愿意把一个道理追到底。',
     weight: 7,
     statModifiers: { comprehension: 1, mentality: 1 },
     spiritStones: 0,
@@ -53,6 +60,7 @@ export const TALENTS = [
   {
     id: 'observant',
     name: '察微知著',
+    description: '别人容易忽略的小变化，你往往会多看一眼。',
     weight: 9,
     statModifiers: { spiritSense: 1, comprehension: 1 },
     spiritStones: 0,
@@ -60,6 +68,7 @@ export const TALENTS = [
   {
     id: 'wealth_luck',
     name: '财运亨通',
+    description: '你似乎总比旁人更容易攒下第一笔本钱。',
     weight: 7,
     statModifiers: { luck: 1 },
     spiritStones: 20,
@@ -67,6 +76,7 @@ export const TALENTS = [
   {
     id: 'tempered_by_hardship',
     name: '苦难磨心',
+    description: '早年的难处没有压垮你，却也让你习惯把好运想得少一些。',
     weight: 9,
     statModifiers: { mentality: 2, constitution: 1, luck: -1 },
     spiritStones: 0,
