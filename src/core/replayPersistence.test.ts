@@ -13,6 +13,7 @@ import {
   executeSessionChoice,
   FORMAL_EVENT_CATALOG,
 } from './sessionEngine'
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
 
 describe('stage-6 replay and archives', () => {
   it('records successful operations and replays them to the same state', () => {
@@ -24,9 +25,7 @@ describe('stage-6 replay and archives', () => {
     expect(session.debugLog).toHaveLength(1)
     expect(session.debugLog[0].seq).toBe(1)
     expect(session.debugLog[0].rngBefore).toBeTypeOf('number')
-    expect(session.debugLog[0].stateDigestBefore).not.toBe(
-      session.debugLog[0].stateDigestAfter,
-    )
+    expect(session.debugLog[0].stateDigestBefore).not.toBe(session.debugLog[0].stateDigestAfter)
 
     const eventId = session.state.events.currentEventId
     expect(eventId).not.toBeNull()
@@ -50,9 +49,7 @@ describe('stage-6 replay and archives', () => {
   })
 
   it('archives a finished life exactly once and keeps the archive across reincarnation', () => {
-    let persistent = startNewRun(createEmptyPersistentGame(), {
-      runSeed: 'archive-life',
-    })
+    let persistent = startNewRun(createEmptyPersistentGame(), { runSeed: 'archive-life' })
     const current = persistent.currentSession!
     const prepared: PersistentGame = {
       ...persistent,
@@ -60,26 +57,20 @@ describe('stage-6 replay and archives', () => {
         ...current,
         state: {
           ...current.state,
-          timeMonths: 80 * 12 - 6,
+          worldDay: current.state.identity.birthDay + 80 * DAYS_PER_YEAR - 6 * DAYS_PER_MONTH,
           identity: { ...current.state.identity, spiritRootId: 'none' },
           tags: ['no_spirit_root', 'spirit_root:none'],
         },
       },
     }
 
-    const ended = applyPersistentCommand(prepared, {
-      type: 'action',
-      action: 'livelihood',
-    })
+    const ended = applyPersistentCommand(prepared, { type: 'action', action: 'livelihood' })
     expect(ended.applied).toBe(true)
     expect(ended.persistent.currentSession?.state.status).toBe('dead')
     expect(ended.persistent.archives).toHaveLength(1)
     expect(ended.persistent.archives[0].summary.outcome).toBe('dead')
 
-    const rejected = applyPersistentCommand(ended.persistent, {
-      type: 'action',
-      action: 'explore',
-    })
+    const rejected = applyPersistentCommand(ended.persistent, { type: 'action', action: 'explore' })
     expect(rejected.applied).toBe(false)
     expect(rejected.persistent.archives).toHaveLength(1)
 
