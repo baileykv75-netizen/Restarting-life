@@ -1,0 +1,89 @@
+.character-name {
+  margin: 0 0 7px;
+  color: #ece4d4;
+  font-size: 1.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.trait-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.trait-card {
+  padding: 12px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.trait-card-origin {
+  background: rgba(119, 139, 105, 0.055);
+}
+
+.trait-card strong {
+  color: #d9d2c5;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.trait-card p {
+  margin: 7px 0 9px;
+  color: #9fa59f;
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+
+.trait-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.trait-effects span {
+  padding: 3px 7px;
+  border: 1px solid rgba(177, 196, 183, 0.13);
+  border-radius: 999px;
+  color: #b9c5bd;
+  background: rgba(102, 130, 113, 0.055);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.66rem;
+}
+
+.action-button-rich {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-height: 108px;
+  padding: 16px 18px;
+  text-align: left;
+}
+
+.action-button-rich strong {
+  color: #ddd6c8;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.action-button-rich > span {
+  color: #aeb8b1;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+}
+
+.action-button-rich small {
+  color: #8f9690;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.result-card .story-text:empty {
+  display: none;
+}
+
+@media (max-width: 1050px) {
+  .trait-card p {
+    max-width: 560px;
+  }
+}
