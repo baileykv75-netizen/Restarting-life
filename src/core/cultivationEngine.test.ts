@@ -6,6 +6,7 @@ import {
   performBasicCultivation,
 } from './cultivationEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_YEAR } from './timeEngine'
 
 describe('cultivation engine', () => {
   it('uses stats, spirit root and realm factor for deterministic cultivation gain', () => {
@@ -21,7 +22,7 @@ describe('cultivation engine', () => {
     const result = performBasicCultivation(cultivator)
     expect(result.applied).toBe(true)
     expect(result.gain).toBe(50)
-    expect(result.state.timeMonths).toBe(12)
+    expect(result.state.worldDay).toBe(DAYS_PER_YEAR)
     expect(result.state.resources.cultivation).toBe(50)
   })
 
