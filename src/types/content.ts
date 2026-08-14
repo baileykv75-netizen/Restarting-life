@@ -11,6 +11,7 @@ export interface WeightedDefinition {
 }
 
 export interface BackgroundDefinition extends WeightedDefinition {
+  description: string
   statModifiers: StatModifiers
   spiritStones: number
   tags: string[]
@@ -21,6 +22,7 @@ export interface SpiritRootDefinition extends WeightedDefinition {
 }
 
 export interface TalentDefinition extends WeightedDefinition {
+  description: string
   statModifiers: StatModifiers
   spiritStones: number
 }

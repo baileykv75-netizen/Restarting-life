@@ -128,14 +128,6 @@ function buildChanges(before: OutcomeSnapshot, after: GameSession['state']): Sta
   return changes
 }
 
-function hiddenHistoryChanged(before: OutcomeSnapshot, after: GameSession['state']): boolean {
-  if (before.tags.length !== after.tags.length) return true
-  const beforeKeys = Object.keys(before.flags)
-  const afterKeys = Object.keys(after.flags)
-  if (beforeKeys.length !== afterKeys.length) return true
-  return afterKeys.some((key) => before.flags[key] !== after.flags[key])
-}
-
 function buildOutcome(
   before: OutcomeSnapshot,
   after: GameSession['state'],
@@ -147,24 +139,22 @@ function buildOutcome(
     title,
     narrative,
     changes: buildChanges(before, after),
-    consequence: consequence ?? (hiddenHistoryChanged(before, after)
-      ? '这次选择已经被世界记住，未来或许会再次回应你。'
-      : null),
+    consequence: consequence ?? null,
   }
 }
 
 function actionTitle(action: PlayerAction): string {
-  if (action === 'cultivate') return '一轮修行结束'
-  if (action === 'explore') return '这次历练告一段落'
-  if (action === 'livelihood') return '这一段营生结束'
+  if (action === 'cultivate') return '闭关结束'
+  if (action === 'explore') return '外出归来'
+  if (action === 'livelihood') return '差事做完了'
   return '突破结果'
 }
 
 function actionNarrative(action: PlayerAction): string {
-  if (action === 'cultivate') return '岁月在吐纳与周天中流逝，你重新审视这一年真正留下了什么。'
-  if (action === 'explore') return '你结束这次远行，把所得与代价一并带回。'
-  if (action === 'livelihood') return '忙碌告一段落，报酬、关系与消耗都已落到实处。'
-  return '你已经作出了这次突破的选择。'
+  if (action === 'cultivate') return '这一段修炼告一段落。'
+  if (action === 'explore') return '你结束这次外出，回到了熟悉的地方。'
+  if (action === 'livelihood') return '这段日子忙完，报酬也已经结清。'
+  return ''
 }
 
 export function createGameSession(options: CreateGameStateOptions): GameSession {
@@ -250,7 +240,7 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
       snapshot,
       nextState,
       event.title,
-      choice.resultText ?? `你选择了“${choice.text}”。事情有了结果，而代价也已经落在这一世。`,
+      choice.resultText ?? '',
       choice.consequenceText,
     )
     nextState = appendChronicleEntry(

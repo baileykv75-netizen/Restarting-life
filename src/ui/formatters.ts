@@ -1,12 +1,33 @@
 import type { GameState } from '../types/game'
 import { getRemainingLifespanDays } from '../core/lifespanEngine'
-import { formatDuration, getAgeParts } from '../core/timeEngine'
+import { formatDuration, getAgeParts, getSeason } from '../core/timeEngine'
+
+const SEASON_LABELS = {
+  spring: '春',
+  summer: '夏',
+  autumn: '秋',
+  winter: '冬',
+} as const
 
 export function formatAge(worldDay: number, birthDay = 0): string {
   const age = getAgeParts(birthDay, worldDay)
   if (age.months === 0 && age.days === 0) return `${age.years}岁`
   if (age.days === 0) return `${age.years}岁${age.months}个月`
   return `${age.years}岁${age.months}个月${age.days}日`
+}
+
+export function formatLifeMoment(worldDay: number, birthDay = 0): string {
+  const age = getAgeParts(birthDay, worldDay)
+  return `${age.years}岁 · ${SEASON_LABELS[getSeason(worldDay)]}`
+}
+
+export function formatLifeSpan(startDay: number, endDay: number, birthDay = 0): string {
+  const startAge = getAgeParts(birthDay, startDay)
+  const endAge = getAgeParts(birthDay, endDay)
+  if (startAge.years !== endAge.years) {
+    return `${startAge.years}岁至${endAge.years}岁`
+  }
+  return formatLifeMoment(endDay, birthDay)
 }
 
 export function formatRealm(state: GameState): string {

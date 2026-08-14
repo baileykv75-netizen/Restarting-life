@@ -11,7 +11,7 @@
 
 .chronicle-story-list {
   display: grid;
-  gap: 14px;
+  gap: 11px;
   list-style: none;
   margin: 18px 0 0;
   padding: 0;
@@ -37,12 +37,27 @@
   box-shadow: 0 0 0 4px rgba(127, 155, 136, 0.08);
 }
 
+.chronicle-entry-compact {
+  padding: 11px 12px 11px;
+  border-color: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.chronicle-entry-compact::before {
+  top: 14px;
+  width: 5px;
+  height: 5px;
+  background: #73847a;
+  box-shadow: none;
+}
+
 .chronicle-notable {
   border-color: rgba(177, 194, 151, 0.15);
   background: linear-gradient(145deg, rgba(119, 139, 105, 0.07), rgba(255, 255, 255, 0.018));
 }
 
 .chronicle-major {
+  padding: 19px 17px 17px;
   border-color: rgba(200, 175, 117, 0.23);
   background: linear-gradient(145deg, rgba(151, 117, 66, 0.105), rgba(255, 255, 255, 0.018));
 }
@@ -66,6 +81,35 @@
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.45;
+}
+
+.chronicle-major h3 {
+  color: #e4d8be;
+  font-size: 1.08rem;
+}
+
+.chronicle-compact-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.chronicle-compact-copy strong {
+  color: #c8c2b6;
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.chronicle-compact-copy span {
+  color: #969c96;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.chronicle-compact-choice {
+  margin: 7px 0 0;
+  color: #aeb7b0;
+  font-size: 0.7rem;
+  line-height: 1.55;
 }
 
 .chronicle-scene,
@@ -108,7 +152,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 11px;
+  margin-top: 10px;
+}
+
+.chronicle-entry-compact .chronicle-changes {
+  margin-top: 7px;
 }
 
 .chronicle-change {
@@ -118,6 +166,11 @@
   color: #aeb3ad;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.66rem;
+}
+
+.chronicle-entry-compact .chronicle-change {
+  padding: 2px 6px;
+  font-size: 0.62rem;
 }
 
 .chronicle-change.positive {

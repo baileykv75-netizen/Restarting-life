@@ -10,37 +10,81 @@ interface ActionPanelProps {
   onAction: (action: PlayerAction) => void
 }
 
-function durationPreview(duration: Duration | null): string {
-  if (!duration) return ''
-  if (duration.type === 'fixed') return formatDuration(duration.days)
-  return `${formatDuration(duration.minDays)}～${formatDuration(duration.maxDays)}`
+interface ActionCopy {
+  title: string
+  duration?: string
+  description: string
 }
 
-function actionLabel(action: PlayerAction, state: GameState): string {
-  if (action === 'breakthrough') return '尝试突破 · 进入大境界考验'
+function durationPreview(duration: Duration | null): string {
+  if (!duration) return ''
+  if (duration.type === 'fixed') return `约${formatDuration(duration.days)}`
+  return `约${formatDuration(duration.minDays)}～${formatDuration(duration.maxDays)}`
+}
+
+function actionCopy(action: PlayerAction, state: GameState): ActionCopy {
+  if (action === 'breakthrough') {
+    return {
+      title: '尝试突破',
+      description: '把已经积累的修为推向下一个境界。',
+    }
+  }
 
   const duration = durationPreview(getActionDuration(action))
-  if (action === 'cultivate') return `闭关修炼 · 约${duration} · 稳定积累修为`
-  if (action === 'explore') return `外出历练 · 约${duration} · 机缘与风险并存`
-  if (state.identity.faction === 'qingyun') return `宗门事务 · 约${duration} · 灵石 / 人情 / 机会`
-  if (state.identity.faction === 'loose') return `散修谋生 · 约${duration} · 委托 / 坊市 / 人脉`
-  return state.tags.includes('has_spirit_root')
-    ? `凡尘谋生 · 约${duration} · 攒资源并寻找仙缘`
-    : `凡尘谋生 · 约${duration} · 在有限寿元里寻找改命机会`
+  if (action === 'cultivate') {
+    return {
+      title: '闭关修炼',
+      duration,
+      description: '静下心来打磨当前境界。',
+    }
+  }
+  if (action === 'explore') {
+    return {
+      title: '外出走走',
+      duration,
+      description: '离开熟悉之地一阵，路上未必总有收获。',
+    }
+  }
+  if (state.identity.faction === 'qingyun') {
+    return {
+      title: '接宗门差事',
+      duration,
+      description: '替宗门做些事情，换取报酬，也会遇见同门。',
+    }
+  }
+  if (state.identity.faction === 'loose') {
+    return {
+      title: '接些散修营生',
+      duration,
+      description: '靠委托和手头本事维持修行。',
+    }
+  }
+  return {
+    title: '在镇上谋生',
+    duration,
+    description: state.tags.includes('has_spirit_root')
+      ? '先把眼前日子过稳，再想修行需要的资源。'
+      : '先活下去，也留心那些可能改变命运的消息。',
+  }
 }
 
 export function ActionPanel({ state, actions, onAction }: ActionPanelProps) {
   return (
     <section className="story-card">
-      <p className="story-kicker">安排下一段人生</p>
-      <h2>这一段岁月，你准备把时间花在哪里？</h2>
-      <p className="story-text">不同事情会消耗不同时间；事件选择之后会先展示明确的时间、灵石、修为、属性与关系变化。</p>
+      <p className="story-kicker">接下来做什么</p>
+      <h2>眼下没有非做不可的事。</h2>
+      <p className="story-text">你可以自己安排这一段时间。</p>
       <div className="action-grid">
-        {actions.map((action) => (
-          <button className="action-button" key={action} onClick={() => onAction(action)} type="button">
-            {actionLabel(action, state)}
-          </button>
-        ))}
+        {actions.map((action) => {
+          const copy = actionCopy(action, state)
+          return (
+            <button className="action-button action-button-rich" key={action} onClick={() => onAction(action)} type="button">
+              <strong>{copy.title}</strong>
+              {copy.duration && <span>{copy.duration}</span>}
+              <small>{copy.description}</small>
+            </button>
+          )
+        })}
       </div>
     </section>
   )
