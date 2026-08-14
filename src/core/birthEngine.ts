@@ -4,6 +4,7 @@ import { TALENTS } from '../data/talents'
 import type { StatModifiers } from '../types/content'
 import type { GameState } from '../types/game'
 import { createInitialGameState, type CreateGameStateOptions } from './gameState'
+import { deriveCharacterName } from './nameEngine'
 import { randomInt, weightedPick } from './rng'
 import { DAYS_PER_YEAR } from './timeEngine'
 
@@ -88,6 +89,7 @@ export function generateBirthState(options: CreateGameStateOptions): GameState {
     rngState: secondTalentRoll.nextState,
     identity: {
       ...initial.identity,
+      name: deriveCharacterName(initial.runSeed),
       backgroundId: backgroundRoll.item.id,
       spiritRootId: rootRoll.item.id,
       talentIds: selectedTalents.map((talent) => talent.id),
