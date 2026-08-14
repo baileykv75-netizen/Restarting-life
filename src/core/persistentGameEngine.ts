@@ -6,7 +6,8 @@ import { createGameSession, executeSessionCommand } from './sessionEngine'
 
 export function createEmptyPersistentGame(): PersistentGame {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    phase: 'birth-selection',
     currentSession: null,
     archives: [],
     meta: { totalRuns: 0 },
@@ -23,6 +24,7 @@ export function startNewRun(
 
   return {
     ...persistent,
+    phase: 'life',
     currentSession: createGameSession(options),
     meta: {
       ...persistent.meta,
@@ -63,6 +65,7 @@ export function applyPersistentCommand(
   return {
     persistent: {
       ...persistent,
+      phase: result.session.state.status === 'playing' ? 'life' : 'ended',
       currentSession: result.session,
       archives,
     },

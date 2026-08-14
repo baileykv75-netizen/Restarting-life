@@ -60,8 +60,8 @@ export interface LifeSummary {
 }
 
 export interface LegacyLifeMetadata {
-  sourceSchemaVersion: 1
-  migrationReason: 'v2_schema_upgrade'
+  sourceSchemaVersion: 1 | 2
+  migrationReason: 'v2_schema_upgrade' | 'v3_schema_upgrade'
   activeAtMigration: boolean
 }
 
@@ -81,8 +81,11 @@ export interface LifeRecord {
   legacy?: LegacyLifeMetadata
 }
 
+export type PersistentPhase = 'birth-selection' | 'life' | 'ended'
+
 export interface PersistentGame {
-  schemaVersion: 2
+  schemaVersion: 3
+  phase: PersistentPhase
   currentSession: GameSession | null
   archives: LifeRecord[]
   meta: {
@@ -92,7 +95,7 @@ export interface PersistentGame {
 
 // ---------------------------------------------------------------------------
 // Legacy V1/V1.1 shapes. These are read-only migration inputs and must not be
-// used by the live V1.2 engine.
+// used by the live V1.2/V2 engine.
 // ---------------------------------------------------------------------------
 
 export interface LegacyGameStateV1 {
@@ -205,14 +208,26 @@ export interface LegacyPersistentGameV1 {
 }
 
 /**
- * Older schemaVersion 2 payloads may not yet contain Chronicle V2 fields.
- * Runtime normalization defaults those fields instead of bumping the save
- * schema again during the V1.2 staged rollout.
+ * Older schemaVersion 2 payloads may still contain month-clock V1 sessions or
+ * records. They are read-only migration inputs for the V3 save slot.
  */
 export interface TransitionalPersistentGameV2 {
   schemaVersion: 2
   currentSession: LegacyGameSessionV1 | GameSession | null
   archives: Array<LegacyLifeRecordV1 | LifeRecord>
+  meta: {
+    totalRuns: number
+  }
+}
+
+/**
+ * Normalized V2 shape used only as an intermediate migration representation.
+ * Live writes use PersistentGame schemaVersion 3.
+ */
+export interface NormalizedPersistentGameV2 {
+  schemaVersion: 2
+  currentSession: GameSession | null
+  archives: LifeRecord[]
   meta: {
     totalRuns: number
   }

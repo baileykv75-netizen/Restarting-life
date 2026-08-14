@@ -4,8 +4,8 @@
 
 ## 当前状态
 
-- 当前开发主线：**V2.0 迁移准备**。
-- 当前仓库线上可玩代码仍然是 V1.2 主循环。
+- 当前开发主线：**V2.0 迁移准备已完成，下一轮进入统一状态扩展**。
+- 当前网页玩法仍暂时运行 V1.2 legacy 主循环，尚未进入地点驱动世界。
 - V2.0 不另开仓库，不另建长期并行 `src/v2/`。
 - V2.0 采用“保留底层工程底座、逐轮替换玩法承重层”的迁移方式。
 
@@ -23,18 +23,45 @@
 - `HANDOFF.md`：本交接文件；
 - `README.md`：已切换到 V2.0 迁移阶段说明。
 
-R00.1 **未修改任何 `src/` 游戏代码**。
+R00.1 未修改任何 `src/` 游戏代码。
 
 ### R00.2｜冻结 V1.2 旧玩法边界
 
 已在不改变运行逻辑的前提下冻结以下 legacy 边界：
 
-- `src/components/ActionPanel.tsx`：明确为 V1.2 legacy gameplay shell；V2 地点驱动 World Shell 验证后才退役。
-- `src/core/actionEngine.ts`：明确 `duration -> drawEvent(category)` 与四行为列表属于 V1.2 legacy 主循环职责；不得继续扩张为 V2 探索 / 地点 / 宗门 / 世界系统。
-- `src/data/events/formalEvents.ts`：明确 `FORMAL_EVENTS` 是 V1.2 全局主循环事件源；V2 事件应改由地点、宗门、功法、NPC、世界状态等上下文触发。
-- `src/data/events/chainEvents.ts`：明确现有固定人生链仅作为 legacy 内容素材，不得继续扩张为 V2 全局人生路线。
+- `src/components/ActionPanel.tsx`：V1.2 legacy gameplay shell；V2 地点驱动 World Shell 验证后才退役。
+- `src/core/actionEngine.ts`：`duration -> drawEvent(category)` 与四行为列表属于 V1.2 legacy 主循环职责；不得继续扩张为 V2 探索 / 地点 / 宗门 / 世界系统。
+- `src/data/events/formalEvents.ts`：`FORMAL_EVENTS` 是 V1.2 全局主循环事件源；V2 事件最终应由地点、宗门、功法、NPC、世界状态等上下文触发。
+- `src/data/events/chainEvents.ts`：现有固定人生链仅作为 legacy 内容素材，不得继续扩张为 V2 全局人生路线。
 
-本轮只增加迁移注释并更新交接，没有修改事件概率、事件内容、数值、时间、UI 行为、存档 schema 或 GameState 字段，也没有新增地点系统。
+### R00.3｜存档 V3 与可扩展 GameState 入口
+
+已完成持久化层迁移：
+
+- 当前 `PersistentGame.schemaVersion` 升级为 `3`。
+- 当前浏览器存档槽改为 `restarting-life:v3`。
+- `restarting-life:v2` 与 `restarting-life:v1` 保留为只读迁移输入；正常迁移不会主动删除旧槽。
+- `PersistentGame` 新增真实阶段状态：
+  - `birth-selection`
+  - `life`
+  - `ended`
+- 无存档时 `createEmptyPersistentGame()` 进入 `birth-selection`。
+- 当前 legacy 开始流程暂时仍直接生成现有人生，但开始后 phase 切为 `life`；真正的出生三选一留给后续 R05。
+- 一次已接受的操作导致人生结束后，phase 切为 `ended`。
+- V2 活跃人生不会直接续接到 V3：升级时封存为 legacy archive，V3 回到 `birth-selection`。
+- V1 存档继续通过 V1→V2→V3 迁移链，原始 `sourceSchemaVersion: 1` 元数据保留。
+- V3 继续使用 checksum；已存在但损坏的 V3 不会静默回退到 V2。
+- 显式清档会删除 v3/v2/v1 三个槽；普通加载迁移不会删除旧槽。
+
+### R00.3 的重要边界
+
+本轮**没有**升级 `GameState.schemaVersion`，它仍是当前 V1.2 的 schema 2。
+
+这是刻意的：
+
+> R00.3 只负责外层持久化与人生阶段入口；真正扩展统一 GameState 属于 R01。
+
+这样避免在同一轮同时做“存档迁移 + 状态重构”。
 
 ## 当前确认可复用的基础设施
 
@@ -84,28 +111,17 @@ Event Engine 保留，但不再作为整个世界的主驱动器。
 - 新系统先上线，旧系统后退役。
 - 不先删除旧 ActionPanel / actionEngine 再重写。
 - 不创建第二套权威 GameState。
-- 不强迁正在进行的 V1.2 当前人生为 V2 世界。
-- V2 存档后续使用 schemaVersion 3 / `restarting-life:v3`，但这属于 R00.3，不得提前实施。
+- 不强迁正在进行的 V1.2/V2 当前人生为新世界运行态。
+- 当前 live persistence 为 schema 3；旧 v1/v2 只作为迁移输入。
+- `GameState` 的正式 V2 扩展从 R01 开始，按需增加，不一次性塞入所有未来系统。
 - 旧 V1 / V1.1 / V1.2 文档只作为历史参考；发生冲突以 `V2_GAME_DESIGN.md` 为准。
 
 ## 下一轮
 
 执行：
 
-> **R00.3｜存档 V3 与可扩展 GameState 入口**
+> **R01｜扩展现有统一 GameState**
 
-下一轮必须先把 `CURRENT_TASK.md` 切换为 R00.3 的最小任务定义，再开始修改代码。
+具体范围以 `CURRENT_TASK.md` 为准。
 
-R00.3 的目标是建立 V2 存档与状态迁移入口，不是一次性实现整个 V2 GameState。
-
-## R00.3 边界提醒
-
-R00.3 只应处理：
-
-- schemaVersion 3；
-- `restarting-life:v3`；
-- 旧 v2 存档保留 / 安全处理；
-- 新人生进入 V3 的最小 phase / birth 状态入口；
-- 对应存档与迁移测试。
-
-R00.3 不得提前加入完整 inventory / combat / sect / beast / world map 等 V2 系统。
+R01 必须继续扩展现有 `src/types/game.ts` / `src/core/gameState.ts`，不得新建长期并行 `GameStateV2`。
