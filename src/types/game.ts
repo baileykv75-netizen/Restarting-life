@@ -5,13 +5,13 @@ export type Realm = 'mortal' | 'qi' | 'foundation' | 'golden_core'
 export type Faction = 'mortal' | 'qingyun' | 'loose'
 
 export interface GameState {
-  schemaVersion: 1
+  schemaVersion: 2
   runId: string
   runSeed: string
   rngState: number
 
   status: GameStatus
-  timeMonths: number
+  worldDay: number
 
   identity: {
     name: string
