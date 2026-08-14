@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DAYS_PER_YEAR } from '../core/timeEngine'
 import type { StorageLike } from './saveRepository'
 import { commandAndSave, loadGame, startAndSaveRun } from './browserGameStore'
 
@@ -16,7 +17,7 @@ describe('browser game store', () => {
     const next = startAndSaveRun(storage, empty, 123456)
 
     expect(next.meta.totalRuns).toBe(1)
-    expect(next.currentSession?.state.timeMonths).toBe(16 * 12)
+    expect(next.currentSession?.state.worldDay).toBe(16 * DAYS_PER_YEAR)
     expect(loadGame(storage)).toEqual(next)
   })
 
