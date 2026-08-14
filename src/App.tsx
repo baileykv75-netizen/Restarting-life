@@ -12,6 +12,7 @@ import { getAvailableChoices } from './core/eventEngine'
 import type { PlayerAction, SessionCommand } from './types/command'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
 import { clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
+import './experience-cleanup.css'
 
 interface InitialViewState {
   game: PersistentGame
