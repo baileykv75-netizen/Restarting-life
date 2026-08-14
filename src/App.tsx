@@ -129,13 +129,13 @@ function App() {
     return (
       <main className="landing-shell">
         <section className="landing-card">
-          <p className="eyebrow">RESTARTING LIFE · V1.1 PLAYTEST</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.2 FOUNDATION</p>
           <h1>此世问长生</h1>
-          <p className="landing-lead">一世一因果。不是回答问卷，而是在有限寿元里真正活完一名修士的人生。</p>
-          <p className="muted">选择结果量化 · 事件防重复 · 境界成长 · 长期因果</p>
+          <p className="landing-lead">一世一因果。不是回答问卷，而是在有限寿元里真正活完一个人的人生。</p>
+          <p className="muted">自然时间地基 · 量化结果 · 隐藏因果 · 人生档案</p>
           <div className="landing-actions">
-            <button className="primary-button" onClick={persistStart} type="button">开启第一世</button>
-            <button className="secondary-button" onClick={() => setArchiveOpen(true)} type="button">前世档案 · {game.archives.length}</button>
+            <button className="primary-button" onClick={persistStart} type="button">开启新的一生</button>
+            <button className="secondary-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 · {game.archives.length}</button>
           </div>
           {notice && <p className="notice">{notice}</p>}
         </section>
@@ -158,7 +158,7 @@ function App() {
         ? {
             eventId: event.id,
             text: event.chronicleText ?? event.title,
-            timeMonths: entry.timeMonthsAfter,
+            worldDay: entry.worldDayAfter,
             importance: eventImportance(event),
           }
         : null
@@ -169,12 +169,12 @@ function App() {
     <main className="game-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RESTARTING LIFE · V1.1</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.2 FOUNDATION</p>
           <h1>此世问长生</h1>
         </div>
         <div className="topbar-actions">
           <span className="run-pill">第 {game.meta.totalRuns} 世</span>
-          <button className="text-button" onClick={() => setArchiveOpen(true)} type="button">前世档案 {game.archives.length}</button>
+          <button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button>
         </div>
       </header>
 
@@ -214,9 +214,9 @@ function App() {
           ) : (
             <ol className="chronicle-list">
               {chronicleEntries.slice(-8).reverse().map((entry, index) => (
-                <li className={entry.importance === 'major' ? 'chronicle-major' : ''} key={`${entry.eventId}-${entry.timeMonths}-${index}`}>
+                <li className={entry.importance === 'major' ? 'chronicle-major' : ''} key={`${entry.eventId}-${entry.worldDay}-${index}`}>
                   <span className="chronicle-dot" />
-                  <span><small>{formatAge(entry.timeMonths)}</small>{entry.text}</span>
+                  <span><small>{formatAge(entry.worldDay, state.identity.birthDay)}</small>{entry.text}</span>
                 </li>
               ))}
             </ol>
