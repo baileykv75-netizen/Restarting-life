@@ -193,7 +193,12 @@ function getV2LifeTitle(session: GameSession): string {
 function createV2SessionRecord(session: GameSession, sequence: number): LifeRecord {
   const { state } = session
   const wasActive = state.status === 'playing'
-  const outcome: LifeRecord['summary']['outcome'] = wasActive ? 'migrated' : state.status
+  const outcome: LifeRecord['summary']['outcome'] =
+    state.status === 'playing'
+      ? 'migrated'
+      : state.status === 'dead'
+        ? 'dead'
+        : 'won'
   const ageDays = Math.max(0, state.worldDay - state.identity.birthDay)
 
   return {
