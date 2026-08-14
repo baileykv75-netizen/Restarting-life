@@ -6,12 +6,15 @@ import type {
   GameSession,
   LegacyDebugLogEntryV1,
   LegacyGameSessionV1,
+  LegacyGameSessionV2,
   LegacyLifeRecordV1,
+  LegacyLifeRecordV2,
   LegacyPersistentGameV1,
   LifeRecord,
   NormalizedPersistentGameV2,
   PersistentGame,
   TransitionalPersistentGameV2,
+  TransitionalPersistentGameV3,
 } from '../types/persistence'
 
 function cloneCurrentDebugLog(entries: readonly DebugLogEntry[]): DebugLogEntry[] {
@@ -47,9 +50,30 @@ function cloneChronicle(entries: GameState['chronicle'] | undefined): GameState[
   }))
 }
 
+function clonePendingResult(result: GameSession['pendingResult']): GameSession['pendingResult'] {
+  return result
+    ? { ...result, changes: result.changes.map((change) => ({ ...change })) }
+    : null
+}
+
+function clonePendingAction(action: GameSession['pendingAction']): GameSession['pendingAction'] {
+  return action
+    ? {
+        ...action,
+        snapshot: {
+          ...action.snapshot,
+          stats: { ...action.snapshot.stats },
+          relationships: { ...action.snapshot.relationships },
+          tags: [...action.snapshot.tags],
+          flags: { ...action.snapshot.flags },
+        },
+      }
+    : null
+}
+
 function convertLegacyIdentity(
   identity: LegacyLifeRecordV1['identity'] | LegacyGameSessionV1['state']['identity'],
-): GameState['identity'] {
+): LegacyLifeRecordV2['identity'] {
   return {
     ...identity,
     birthDay: 0,
@@ -57,7 +81,7 @@ function convertLegacyIdentity(
   }
 }
 
-function convertLegacyRecord(record: LegacyLifeRecordV1, activeAtMigration: boolean): LifeRecord {
+function convertLegacyRecord(record: LegacyLifeRecordV1, activeAtMigration: boolean): LegacyLifeRecordV2 {
   return {
     sequence: record.sequence,
     runId: record.runId,
@@ -79,7 +103,7 @@ function convertLegacyRecord(record: LegacyLifeRecordV1, activeAtMigration: bool
   }
 }
 
-function cloneCurrentRecord(record: LifeRecord): LifeRecord {
+function cloneLegacyV2Record(record: LegacyLifeRecordV2): LegacyLifeRecordV2 {
   return {
     ...record,
     identity: { ...record.identity, talentIds: [...record.identity.talentIds] },
@@ -94,14 +118,66 @@ function cloneCurrentRecord(record: LifeRecord): LifeRecord {
   }
 }
 
+function cloneCurrentRecord(record: LifeRecord): LifeRecord {
+  return {
+    ...record,
+    identity: {
+      ...record.identity,
+      physiqueIds: [...record.identity.physiqueIds],
+      talentIds: [...record.identity.talentIds],
+    },
+    stats: { ...record.stats },
+    resources: { ...record.resources },
+    cultivation: { ...record.cultivation },
+    eventHistory: [...record.eventHistory],
+    chronicle: cloneChronicle(record.chronicle),
+    summary: { ...record.summary },
+    debugLog: cloneCurrentDebugLog(record.debugLog),
+    legacy: record.legacy ? { ...record.legacy } : undefined,
+  }
+}
+
+export function upgradeGameStateV2ToV3(state: LegacyGameSessionV2['state']): GameState {
+  return {
+    ...state,
+    schemaVersion: 3,
+    lifeStage: 'legacy-adult',
+    identity: {
+      ...state.identity,
+      physiqueIds: [],
+      talentIds: [...state.identity.talentIds],
+    },
+    stats: { ...state.stats },
+    resources: { ...state.resources },
+    cultivation: { ...state.cultivation },
+    world: { currentLocationId: null },
+    knowledge: { locations: {} },
+    tags: [...state.tags],
+    flags: { ...state.flags },
+    relationships: { ...state.relationships },
+    events: {
+      ...state.events,
+      queue: [...state.events.queue],
+      history: [...state.events.history],
+    },
+    chronicle: cloneChronicle(state.chronicle),
+  }
+}
+
 function cloneCurrentSession(session: GameSession): GameSession {
   return {
     state: {
       ...session.state,
-      identity: { ...session.state.identity, talentIds: [...session.state.identity.talentIds] },
+      identity: {
+        ...session.state.identity,
+        physiqueIds: [...session.state.identity.physiqueIds],
+        talentIds: [...session.state.identity.talentIds],
+      },
       stats: { ...session.state.stats },
       resources: { ...session.state.resources },
       cultivation: { ...session.state.cultivation },
+      world: { ...session.state.world },
+      knowledge: { locations: { ...session.state.knowledge.locations } },
       tags: [...session.state.tags],
       flags: { ...session.state.flags },
       relationships: { ...session.state.relationships },
@@ -113,21 +189,66 @@ function cloneCurrentSession(session: GameSession): GameSession {
       chronicle: cloneChronicle(session.state.chronicle),
     },
     debugLog: cloneCurrentDebugLog(session.debugLog),
-    pendingResult: session.pendingResult
-      ? { ...session.pendingResult, changes: session.pendingResult.changes.map((change) => ({ ...change })) }
-      : null,
-    pendingAction: session.pendingAction
-      ? {
-          ...session.pendingAction,
-          snapshot: {
-            ...session.pendingAction.snapshot,
-            stats: { ...session.pendingAction.snapshot.stats },
-            relationships: { ...session.pendingAction.snapshot.relationships },
-            tags: [...session.pendingAction.snapshot.tags],
-            flags: { ...session.pendingAction.snapshot.flags },
-          },
-        }
-      : null,
+    pendingResult: clonePendingResult(session.pendingResult),
+    pendingAction: clonePendingAction(session.pendingAction),
+  }
+}
+
+function upgradeV2SessionToV3(session: LegacyGameSessionV2): GameSession {
+  return {
+    state: upgradeGameStateV2ToV3(session.state),
+    debugLog: cloneCurrentDebugLog(session.debugLog),
+    pendingResult: clonePendingResult(session.pendingResult),
+    pendingAction: clonePendingAction(session.pendingAction),
+  }
+}
+
+function upgradeV2RecordToV3(record: LegacyLifeRecordV2): LifeRecord {
+  return {
+    ...record,
+    identity: {
+      ...record.identity,
+      physiqueIds: [],
+      talentIds: [...record.identity.talentIds],
+    },
+    stats: { ...record.stats },
+    resources: { ...record.resources },
+    cultivation: { ...record.cultivation },
+    eventHistory: [...record.eventHistory],
+    chronicle: cloneChronicle(record.chronicle),
+    summary: { ...record.summary },
+    debugLog: cloneCurrentDebugLog(record.debugLog),
+    legacy: record.legacy ? { ...record.legacy } : undefined,
+  }
+}
+
+function convertLegacySessionV1ToV2(session: LegacyGameSessionV1): LegacyGameSessionV2 {
+  return {
+    state: {
+      schemaVersion: 2,
+      runId: session.state.runId,
+      runSeed: session.state.runSeed,
+      rngState: session.state.rngState,
+      status: session.state.status,
+      worldDay: session.state.timeMonths * DAYS_PER_MONTH,
+      identity: convertLegacyIdentity(session.state.identity),
+      stats: { ...session.state.stats },
+      resources: { ...session.state.resources },
+      cultivation: { ...session.state.cultivation },
+      tags: [...session.state.tags],
+      flags: { ...session.state.flags },
+      relationships: { ...session.state.relationships },
+      events: {
+        ...session.state.events,
+        queue: [...session.state.events.queue],
+        history: [...session.state.events.history],
+      },
+      chronicle: [],
+      endReason: session.state.endReason,
+    },
+    debugLog: convertLegacyDebugLog(session.debugLog),
+    pendingResult: clonePendingResult(session.pendingResult),
+    pendingAction: null,
   }
 }
 
@@ -139,14 +260,10 @@ function getLegacyLifeTitle(session: LegacyGameSessionV1): string {
   return '凡尘一世（旧版存档）'
 }
 
-function createLegacySessionRecord(
-  session: LegacyGameSessionV1,
-  sequence: number,
-): LifeRecord {
+function createLegacySessionRecord(session: LegacyGameSessionV1, sequence: number): LegacyLifeRecordV2 {
   const { state } = session
   const wasActive = state.status === 'playing'
-  const outcome: LifeRecord['summary']['outcome'] =
-    state.status === 'playing' ? 'migrated' : state.status
+  const outcome: LifeRecord['summary']['outcome'] = state.status === 'playing' ? 'migrated' : state.status
 
   return {
     sequence,
@@ -182,7 +299,7 @@ function createLegacySessionRecord(
   }
 }
 
-function getV2LifeTitle(session: GameSession): string {
+function getV2LifeTitle(session: LegacyGameSessionV2): string {
   const { realm } = session.state.cultivation
   if (realm === 'golden_core') return '金丹真人（V2 旧版存档）'
   if (realm === 'foundation') return '筑基修士（V2 旧版存档）'
@@ -190,15 +307,11 @@ function getV2LifeTitle(session: GameSession): string {
   return '凡尘一世（V2 旧版存档）'
 }
 
-function createV2SessionRecord(session: GameSession, sequence: number): LifeRecord {
+function createV2SessionRecord(session: LegacyGameSessionV2, sequence: number): LegacyLifeRecordV2 {
   const { state } = session
   const wasActive = state.status === 'playing'
   const outcome: LifeRecord['summary']['outcome'] =
-    state.status === 'playing'
-      ? 'migrated'
-      : state.status === 'dead'
-        ? 'dead'
-        : 'won'
+    state.status === 'playing' ? 'migrated' : state.status === 'dead' ? 'dead' : 'won'
   const ageDays = Math.max(0, state.worldDay - state.identity.birthDay)
 
   return {
@@ -235,17 +348,23 @@ function createV2SessionRecord(session: GameSession, sequence: number): LifeReco
   }
 }
 
-function isCurrentSession(session: LegacyGameSessionV1 | GameSession): session is GameSession {
+function isLegacyV2Session(session: LegacyGameSessionV1 | LegacyGameSessionV2): session is LegacyGameSessionV2 {
   return session.state.schemaVersion === 2
 }
 
-function isCurrentLifeRecord(record: LegacyLifeRecordV1 | LifeRecord): record is LifeRecord {
+function isLegacyV2Record(record: LegacyLifeRecordV1 | LegacyLifeRecordV2): record is LegacyLifeRecordV2 {
   return 'birthDay' in record.identity
 }
 
-export function migratePersistentGameV1ToV2(
-  legacy: LegacyPersistentGameV1,
-): NormalizedPersistentGameV2 {
+function isCurrentSession(session: LegacyGameSessionV2 | GameSession): session is GameSession {
+  return session.state.schemaVersion === 3
+}
+
+function isCurrentLifeRecord(record: LegacyLifeRecordV2 | LifeRecord): record is LifeRecord {
+  return 'physiqueIds' in record.identity
+}
+
+export function migratePersistentGameV1ToV2(legacy: LegacyPersistentGameV1): NormalizedPersistentGameV2 {
   const archives = legacy.archives.map((record) => convertLegacyRecord(record, false))
   const currentSession = legacy.currentSession
 
@@ -262,53 +381,45 @@ export function migratePersistentGameV1ToV2(
   }
 }
 
-export function normalizePersistentGameV2(
-  transitional: TransitionalPersistentGameV2,
-): NormalizedPersistentGameV2 {
+export function normalizePersistentGameV2(transitional: TransitionalPersistentGameV2): NormalizedPersistentGameV2 {
   const archives = transitional.archives.map((record) =>
-    isCurrentLifeRecord(record) ? cloneCurrentRecord(record) : convertLegacyRecord(record, false),
+    isLegacyV2Record(record) ? cloneLegacyV2Record(record) : convertLegacyRecord(record, false),
   )
 
   const session = transitional.currentSession
   if (!session) {
+    return { schemaVersion: 2, currentSession: null, archives, meta: { totalRuns: transitional.meta.totalRuns } }
+  }
+
+  if (isLegacyV2Session(session)) {
     return {
       schemaVersion: 2,
-      currentSession: null,
+      currentSession: {
+        state: { ...session.state, identity: { ...session.state.identity, talentIds: [...session.state.identity.talentIds] }, tags: [...session.state.tags], flags: { ...session.state.flags }, relationships: { ...session.state.relationships }, events: { ...session.state.events, queue: [...session.state.events.queue], history: [...session.state.events.history] }, chronicle: cloneChronicle(session.state.chronicle) },
+        debugLog: cloneCurrentDebugLog(session.debugLog),
+        pendingResult: clonePendingResult(session.pendingResult),
+        pendingAction: clonePendingAction(session.pendingAction),
+      },
       archives,
       meta: { totalRuns: transitional.meta.totalRuns },
     }
   }
 
-  if (isCurrentSession(session)) {
-    return {
-      schemaVersion: 2,
-      currentSession: cloneCurrentSession(session),
-      archives,
-      meta: { totalRuns: transitional.meta.totalRuns },
-    }
-  }
-
-  if (!archives.some((record) => record.runId === session.state.runId)) {
+  const converted = convertLegacySessionV1ToV2(session)
+  if (!archives.some((record) => record.runId === converted.state.runId)) {
     const sequence = Math.max(archives.length + 1, transitional.meta.totalRuns || 1)
     archives.push(createLegacySessionRecord(session, sequence))
   }
 
-  return {
-    schemaVersion: 2,
-    currentSession: null,
-    archives,
-    meta: { totalRuns: transitional.meta.totalRuns },
-  }
+  return { schemaVersion: 2, currentSession: null, archives, meta: { totalRuns: transitional.meta.totalRuns } }
 }
 
-export function migratePersistentGameV2ToV3(
-  normalized: NormalizedPersistentGameV2,
-): PersistentGame {
+export function migratePersistentGameV2ToV3(normalized: NormalizedPersistentGameV2): PersistentGame {
   const archives = normalized.archives.map((record) => {
-    const cloned = cloneCurrentRecord(record)
-    if (cloned.legacy) return cloned
+    const upgraded = upgradeV2RecordToV3(record)
+    if (upgraded.legacy) return upgraded
     return {
-      ...cloned,
+      ...upgraded,
       legacy: {
         sourceSchemaVersion: 2 as const,
         migrationReason: 'v3_schema_upgrade' as const,
@@ -320,7 +431,7 @@ export function migratePersistentGameV2ToV3(
   const session = normalized.currentSession
   if (session && !archives.some((record) => record.runId === session.state.runId)) {
     const sequence = Math.max(archives.length + 1, normalized.meta.totalRuns || 1)
-    archives.push(createV2SessionRecord(session, sequence))
+    archives.push(upgradeV2RecordToV3(createV2SessionRecord(session, sequence)))
   }
 
   return {
@@ -329,5 +440,24 @@ export function migratePersistentGameV2ToV3(
     currentSession: null,
     archives,
     meta: { totalRuns: normalized.meta.totalRuns },
+  }
+}
+
+export function normalizePersistentGameV3(transitional: TransitionalPersistentGameV3): PersistentGame {
+  const archives = transitional.archives.map((record) =>
+    isCurrentLifeRecord(record) ? cloneCurrentRecord(record) : upgradeV2RecordToV3(record),
+  )
+  const session = transitional.currentSession
+
+  return {
+    schemaVersion: 3,
+    phase: transitional.phase,
+    currentSession: session
+      ? isCurrentSession(session)
+        ? cloneCurrentSession(session)
+        : upgradeV2SessionToV3(session)
+      : null,
+    archives,
+    meta: { totalRuns: transitional.meta.totalRuns },
   }
 }

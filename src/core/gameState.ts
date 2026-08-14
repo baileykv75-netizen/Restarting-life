@@ -15,17 +15,19 @@ export function createInitialGameState({
   }
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     runId,
     runSeed,
     rngState: seedToState(runSeed),
     status: 'playing',
+    lifeStage: 'legacy-adult',
     worldDay: 0,
     identity: {
       name: '未命名',
       birthDay: 0,
       backgroundId: '',
       spiritRootId: '',
+      physiqueIds: [],
       talentIds: [],
       faction: 'mortal',
     },
@@ -43,6 +45,12 @@ export function createInitialGameState({
     cultivation: {
       realm: 'mortal',
       stage: 0,
+    },
+    world: {
+      currentLocationId: null,
+    },
+    knowledge: {
+      locations: {},
     },
     tags: [],
     flags: {},

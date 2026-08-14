@@ -5,11 +5,13 @@ import type {
   PersistentGame,
   PersistentPhase,
   TransitionalPersistentGameV2,
+  TransitionalPersistentGameV3,
 } from '../types/persistence'
 import {
   migratePersistentGameV1ToV2,
   migratePersistentGameV2ToV3,
   normalizePersistentGameV2,
+  normalizePersistentGameV3,
 } from './saveMigration'
 
 export const SAVE_KEY = 'restarting-life:v3'
@@ -25,7 +27,7 @@ export interface StorageLike {
 interface SaveEnvelopeV3 {
   schemaVersion: 3
   checksum: string
-  payload: PersistentGame
+  payload: TransitionalPersistentGameV3
 }
 
 interface SaveEnvelopeV2 {
@@ -53,7 +55,7 @@ function isPersistentPhase(value: unknown): value is PersistentPhase {
   return value === 'birth-selection' || value === 'life' || value === 'ended'
 }
 
-function isPersistentGameV3(value: unknown): value is PersistentGame {
+function isPersistentGameV3(value: unknown): value is TransitionalPersistentGameV3 {
   if (!isRecord(value)) return false
   return (
     value.schemaVersion === 3 &&
@@ -108,7 +110,7 @@ function parseV3Save(raw: string): PersistentGame {
   }
 
   verifyChecksum(envelope.payload, envelope.checksum)
-  return envelope.payload
+  return normalizePersistentGameV3(envelope.payload)
 }
 
 function parseV2Save(raw: string): NormalizedPersistentGameV2 {
@@ -153,9 +155,11 @@ export function savePersistentGame(storage: StorageLike, persistent: PersistentG
 export function loadPersistentGame(storage: StorageLike): PersistentGame | null {
   const currentRaw = storage.getItem(SAVE_KEY)
   if (currentRaw !== null) {
-    // A corrupt V3 save is an error. Do not silently fall back to older data,
-    // because that could resurrect an outdated life after the user has moved on.
-    return parseV3Save(currentRaw)
+    // A corrupt V3 save is an error. Do not silently fall back to older data.
+    // R01 also normalizes R00.3's transitional V3 inner state once in place.
+    const normalized = parseV3Save(currentRaw)
+    savePersistentGame(storage, normalized)
+    return normalized
   }
 
   const v2Raw = storage.getItem(V2_SAVE_KEY)

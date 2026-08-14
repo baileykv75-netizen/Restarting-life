@@ -94,8 +94,7 @@ export interface PersistentGame {
 }
 
 // ---------------------------------------------------------------------------
-// Legacy V1/V1.1 shapes. These are read-only migration inputs and must not be
-// used by the live V1.2/V2 engine.
+// Legacy V1/V1.1 shapes. Read-only migration inputs.
 // ---------------------------------------------------------------------------
 
 export interface LegacyGameStateV1 {
@@ -207,27 +206,89 @@ export interface LegacyPersistentGameV1 {
   }
 }
 
-/**
- * Older schemaVersion 2 payloads may still contain month-clock V1 sessions or
- * records. They are read-only migration inputs for the V3 save slot.
- */
+// ---------------------------------------------------------------------------
+// Legacy V2 shapes. These preserve the exact pre-R01 GameState contract so
+// V2 slots and R00.3's transitional V3 slot can be upgraded safely.
+// ---------------------------------------------------------------------------
+
+export interface LegacyGameStateV2 {
+  schemaVersion: 2
+  runId: string
+  runSeed: string
+  rngState: number
+  status: 'playing' | 'dead' | 'won'
+  worldDay: number
+  identity: {
+    name: string
+    birthDay: number
+    backgroundId: string
+    spiritRootId: string
+    talentIds: string[]
+    faction: Faction
+  }
+  stats: GameState['stats']
+  resources: GameState['resources']
+  cultivation: GameState['cultivation']
+  tags: string[]
+  flags: Record<string, boolean | number | string>
+  relationships: Record<string, number>
+  events: {
+    currentEventId: string | null
+    queue: string[]
+    history: string[]
+  }
+  chronicle: ChronicleEntry[]
+  endReason: string | null
+}
+
+export interface LegacyGameSessionV2 {
+  state: LegacyGameStateV2
+  debugLog: DebugLogEntry[]
+  pendingResult: ResolvedOutcome | null
+  pendingAction: PendingActionContext | null
+}
+
+export interface LegacyLifeRecordV2 {
+  sequence: number
+  runId: string
+  runSeed: string
+  stateDigest: string
+  identity: LegacyGameStateV2['identity']
+  stats: LegacyGameStateV2['stats']
+  resources: LegacyGameStateV2['resources']
+  cultivation: LegacyGameStateV2['cultivation']
+  eventHistory: string[]
+  chronicle: ChronicleEntry[]
+  summary: LifeSummary
+  debugLog: DebugLogEntry[]
+  legacy?: LegacyLifeMetadata
+}
+
+/** V2 envelope may still contain even older month-clock V1 entries. */
 export interface TransitionalPersistentGameV2 {
   schemaVersion: 2
-  currentSession: LegacyGameSessionV1 | GameSession | null
-  archives: Array<LegacyLifeRecordV1 | LifeRecord>
+  currentSession: LegacyGameSessionV1 | LegacyGameSessionV2 | null
+  archives: Array<LegacyLifeRecordV1 | LegacyLifeRecordV2>
   meta: {
     totalRuns: number
   }
 }
 
-/**
- * Normalized V2 shape used only as an intermediate migration representation.
- * Live writes use PersistentGame schemaVersion 3.
- */
 export interface NormalizedPersistentGameV2 {
   schemaVersion: 2
-  currentSession: GameSession | null
-  archives: LifeRecord[]
+  currentSession: LegacyGameSessionV2 | null
+  archives: LegacyLifeRecordV2[]
+  meta: {
+    totalRuns: number
+  }
+}
+
+/** R00.3 briefly wrote V3 envelopes whose inner session/archives were V2. */
+export interface TransitionalPersistentGameV3 {
+  schemaVersion: 3
+  phase: PersistentPhase
+  currentSession: LegacyGameSessionV2 | GameSession | null
+  archives: Array<LegacyLifeRecordV2 | LifeRecord>
   meta: {
     totalRuns: number
   }
