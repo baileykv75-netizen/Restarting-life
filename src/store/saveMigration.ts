@@ -96,6 +96,8 @@ function createLegacySessionRecord(
 ): LifeRecord {
   const { state } = session
   const wasActive = state.status === 'playing'
+  const outcome: LifeRecord['summary']['outcome'] =
+    state.status === 'playing' ? 'migrated' : state.status
 
   return {
     sequence,
@@ -112,7 +114,7 @@ function createLegacySessionRecord(
       finalRealm: state.cultivation.realm,
       ageYears: Math.floor(state.timeMonths / MONTHS_PER_YEAR),
       ageMonths: state.timeMonths % MONTHS_PER_YEAR,
-      outcome: wasActive ? 'migrated' : state.status,
+      outcome,
       endReason: wasActive
         ? 'V1.2 升级时，此世尚未结束，已封存为旧版人生快照。'
         : (state.endReason ?? '旧版人生已经结束。'),
@@ -157,12 +159,6 @@ export function migratePersistentGameV1ToV2(
   }
 }
 
-/**
- * Stage 1 shipped a schemaVersion 2 envelope before the live GameState clock
- * moved from months to days. Normalize that temporary shape once so users who
- * opened the site during Stage 1 keep their archives and do not carry an old
- * active run into the new rule semantics.
- */
 export function normalizePersistentGameV2(
   transitional: TransitionalPersistentGameV2,
 ): PersistentGame {
