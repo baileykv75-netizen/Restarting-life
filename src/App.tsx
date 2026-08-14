@@ -32,25 +32,25 @@ function readInitialGame(): InitialViewState {
 function ResultPanel({ result, onContinue }: { result: ResolvedOutcome; onContinue: () => void }) {
   return (
     <section className="story-card result-card">
-      <p className="story-kicker">此事已定</p>
+      <p className="story-kicker">结果</p>
       <h2>{result.title}</h2>
-      <p className="story-text result-narrative">{result.narrative}</p>
-      <div className="result-divider" />
-      <p className="subsection-title">这一选择真正改变了什么</p>
-      {result.changes.length > 0 ? (
-        <div className="result-changes">
-          {result.changes.map((change, index) => (
-            <div className={`result-change ${change.tone}`} key={`${change.label}-${index}`}>
-              <span>{change.label}</span>
-              <strong>{change.value}</strong>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="muted">没有直接的数值变化，但这并不意味着此事不会留下后果。</p>
+      {result.narrative && <p className="story-text result-narrative">{result.narrative}</p>}
+      {result.changes.length > 0 && (
+        <>
+          <div className="result-divider" />
+          <p className="subsection-title">变化</p>
+          <div className="result-changes">
+            {result.changes.map((change, index) => (
+              <div className={`result-change ${change.tone}`} key={`${change.label}-${index}`}>
+                <span>{change.label}</span>
+                <strong>{change.value}</strong>
+              </div>
+            ))}
+          </div>
+        </>
       )}
-      {result.consequence && <p className="consequence-note">因果 · {result.consequence}</p>}
-      <button className="primary-button result-continue" onClick={onContinue} type="button">记下此事，继续此生</button>
+      {result.consequence && <p className="consequence-note">后续 · {result.consequence}</p>}
+      <button className="primary-button result-continue" onClick={onContinue} type="button">继续</button>
     </section>
   )
 }
@@ -73,7 +73,7 @@ function App() {
       setError(null)
       setNotice(null)
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '无法开启新一世')
+      setNotice(caught instanceof Error ? caught.message : '无法开启新的人生')
     }
   }
 
@@ -108,7 +108,7 @@ function App() {
         <section className="landing-card danger-card">
           <p className="eyebrow">RESTARTING LIFE</p>
           <h1>本地存档需要处理</h1>
-          <p className="story-text">检测到存档无法通过完整性校验，因此没有把损坏数据继续送入游戏引擎。</p>
+          <p className="story-text">这份存档没有通过完整性校验。为避免继续损坏记录，游戏没有加载它。</p>
           <p className="error-text">{error}</p>
           <button className="primary-button" onClick={recoverSave} type="button">清除损坏存档并重新开始</button>
           {notice && <p className="notice">{notice}</p>}
@@ -121,12 +121,12 @@ function App() {
     return (
       <main className="landing-shell">
         <section className="landing-card">
-          <p className="eyebrow">RESTARTING LIFE · V1.2 FOUNDATION</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.2</p>
           <h1>此世问长生</h1>
-          <p className="landing-lead">一世一因果。不是回答问卷，而是在有限寿元里真正活完一个人的人生。</p>
-          <p className="muted">自然时间地基 · 量化结果 · 隐藏因果 · 人生档案</p>
+          <p className="landing-lead">每一次开始，都是另一个人的一生。</p>
+          <p className="muted">有人生来近仙，有人一辈子也未必摸得到那道门。</p>
           <div className="landing-actions">
-            <button className="primary-button" onClick={persistStart} type="button">开启新的一生</button>
+            <button className="primary-button" onClick={persistStart} type="button">开始一段人生</button>
             <button className="secondary-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 · {game.archives.length}</button>
           </div>
           {notice && <p className="notice">{notice}</p>}
@@ -146,17 +146,16 @@ function App() {
     <main className="game-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RESTARTING LIFE · V1.2 FOUNDATION</p>
+          <p className="eyebrow">RESTARTING LIFE · V1.2</p>
           <h1>此世问长生</h1>
         </div>
         <div className="topbar-actions">
-          <span className="run-pill">第 {game.meta.totalRuns} 世</span>
           <button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button>
         </div>
       </header>
 
       <div className="game-grid">
-        <CharacterPanel state={state} runNumber={game.meta.totalRuns} />
+        <CharacterPanel state={state} />
 
         <section className="main-stage">
           {session.pendingResult ? (
@@ -169,9 +168,9 @@ function App() {
             <>
               {session.debugLog.length === 0 && (
                 <section className="birth-banner">
-                  <p className="story-kicker">命格初定</p>
-                  <h2>十六岁，你第一次真正站在人生的岔路口。</h2>
-                  <p>从此以后，时间、灵石、修为、人物关系与旧日因果都会留下明确痕迹。</p>
+                  <p className="story-kicker">十六岁</p>
+                  <h2>从今天起，往后的路都要自己走了。</h2>
+                  <p>你知道自己的出身、资质和眼前处境，却不知道这一生最后会走到哪里。</p>
                 </section>
               )}
               <ActionPanel
@@ -187,7 +186,6 @@ function App() {
         <ChroniclePanel
           entries={state.chronicle}
           birthDay={state.identity.birthDay}
-          runSeed={state.runSeed}
         />
       </div>
 
