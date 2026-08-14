@@ -3,7 +3,7 @@ import { FORMAL_EVENTS } from '../data/events/formalEvents'
 import type { GameEvent } from '../types/event'
 import type { GameState } from '../types/game'
 import { performPlayerAction } from './actionEngine'
-import { resolveBreakthroughAttempt } from './breakthroughEngine'
+import { canAttemptBreakthrough, resolveBreakthroughAttempt } from './breakthroughEngine'
 import { createEventCatalog, resolveEventChoice } from './eventEngine'
 import { createInitialGameState } from './gameState'
 import { DAYS_PER_MONTH, DAYS_PER_YEAR } from './timeEngine'
@@ -31,12 +31,28 @@ function cultivateUntil(
     expect(result.applied).toBe(true)
     state = result.state
     steps += 1
-    if (steps > 100) {
-      throw new Error('Cultivation integration loop exceeded safety limit')
-    }
+    if (steps > 100) throw new Error('Cultivation integration loop exceeded safety limit')
   }
 
   return state
+}
+
+function breakthroughUntilSuccess(
+  input: GameState,
+  prepare: (state: GameState) => GameState,
+): GameState {
+  let state = input
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    state = prepare(state)
+    expect(canAttemptBreakthrough(state)).toBe(true)
+    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
+    const result = resolveBreakthroughAttempt(state, catalog)
+    state = result.state
+    if (result.success) return state
+  }
+
+  throw new Error('Breakthrough integration loop exceeded safety limit')
 }
 
 describe('stage-4 vertical gameplay regression loop', () => {
@@ -52,12 +68,9 @@ describe('stage-4 vertical gameplay regression loop', () => {
 
     state = performPlayerAction(state, 'livelihood', CORE_LOOP_EVENTS, catalog).state
     expect(state.events.currentEventId).toBe('mortal_immortal_encounter')
-
     state = resolveEventChoice(state, catalog, 'join_qingyun')
-    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
-    let breakthrough = resolveBreakthroughAttempt(state, catalog)
-    expect(breakthrough.success).toBe(true)
-    state = breakthrough.state
+
+    state = breakthroughUntilSuccess(state, (current) => current)
 
     state = cultivateUntil(
       state,
@@ -67,16 +80,10 @@ describe('stage-4 vertical gameplay regression loop', () => {
         current.resources.cultivation >= 100,
     )
 
-    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
-    breakthrough = resolveBreakthroughAttempt(state, catalog)
-    expect(breakthrough.success).toBe(false)
-    state = breakthrough.state
-
-    state = cultivateUntil(state, (current) => current.resources.cultivation >= 100)
-    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
-    breakthrough = resolveBreakthroughAttempt(state, catalog)
-    expect(breakthrough.success).toBe(true)
-    state = breakthrough.state
+    state = breakthroughUntilSuccess(
+      state,
+      (current) => cultivateUntil(current, (candidate) => candidate.resources.cultivation >= 100),
+    )
 
     state = cultivateUntil(
       state,
@@ -86,16 +93,10 @@ describe('stage-4 vertical gameplay regression loop', () => {
         current.resources.cultivation >= 500,
     )
 
-    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
-    breakthrough = resolveBreakthroughAttempt(state, catalog)
-    expect(breakthrough.success).toBe(false)
-    state = breakthrough.state
-
-    state = cultivateUntil(state, (current) => current.resources.cultivation >= 500)
-    state = performPlayerAction(state, 'breakthrough', CORE_LOOP_EVENTS, catalog).state
-    breakthrough = resolveBreakthroughAttempt(state, catalog)
-    expect(breakthrough.success).toBe(true)
-    state = breakthrough.state
+    state = breakthroughUntilSuccess(
+      state,
+      (current) => cultivateUntil(current, (candidate) => candidate.resources.cultivation >= 500),
+    )
 
     expect(state.status).toBe('won')
     expect(state.cultivation.realm).toBe('golden_core')
@@ -107,7 +108,10 @@ describe('stage-4 vertical gameplay regression loop', () => {
     const base = createInitialGameState({ runSeed: 'vertical-natural-death' })
     const state: GameState = {
       ...base,
-      worldDay: base.identity.birthDay + 80 * DAYS_PER_YEAR - 6 * DAYS_PER_MONTH,
+      // Livelihood now takes 30–60 days, so placing the character 30 days from
+      // the lifespan boundary guarantees the action crosses it without
+      // depending on the exact seeded duration.
+      worldDay: base.identity.birthDay + 80 * DAYS_PER_YEAR - DAYS_PER_MONTH,
       identity: { ...base.identity, spiritRootId: 'none' },
       tags: ['no_spirit_root', 'spirit_root:none'],
     }
