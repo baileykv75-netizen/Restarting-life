@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { DAYS_PER_YEAR } from '../core/timeEngine'
-import type { StorageLike } from './saveRepository'
-import { commandAndSave, loadGame, startAndSaveRun } from './browserGameStore'
+import {
+  LEGACY_SAVE_KEY,
+  SAVE_KEY,
+  V2_SAVE_KEY,
+  type StorageLike,
+} from './saveRepository'
+import {
+  clearGame,
+  commandAndSave,
+  loadGame,
+  startAndSaveRun,
+} from './browserGameStore'
 
 class MemoryStorage implements StorageLike {
   private readonly values = new Map<string, string>()
@@ -20,28 +30,100 @@ describe('browser game store', () => {
     expect(empty.currentSession).toBeNull()
   })
 
-  it('starts the current legacy-compatible life flow and persists it as phase life', () => {
+  it('starts one life and writes it to the V3 single-save slot immediately', () => {
     const storage = new MemoryStorage()
     const empty = loadGame(storage)
     const next = startAndSaveRun(storage, empty, 123456)
 
     expect(next.meta.totalRuns).toBe(1)
     expect(next.phase).toBe('life')
+    expect(next.currentSession?.state.schemaVersion).toBe(3)
     expect(next.currentSession?.state.worldDay).toBe(16 * DAYS_PER_YEAR)
+    expect(storage.getItem(SAVE_KEY)).not.toBeNull()
     expect(loadGame(storage)).toEqual(next)
   })
 
-  it('persists only a completed accepted operation', () => {
+  it('auto-saves an accepted legacy SessionCommand', () => {
     const storage = new MemoryStorage()
     const started = startAndSaveRun(storage, loadGame(storage), 222222)
+    const beforeRaw = storage.getItem(SAVE_KEY)
     const result = commandAndSave(storage, started, { type: 'action', action: 'explore' })
 
     expect(result.applied).toBe(true)
     expect(result.persistent.phase).toBe('life')
+    expect(storage.getItem(SAVE_KEY)).not.toBe(beforeRaw)
     expect(loadGame(storage)).toEqual(result.persistent)
   })
 
-  it('switches the persistent phase to ended when an accepted action ends the life', () => {
+  it('auto-saves accepted GameActions and restores all current V3 state fields', () => {
+    const storage = new MemoryStorage()
+    const started = startAndSaveRun(storage, loadGame(storage), 444444)
+    const session = started.currentSession!
+    const prepared = {
+      ...started,
+      currentSession: {
+        ...session,
+        state: {
+          ...session.state,
+          identity: {
+            ...session.state.identity,
+            physiqueIds: ['test_physique'],
+          },
+        },
+      },
+    }
+
+    const stageResult = commandAndSave(storage, prepared, {
+      type: 'game-action',
+      action: { type: 'SET_LIFE_STAGE', stage: 'adult' },
+    })
+    expect(stageResult.applied).toBe(true)
+
+    const locationResult = commandAndSave(storage, stageResult.persistent, {
+      type: 'game-action',
+      action: { type: 'SET_CURRENT_LOCATION', locationId: 'test_location' },
+    })
+    expect(locationResult.applied).toBe(true)
+
+    const knowledgeResult = commandAndSave(storage, locationResult.persistent, {
+      type: 'game-action',
+      action: {
+        type: 'SET_LOCATION_KNOWLEDGE',
+        locationId: 'hidden_cave',
+        status: 'discovered',
+      },
+    })
+    expect(knowledgeResult.applied).toBe(true)
+
+    const loaded = loadGame(storage)
+    expect(loaded).toEqual(knowledgeResult.persistent)
+    expect(loaded.currentSession?.state.lifeStage).toBe('adult')
+    expect(loaded.currentSession?.state.identity.physiqueIds).toEqual(['test_physique'])
+    expect(loaded.currentSession?.state.world.currentLocationId).toBe('test_location')
+    expect(loaded.currentSession?.state.knowledge.locations.hidden_cave).toBe('discovered')
+  })
+
+  it('does not overwrite the valid save when a reducer or Session command is rejected', () => {
+    const storage = new MemoryStorage()
+    const started = startAndSaveRun(storage, loadGame(storage), 555555)
+    const accepted = commandAndSave(storage, started, {
+      type: 'game-action',
+      action: { type: 'SET_FLAG', key: 'accepted_flag', value: true },
+    })
+    expect(accepted.applied).toBe(true)
+
+    const validRaw = storage.getItem(SAVE_KEY)
+    const rejected = commandAndSave(storage, accepted.persistent, {
+      type: 'game-action',
+      action: { type: 'SET_CURRENT_LOCATION', locationId: '   ' },
+    })
+
+    expect(rejected.applied).toBe(false)
+    expect(storage.getItem(SAVE_KEY)).toBe(validRaw)
+    expect(loadGame(storage)).toEqual(accepted.persistent)
+  })
+
+  it('persists ended phase, archive, and current session when GameAction time causes natural death', () => {
     const storage = new MemoryStorage()
     const started = startAndSaveRun(storage, loadGame(storage), 333333)
     const session = started.currentSession!
@@ -57,11 +139,35 @@ describe('browser game store', () => {
       },
     }
 
-    const result = commandAndSave(storage, nearNaturalDeath, { type: 'action', action: 'explore' })
+    const result = commandAndSave(storage, nearNaturalDeath, {
+      type: 'game-action',
+      action: { type: 'ADVANCE_TIME', days: 1 },
+    })
 
     expect(result.applied).toBe(true)
     expect(result.persistent.phase).toBe('ended')
     expect(result.persistent.currentSession?.state.status).toBe('dead')
+    expect(result.persistent.archives).toHaveLength(1)
+    expect(result.persistent.archives[0].runId).toBe(session.state.runId)
     expect(loadGame(storage)).toEqual(result.persistent)
+  })
+
+  it('clearGame deletes V3/V2/V1 slots and returns a fresh birth-selection state', () => {
+    const storage = new MemoryStorage()
+    startAndSaveRun(storage, loadGame(storage), 666666)
+    storage.setItem(V2_SAVE_KEY, 'old-v2-slot')
+    storage.setItem(LEGACY_SAVE_KEY, 'old-v1-slot')
+
+    const cleared = clearGame(storage)
+
+    expect(cleared.schemaVersion).toBe(3)
+    expect(cleared.phase).toBe('birth-selection')
+    expect(cleared.currentSession).toBeNull()
+    expect(cleared.archives).toEqual([])
+    expect(cleared.meta.totalRuns).toBe(0)
+    expect(storage.getItem(SAVE_KEY)).toBeNull()
+    expect(storage.getItem(V2_SAVE_KEY)).toBeNull()
+    expect(storage.getItem(LEGACY_SAVE_KEY)).toBeNull()
+    expect(loadGame(storage)).toEqual(cleared)
   })
 })

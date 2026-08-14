@@ -1,59 +1,91 @@
-# 当前任务：V2 R03 - V3 单档自动保存行为补全
+# 当前任务：V2 R04 - V2 Shell 页面骨架
 
 ## 本轮唯一目标
 
-在**不增加新玩法、不改变单档原则**的前提下，把 R00.3～R02 已建立的 V3 persistence、统一 GameState 和 GameAction/Session 链完整接到浏览器自动保存行为上，确保“已接受操作自动保存、拒绝操作不覆盖存档、刷新恢复一致、清档重新开始”形成稳定闭环。
+在**不增加任何正式新玩法、不破坏当前 legacy 可玩流程**的前提下，把现有单页界面整理成 V2.0 可长期承载出生、地图、探索、背包、功法和事务系统的稳定页面壳层。
+
+本轮的重点是：
+
+> **先把“页面骨架和信息层级”做对，再往里面逐轮接玩法。**
 
 ## 必须实现
 
-1. 继续使用现有 `browserGameStore.ts` / `saveRepository.ts`，不得建立第二套 store。
-2. 明确并测试：
-   - `startAndSaveRun()` 创建人生后立即写入 V3 单档；
-   - legacy SessionCommand 成功后自动保存；
-   - 新 `game-action` SessionCommand 成功后自动保存；
-   - 被 reducer / Session 拒绝的命令不得覆盖当前有效存档；
-   - `ADVANCE_TIME` 导致寿终后，`ended` phase、Archive 和当前 session 一并持久化；
-   - 刷新/重新加载后 GameState 新字段（lifeStage、physiqueIds、world、knowledge）保持一致；
-   - `clearGame()` 删除 v3/v2/v1 槽并回到 `birth-selection`。
-3. 如发现当前 R01 的 V3 过渡状态规范化只在内存生效，允许做最小修改，使规范化后的 schema 3 状态回写当前 V3 槽，避免每次加载重复迁移。
-4. checksum 失败仍必须直接报错，不得静默回退旧 V2/V1。
-5. 不增加手动保存按钮、多档位、历史回滚或 SL 功能。
-6. 增加/整理 browser store 与 save repository 测试，覆盖以上行为。
-7. 更新 `HANDOFF.md`，完成后将 `CURRENT_TASK.md` 切换到 R04。
+1. 继续使用现有 `App.tsx` 作为应用入口，不新建第二套应用或路由体系。
+2. 为 `phase = life / ended` 建立清晰的 V2 Game Shell，至少形成：
+   - 顶部真实状态栏；
+   - 左侧角色区；
+   - 中央主舞台；
+   - 右侧《此世记》/ Chronicle 区；
+   - 移动端可自然纵向折叠。
+3. 顶部状态栏只展示**已经存在且真实可计算**的信息，例如：
+   - 当前年龄；
+   - 当前境界；
+   - 当前寿元上限或寿元信息；
+   - 当前灵石。
+   必须复用现有 time / lifespan / cultivation 状态，不另存 UI 状态副本。
+4. 当前中央主舞台必须继续完整承载现有 legacy 流程：
+   - 初始人生提示；
+   - `ActionPanel`；
+   - `EventPanel`；
+   - `ResultPanel`；
+   - `EndPanel`。
+5. `CharacterPanel`、`ChroniclePanel`、`ArchivePanel` 继续工作，不得为了新壳层重写其业务逻辑。
+6. 当前 `birth-selection` 仍暂时保留现有“开始一段人生”入口，直到 R05 真正出生三选一接管；本轮只允许调整布局和 V2 品牌标识，不改变开始人生逻辑。
+7. 清除界面上仍把当前版本称为 `V1.2` 的主品牌文案，统一为 V2.0 迁移后的产品表达；但不得显示不存在的玩法能力。
+8. CSS 必须整理出可继续扩展的布局层级，桌面与窄屏都可用；不得为了本轮引入新的 UI 框架或大型依赖。
+9. 不得用“地图、背包、功法、事务”等可点击假按钮冒充未实现系统。未来模块可以在结构上预留位置，但当前不显示假功能。
+10. 现有存档损坏处理、Archive 打开/关闭、开始人生、执行命令、结束人生等交互必须保持可用。
+11. 更新 `HANDOFF.md`，完成后将 `CURRENT_TASK.md` 切换到 R05。
 
 ## 允许修改
 
-- `src/store/browserGameStore.ts`
-- `src/store/browserGameStore.test.ts`
-- `src/store/saveRepository.ts`
-- `src/store/saveRepository.test.ts`
-- 与 V3 规范化回写直接相关的最少 migration 文件
+- `src/App.tsx`
+- 现有 UI components 的最小布局/展示调整
+- 如有必要，可新增 1～2 个纯展示型 Shell component
+- `src/experience-cleanup.css` 或现有样式文件
+- 与真实顶部状态展示直接相关的最少 helper
+- 对应最少测试（如当前测试基础适合）
 - `HANDOFF.md`
 - `CURRENT_TASK.md`
 
 ## 本轮禁止
 
 - 不实现出生三选一。
+- 不重写 `birthEngine`。
 - 不实现童年事件。
-- 不新增地图 UI 或真实地点数据。
-- 不新增 inventory / combat / sect / beast。
-- 不新增手动保存、多存档位、回档、读档刷结果。
-- 不改变 legacy ActionPanel、事件概率、修炼、突破或时间数值。
-- 不创建后端数据库。
-- 不提前进入 R04 UI Shell。
+- 不新增真实地图或地点数据。
+- 不实现地图导航、探索、传闻或旅行。
+- 不新增 inventory / equipment / technique / matter / combat / sect / beast 系统。
+- 不替换或删除 legacy `ActionPanel` / `actionEngine`。
+- 不调整事件概率、修炼、突破或时间数值。
+- 不新增手动保存、多档位、后端数据库。
+- 不为了“高级感”堆大量不可交互装饰卡片、假图表或开发说明。
+- 不进行全站大规模视觉重做；本轮只建立稳定、清晰、可扩展的壳层。
+
+## UI 原则
+
+1. **真实优先**：没有实现的数据就不展示。
+2. **主舞台优先**：当前要做的事情必须比装饰信息更醒目。
+3. **少卡片**：避免每个数值都单独套一张卡。
+4. **少开发味**：玩家界面不得出现“后续实现”“系统待接入”等开发提示。
+5. **少 AI 味**：不新增大段空泛抒情、总结式文案。
+6. **为未来留结构，不为未来假装功能已经存在。**
 
 ## 验收标准
 
-1. 成功的 legacy command 与 `game-action` 都会自动保存。
-2. 被拒绝的 command 不会覆盖有效存档。
-3. 刷新后完整 V3 GameState 与 persistent phase 一致恢复。
-4. 寿终后的 ended / Archive 可正确恢复。
-5. 清档后回到 birth-selection，旧槽也被删除。
-6. checksum 防护和旧版迁移行为不退化。
-7. `npm run typecheck` 通过。
-8. `npm test` 通过。
-9. `npm run build` 通过。
-10. `HANDOFF.md` 已更新。
+1. 无存档时可正常进入 landing，开始当前 legacy 人生。
+2. 开始人生后进入新的 V2 Shell 布局。
+3. 顶栏年龄 / 境界 / 寿元 / 灵石来自真实 GameState 或现有计算函数。
+4. Action → Event → Result → Continue 的旧流程不退化。
+5. 人生结束后 EndPanel 与 Archive 仍可用。
+6. 损坏存档处理仍可清档恢复。
+7. 页面不再把当前产品主标识显示为 V1.2。
+8. 不出现可点击但无真实功能的地图 / 背包 / 功法等入口。
+9. 桌面布局清晰，窄屏可以自然折叠，无明显横向溢出。
+10. `npm run typecheck` 通过。
+11. `npm test` 通过。
+12. `npm run build` 通过。
+13. `HANDOFF.md` 已更新。
 
 ## 必须先阅读
 
@@ -63,4 +95,4 @@
 4. `V2_GITHUB_ROADMAP.md`
 5. `HANDOFF.md`
 
-完成后立即停下，不得自行进入 R04。
+完成后立即停下，不得自行进入 R05。

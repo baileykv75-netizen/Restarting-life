@@ -8,6 +8,7 @@
 - R00.1～R00.3 迁移准备已完成。
 - R01 已把 live `GameState` 扩展为 V2 后续流程的唯一状态真源。
 - R02 已建立 V2 `GameAction -> reducer -> Session -> replay/persistence` 调度边界。
+- R03 已把 V3 单档自动保存行为补成可回归验证的浏览器闭环。
 - 当前网页玩法仍暂时运行 V1.2 legacy 主循环，尚未进入地点驱动世界。
 - V2.0 不另开仓库，不建立长期并行 `src/v2/` 或第二套 GameState。
 
@@ -43,40 +44,45 @@
 
 已完成 live 状态承重层扩展：
 
-- `GameState.schemaVersion` 从 2 升级到 3；
-- 新增 `lifeStage`：`legacy-adult / childhood / adult`；
-- `identity` 新增 `physiqueIds: string[]`；
-- 新增唯一当前位置 `world.currentLocationId`；
-- 新增地点认知 `knowledge.locations`，状态为 `rumored / discovered`；
-- 当前 legacy 新人生使用兼容默认值：`lifeStage = legacy-adult`、当前位置为空、地点认知为空，不伪造尚未实现的 V2 地图内容；
-- 明确保留旧 V2 为只读迁移类型，不把旧状态冒充 live GameState；
-- R00.3 期间已经写入的“外层 V3 + 内层 state schema 2”活跃人生会原地规范化为 schema 3，不封存、不重开、不丢 worldDay / runSeed / 现有进度；
-- 新增字段已进入保存、加载、clone、digest 与 seeded replay 所使用的同一 GameState；
-- V2/V1 真正旧存档的既有迁移语义保持不变。
+- `GameState.schemaVersion = 3`；
+- `lifeStage = legacy-adult / childhood / adult`；
+- `identity.physiqueIds: string[]`；
+- `world.currentLocationId`；
+- `knowledge.locations`，状态为 `rumored / discovered`；
+- R00.3 的“外层 V3 + 内层 state schema 2”活跃人生可原地规范化，不封存、不重开；
+- 新字段已进入保存、加载、clone、digest 与 seeded replay 使用的同一 GameState。
 
 ### R02｜统一 GameAction / Reducer 与 Session 调度边界
 
 已完成：
 
-- 新增 `src/types/gameAction.ts`，V2 `GameAction` 与 legacy `PlayerAction` 明确分离；
-- 新增纯函数 `applyGameAction(state, action)`；
-- 当前支持最小通用 action：
-  - `ADVANCE_TIME`
-  - `SET_FLAG`
-  - `REMOVE_FLAG`
-  - `SET_LIFE_STAGE`
-  - `SET_CURRENT_LOCATION`
-  - `SET_LOCATION_KNOWLEDGE`
-- `ADVANCE_TIME` 复用唯一 `advanceWorldTime()`，自然寿终仍由原 lifespan 规则处理；
-- 非法时间、空 location id、非法 flag 等不会产生半修改状态；
-- `discovered` 地点认知不能被普通 action 降级回 `rumored`；
-- `SessionCommand` 新增 `game-action`；
-- player-facing V2 state change 可以通过 Session 进入现有 debug log / digest / seeded replay / PersistentGame 生命周期；
-- 被拒绝的 GameAction 不写 debug log；
-- GameAction 导致寿终时，现有 PersistentGame 会进入 `ended` 并建立 Archive；
-- R02 没有为了旧路线草案提前建立 inventory，`ADD_ITEM / REMOVE_ITEM` 留到 R14 再接入同一 reducer。
+- 新增独立 V2 `GameAction`；
+- 建立纯函数 `applyGameAction(state, action)`；
+- 当前支持：`ADVANCE_TIME`、`SET_FLAG`、`REMOVE_FLAG`、`SET_LIFE_STAGE`、`SET_CURRENT_LOCATION`、`SET_LOCATION_KNOWLEDGE`；
+- `ADVANCE_TIME` 复用唯一 `advanceWorldTime()` 与现有寿终规则；
+- 非法 action 不产生半修改；
+- `discovered` 地点不能降级回 `rumored`；
+- `SessionCommand` 已支持 `game-action`；
+- 新 action 已接入 debug log / digest / seeded replay / PersistentGame；
+- R02 没有提前建立 inventory，物品 action 留到 R14。
 
-## 当前唯一状态与调度规则
+### R03｜V3 单档自动保存行为补全
+
+R03 审查后确认现有生产逻辑已经满足设计，不为“增加改动量”重写正确代码：
+
+- `startAndSaveRun()` 开启人生后立即写入当前 V3 单档；
+- `commandAndSave()` 只在 `applied = true` 时覆盖存档；
+- legacy `SessionCommand` 与新 `game-action` 成功后均走同一个自动保存入口；
+- reducer / Session 拒绝命令不会覆盖最后一份有效存档；
+- `ADVANCE_TIME` 导致寿终后，`ended` phase、current session 与 Archive 一并落盘；
+- `lifeStage`、`physiqueIds`、`world`、`knowledge` 可随完整 GameState 刷新恢复；
+- R01 的过渡 V3 规范化会在 `loadPersistentGame()` 中回写 V3 槽，不会每次刷新重复迁移；
+- checksum 失败仍直接报错，不回退旧 V2/V1；
+- `clearGame()` 删除 v3/v2/v1 三个槽并返回全新 `birth-selection`。
+
+R03 主要新增浏览器行为级回归测试，没有修改生产玩法逻辑。
+
+## 当前唯一状态、调度与保存规则
 
 后续正式 V2 系统必须继续使用：
 
@@ -87,7 +93,7 @@ UI / feature
 → 唯一 GameState
 → debug log / digest / replay
 → PersistentGame
-→ auto-save
+→ browserGameStore auto-save
 ```
 
 禁止：
@@ -102,7 +108,8 @@ React 页面
 
 - 新建 `GameStateV2`；
 - 新建长期并行 `src/v2/` store；
-- 新系统绕过 Session / persistence 自己保存核心状态。
+- 新系统绕过 Session / persistence 自己保存核心状态；
+- 增加手动 SL、多档位或历史回滚。
 
 ## 当前可复用基础设施
 
@@ -116,7 +123,7 @@ React 页面
 - GameAction reducer；
 - state digest / debug log / replay；
 - `PersistentGame`；
-- localStorage + checksum + migration；
+- localStorage + checksum + migration + auto-save；
 - condition / effect / event；
 - Chronicle / Archive。
 
@@ -140,14 +147,15 @@ explore / livelihood / cultivate / breakthrough
 → 时间 / 探索 / 战斗 / 修炼 / 资源 / 因果
 → 必要时触发事件
 → Chronicle
+→ 自动保存
 ```
 
 ## 下一轮
 
 执行：
 
-> **R03｜V3 单档自动保存行为补全**
+> **R04｜V2 Shell 页面骨架**
 
-R03 只验证和补齐当前 browser store / persistence 的自动保存闭环，不增加新玩法，不做多档、手动保存或 SL。
+R04 只建立新的页面壳层和响应式布局，用真实现有状态展示顶栏，并继续承载当前 legacy 可玩主舞台；不做出生三选一、地图、背包、功法、事务或战斗等新玩法。
 
 具体范围以 `CURRENT_TASK.md` 为准。
