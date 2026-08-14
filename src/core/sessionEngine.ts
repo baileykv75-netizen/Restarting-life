@@ -2,6 +2,7 @@ import { FORMAL_EVENTS } from '../data/events/formalEvents'
 import type { StateChange } from '../types/chronicle'
 import type { PlayerAction, SessionCommand } from '../types/command'
 import type { StatKey } from '../types/content'
+import type { GameAction } from '../types/gameAction'
 import type { GameSession, OutcomeSnapshot, ResolvedOutcome } from '../types/persistence'
 import { performPlayerAction } from './actionEngine'
 import { generateBirthState } from './birthEngine'
@@ -12,6 +13,7 @@ import {
   createEventChronicleEntry,
 } from './chronicleEngine'
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
+import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
 import { getGameStateDigest } from './stateDigest'
 import { formatDuration } from './timeEngine'
@@ -168,6 +170,7 @@ export function createGameSession(options: CreateGameStateOptions): GameSession 
 
 function getEffectTypes(session: GameSession, command: SessionCommand): string[] {
   if (command.type === 'continue') return ['result:continue']
+  if (command.type === 'game-action') return [`game-action:${command.action.type}`]
   if (command.type === 'action') return [`action:${command.action}`]
 
   const currentEventId = session.state.events.currentEventId
@@ -219,6 +222,15 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
         )
       }
     }
+  } else if (command.type === 'game-action') {
+    if (before.events.currentEventId !== null || pendingAction !== null) {
+      return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    }
+    const result = applyGameAction(before, command.action)
+    nextState = result.state
+    applied = result.applied
+    reason = result.reason
+    pendingAction = null
   } else {
     if (before.status !== 'playing') return { session: workingSession, applied: false, reason: 'GAME_ENDED' }
     const eventId = before.events.currentEventId
@@ -289,4 +301,8 @@ export function executeSessionAction(session: GameSession, action: PlayerAction)
 
 export function executeSessionChoice(session: GameSession, choiceId: string): SessionCommandResult {
   return executeSessionCommand(session, { type: 'choice', choiceId })
+}
+
+export function executeSessionGameAction(session: GameSession, action: GameAction): SessionCommandResult {
+  return executeSessionCommand(session, { type: 'game-action', action })
 }
