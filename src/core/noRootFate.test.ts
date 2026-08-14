@@ -5,6 +5,7 @@ import { canAttemptBreakthrough, resolveBreakthroughAttempt, startBreakthrough }
 import { calculateCultivationGain } from './cultivationEngine'
 import { createEventCatalog, resolveEventChoice, startEventById } from './eventEngine'
 import { createInitialGameState } from './gameState'
+import { DAYS_PER_YEAR } from './timeEngine'
 
 const catalog = createEventCatalog(FORMAL_EVENTS)
 
@@ -14,7 +15,7 @@ describe('no-root fate chain', () => {
     let state: GameState = {
       ...base,
       rngState: 1,
-      timeMonths: 30 * 12,
+      worldDay: 30 * DAYS_PER_YEAR,
       identity: { ...base.identity, spiritRootId: 'none' },
       tags: ['no_spirit_root', 'spirit_root:none'],
       flags: {
