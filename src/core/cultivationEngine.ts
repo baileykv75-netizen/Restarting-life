@@ -7,9 +7,9 @@ import {
 } from '../data/realms'
 import type { GameState } from '../types/game'
 import { resolveNaturalDeath } from './lifespanEngine'
-import { advanceTimeMonths, MONTHS_PER_YEAR } from './timeEngine'
+import { advanceTimeDays, DAYS_PER_YEAR } from './timeEngine'
 
-export const BASIC_CULTIVATION_MONTHS = MONTHS_PER_YEAR
+export const BASIC_CULTIVATION_DAYS = DAYS_PER_YEAR
 export const BASIC_CULTIVATION_GAIN = 55
 
 export type CultivationBlockReason =
@@ -112,7 +112,7 @@ export function performBasicCultivation(state: GameState): CultivationResult {
   }
 
   const gain = calculateCultivationGain(state)
-  const advanced = advanceTimeMonths(state, BASIC_CULTIVATION_MONTHS)
+  const advanced = advanceTimeDays(state, BASIC_CULTIVATION_DAYS)
   const withGain: GameState = {
     ...advanced,
     resources: {
