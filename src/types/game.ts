@@ -1,3 +1,5 @@
+import type { ChronicleEntry } from './chronicle'
+
 export type GameStatus = 'playing' | 'dead' | 'won'
 
 export type Realm = 'mortal' | 'qi' | 'foundation' | 'golden_core'
@@ -49,6 +51,8 @@ export interface GameState {
     queue: string[]
     history: string[]
   }
+
+  chronicle: ChronicleEntry[]
 
   endReason: string | null
 }
