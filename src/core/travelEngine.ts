@@ -1,4 +1,4 @@
-import { WORLD_ROUTES, getWorldRouteBetween, getWorldRouteById } from '../data/worldRoutes'
+import { WORLD_ROUTES, getWorldRouteBetween } from '../data/worldRoutes'
 import { WORLD_LOCATIONS, getWorldLocationById } from '../data/worldLocations'
 import type { GameState } from '../types/game'
 import type { WorldLocationDefinition, WorldRouteDefinition } from '../types/world'
@@ -29,13 +29,8 @@ export interface TravelResult {
   routeIds: string[]
 }
 
-function traversedFlag(routeId: string): string {
-  return `${TRAVERSED_ROUTE_PREFIX}${routeId}`
-}
-
-export function isRouteTraversed(state: GameState, routeId: string): boolean {
-  return state.flags[traversedFlag(routeId)] === true
-}
+function traversedFlag(routeId: string): string { return `${TRAVERSED_ROUTE_PREFIX}${routeId}` }
+export function isRouteTraversed(state: GameState, routeId: string): boolean { return state.flags[traversedFlag(routeId)] === true }
 
 function travelReady(state: GameState): string | null {
   if (state.status !== 'playing') return 'GAME_ENDED'
@@ -76,21 +71,14 @@ export function resolveTravel(state: GameState, destinationId: string): TravelRe
 
   const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days: route.travelDays })
   if (!advanced.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: advanced.reason, routeIds: [] }
-  if (advanced.state.status !== 'playing') {
-    return { state: advanced.state, applied: true, arrived: false, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
-  }
+  if (advanced.state.status !== 'playing') return { state: advanced.state, applied: true, arrived: false, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
 
   const located = applyGameAction(advanced.state, { type: 'SET_CURRENT_LOCATION', locationId: destinationId })
   if (!located.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: located.reason, routeIds: [] }
-  const completed = markRouteTraversed(located.state, route.id)
-  return { state: completed, applied: true, arrived: true, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
+  return { state: markRouteTraversed(located.state, route.id), applied: true, arrived: true, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
 }
 
-interface PathCandidate {
-  locationId: string
-  travelDays: number
-  routeIds: string[]
-}
+interface PathCandidate { locationId: string; travelDays: number; routeIds: string[] }
 
 export function findFastTravelPath(state: GameState, destinationId: string): FastTravelOption | null {
   if (travelReady(state)) return null
@@ -100,27 +88,20 @@ export function findFastTravelPath(state: GameState, destinationId: string): Fas
   if (!destination) return null
 
   const distances = new Map<string, number>([[startId, 0]])
-  const routePaths = new Map<string, string[]>([[startId, []]])
   const queue: PathCandidate[] = [{ locationId: startId, travelDays: 0, routeIds: [] }]
-
   while (queue.length > 0) {
     queue.sort((a, b) => a.travelDays - b.travelDays)
     const current = queue.shift()!
     if (current.travelDays !== distances.get(current.locationId)) continue
-    if (current.locationId === destinationId) {
-      return { destination, routeIds: current.routeIds, travelDays: current.travelDays }
-    }
-
+    if (current.locationId === destinationId) return { destination, routeIds: current.routeIds, travelDays: current.travelDays }
     for (const route of WORLD_ROUTES) {
       if (!route.stableFastTravel || !isRouteTraversed(state, route.id)) continue
       const nextId = route.from === current.locationId ? route.to : route.to === current.locationId ? route.from : null
       if (!nextId || getLocationKnowledgeStatus(state, nextId) !== 'discovered') continue
       const nextDays = current.travelDays + route.travelDays
       if (nextDays >= (distances.get(nextId) ?? Number.POSITIVE_INFINITY)) continue
-      const nextPath = [...current.routeIds, route.id]
       distances.set(nextId, nextDays)
-      routePaths.set(nextId, nextPath)
-      queue.push({ locationId: nextId, travelDays: nextDays, routeIds: nextPath })
+      queue.push({ locationId: nextId, travelDays: nextDays, routeIds: [...current.routeIds, route.id] })
     }
   }
   return null
@@ -140,18 +121,14 @@ export function resolveFastTravel(state: GameState, destinationId: string): Trav
   if (readiness) return { state, applied: false, arrived: false, travelDays: 0, reason: readiness, routeIds: [] }
   const path = findFastTravelPath(state, destinationId)
   if (!path) return { state, applied: false, arrived: false, travelDays: 0, reason: 'FAST_TRAVEL_PATH_UNAVAILABLE', routeIds: [] }
-
   const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days: path.travelDays })
   if (!advanced.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: advanced.reason, routeIds: [] }
-  if (advanced.state.status !== 'playing') {
-    return { state: advanced.state, applied: true, arrived: false, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
-  }
-
+  if (advanced.state.status !== 'playing') return { state: advanced.state, applied: true, arrived: false, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
   const located = applyGameAction(advanced.state, { type: 'SET_CURRENT_LOCATION', locationId: destinationId })
   if (!located.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: located.reason, routeIds: [] }
   return { state: located.state, applied: true, arrived: true, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
 }
 
 export function getTraversedRoutes(state: GameState): WorldRouteDefinition[] {
-  return WORLD_ROUTES.filter((route) => isRouteTraversed(state, route.id) && getWorldRouteById(route.id))
+  return WORLD_ROUTES.filter((route) => isRouteTraversed(state, route.id))
 }
