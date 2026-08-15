@@ -1,12 +1,14 @@
-# 当前任务：V2 R11 - 区域页面 + 探索动作
+# 当前任务：V2 R12 - 随机子地点运行骨架
 
 ## 本轮唯一目标
 
-让已经发现并亲自抵达的 **固定野外区域** 第一次真正可探索：
+在 R11 已完成的三个固定野外区域探索进度之上，建立首版“每一世不同、同一世固定”的随机子地点闭环：
 
-> **当前位置是 discovered 野外区域 → 显示区域信息与当前角色风险 → 选择探索 1 / 3 / 10 天 → 推进唯一 worldDay → 累积本区域探索进度 → 更新探索阶段 → 保存 / replay 保持。**
+> **新人生 seed → 为三个固定 wilderness 生成有限子地点 → 未发现时不泄露 → 随区域探索阶段逐步发现 → 发现后进入角色知识 / 区域页面 → 刷新 / replay 保持。**
 
-本轮只做“探索这片区域本身”的闭环。**不生成 R12 随机洞府、药谷、巢穴、遗迹，不正式掉落资源，不触发战斗。**
+本轮重点是 **随机子地点的运行骨架与发现机制**，不是资源、战斗、秘境或完整内容扩写。
+
+---
 
 ## 内容来源约束
 
@@ -19,227 +21,260 @@
 5. `V2_GITHUB_ROADMAP.md`
 6. `HANDOFF.md`
 
-继续使用 R08 的 fixed world、R09 knowledge 与 R10 travel。不得在 R11 临时增加新的世界地点或新玩法系统。
+### 当前内容缺口必须牢记
 
-## 首版可探索固定区域
+`V2_CONTENT_BIBLE.md` 目前只正式冻结了以下随机子地点 **内容家族 / 世界来源**：
 
-本轮只对 `type = wilderness` 的 3 个正式固定区域开放探索：
+- 黑风山：随机洞府、遗迹、旧矿 / 矿变相关异常地点；
+- 灵溪谷：野生药谷、深处寒潭类特殊地点；
+- 万兽岭：兽巢；
+- 总体允许的首版家族：洞府 / 药谷 / 兽巢 / 遗迹。
 
-- `blackwind_mountain`｜黑风山；
-- `lingxi_valley`｜灵溪谷；
-- `beast_ridge`｜万兽岭。
+**尚未冻结完整的 8～12 个具体命名子地点内容池。**
 
-`blackwind_foothill` 仍是固定入口 / 路线节点，不在 R11 单独建立完整探索进度。聚落、坊市、宗门、家族据点也不显示“探索 1 / 3 / 10 天”。
+因此 R12 禁止：
 
-## 探索阶段冻结
+- Codex 自行批量编造 8～12 个正式地点并反向写成 Content Bible 真源；
+- 自行发明宝物、妖兽、传承、NPC、奖励或剧情；
+- 把路线文档里的示例扩写成正式世界设定。
 
-使用 Content Bible 已冻结的四阶段：
+R12 只允许使用上述已存在内容家族完成运行框架。完整具体内容池记录为后续内容补齐项。
 
-1. `initial`｜初步探索；
-2. `familiar`｜较为熟悉；
-3. `deep`｜深入探索；
-4. `surveyed`｜基本探明。
+---
 
-未有探索记录时，不额外写一个 `unknown` stage；直接通过“本区域没有 progress 记录”表示尚未开始系统探索。
+## 首版生成规模
 
-首版以 **累计有效探索天数** 推进阶段：
+为了验证随机世界与发现闭环，首版每一世只生成 **4～6 个子地点实例**，不追求 8～12 个正式内容模板。
+
+建议分布：
+
+- 黑风山：2 个；
+- 灵溪谷：1～2 个；
+- 万兽岭：1～2 个。
+
+允许的 archetype：
 
 ```text
-0 天       尚未系统探索
-1–4 天     初步探索
-5–14 天    较为熟悉
-15–29 天   深入探索
-30+ 天     基本探明
+cave      洞府
+herb-valley  药谷
+beast-nest   兽巢
+ruin      遗迹
 ```
 
-这里的边际递减通过越来越宽的阶段门槛体现：越往后，需要投入更多真实时间才能继续提升熟悉程度。
+区域适配必须符合 Content Bible：
 
-## 可选探索时长
+- 黑风山：`cave | ruin`；
+- 灵溪谷：`herb-valley | ruin`，如果需要“寒潭”必须只作为后续具体内容钩子，本轮不实现寒潭专属玩法；
+- 万兽岭：`beast-nest | ruin`。
 
-首版固定：
+不要为了凑随机性让万兽岭生成药谷、灵溪谷生成矿洞等违背世界来源的组合。
 
-- 1 天；
-- 3 天；
-- 10 天。
-
-不要在 R11 做任意数字输入，也不要做 30 天 / 100 天超长快捷按钮。
+---
 
 ## GameState 兼容原则
 
-探索进度必须进入唯一 `GameState`，但必须保护 R05～R10 已存在的 replay digest。
+R12 运行态必须进入唯一 `GameState`，但继续保护 R05～R11 已有 replay digest。
 
-推荐等价结构：
+建议等价结构：
 
 ```ts
-interface RegionExplorationProgress {
-  locationId: string
-  exploredDays: number
+interface SublocationRuntime {
+  id: string
+  parentLocationId: string
+  archetype: 'cave' | 'herb-valley' | 'beast-nest' | 'ruin'
+  discoveryThresholdDays: number
+  discovered: boolean
 }
 
-interface ExplorationState {
-  locations: Record<string, RegionExplorationProgress>
+interface SublocationState {
+  generated: Record<string, SublocationRuntime>
 }
 ```
 
 关键要求：
 
-1. 可以作为 GameState 新增 **可选字段** `exploration?`；
-2. **不得修改 `createInitialGameState()` 让所有旧人生从出生就自动多出空 exploration 对象**；
-3. 第一次真正执行 R11 探索时才 materialize 探索状态；
-4. 这样旧 R05～R10 command replay 的历史 digest 语义保持不变；
-5. save clone / migration 对已存在的 exploration 必须深拷贝，旧存档没有该字段时仍合法；
-6. 不新建第二套 exploration store。
+1. 新字段必须是 **optional**；
+2. 不得修改 `createInitialGameState()` 给所有旧人生自动补空对象；
+3. 通过新的明确 SessionCommand / resolver 第一次 materialize；
+4. 生成必须只依赖当前 `runSeed / rngState` 的正式 seeded RNG 路径，不能使用 `Math.random()`；
+5. 同一人生刷新 / replay 后组合完全一致；
+6. 不新建第二套 runtime store；
+7. 保存 / normalize 对已存在子地点状态必须保留并深拷贝。
 
-如果实现者有等价、更小且仍结构化的兼容方案可以使用，但禁止把全部探索进度散落成几十个随意 flags。
+---
 
-## 当前角色风险展示
+## 生成与发现规则冻结
 
-R11 只做 **派生展示**，不新增推荐等级。
+### 生成
 
-需要显示两层：
+- 子地点实例在本世第一次初始化 R12 world-sublocations 时一次性生成；
+- 生成后本世固定，不因为刷新、离开区域或重复探索重新抽；
+- 不允许无限生成；
+- 每个实例必须有 canonical runtime id；
+- 同一个父区域内实例 id 不重复。
 
-1. **客观危险**：继续读取 R08 `WorldLocationDefinition.danger`；
-2. **当前风险**：由地点客观危险与当前角色境界 / 小阶段派生一个克制的定性结果。
+### 未发现状态
 
-建议输出：
+未发现子地点：
 
-- 较低；
-- 可控；
-- 较高；
-- 极高。
+- 不出现在地图节点；
+- 不出现在区域详情列表；
+- 不显示正式名称；
+- 不泄露数量；
+- 不允许直接前往。
 
-最小规则可以基于：
+### 发现
 
-- mortal；
-- 炼气 1–3；
-- 炼气 4–6；
-- 炼气 7–9；
-- 筑基；
-- 金丹；
+R12 不再新增“探索经验”。直接复用 R11 当前区域累计 `exploredDays`。
 
-与 safe / low / moderate / high / extreme 做固定映射。
+每个子地点拥有一个固定 `discoveryThresholdDays`，首版只使用简单门槛，例如：
+
+```text
+3 / 8 / 18 / 30 天
+```
 
 要求：
 
-- 同一 GameState 得到确定性结果；
-- 不使用隐藏 RNG；
-- 不显示“推荐炼气五层”之类推荐等级；
-- 当前风险只是玩家根据自身已知情况作判断的界面信息；
-- R11 不因为“极高”而硬禁止探索。
+- 门槛由 seeded generation 一次确定；
+- 当玩家完成一次 R11 `explore-region` 后，检查当前区域是否有达到门槛但尚未 discovered 的实例；
+- 达标即可发现；
+- 一次 10 天探索可以跨过多个门槛；
+- 不使用每次探索重新随机“发现概率”；
+- 不因角色气运在 R12 改写门槛，避免本轮扩张；
+- 已发现永不回退。
+
+这样保持：
+
+> 探索越深入 → 世界信息逐步打开
+
+而不是：
+
+> 无限点击“探索” → 抽随机地点。
+
+---
+
+## 名称与文案约束
+
+因为具体 8～12 个正式地点尚未内容冻结，R12 UI 只允许使用克制的 archetype 展示：
+
+- `一处洞府遗迹` / `洞府`；
+- `一片野生药谷` / `药谷`；
+- `一处兽巢` / `兽巢`；
+- `一处残破遗迹` / `遗迹`。
+
+不要自动生成“玄阴真人洞府”“赤霞药王谷”之类带具体历史结论的名字。
+
+发现结果文案只说明：
+
+> 在持续探索这片区域后，你确认了一处新的子地点：残破遗迹。
+
+不要描述其中有什么宝物、妖兽、尸体、功法或剧情。
+
+---
 
 ## 必须实现
 
-1. 新增正式 exploration 类型与 resolver，例如 `resolveRegionExploration(state, days)`。
-2. 探索前必须验证：
-   - 状态仍 playing；
-   - 是 V2 adult；
-   - R09 地点知识已初始化；
-   - `world.currentLocationId` 合法且 discovered；
-   - 当前地点 type 为 wilderness；
-   - days 只能是 1 / 3 / 10。
-3. 时间必须复用现有 `ADVANCE_TIME / advanceWorldTime`，禁止直接 `worldDay += days`。
-4. 如果探索期间寿元耗尽：
-   - 死亡优先；
-   - 不伪造“完成了这次探索”；
-   - 本次不增加 exploredDays；
-   - 不增加探索阶段；
-   - 当前地点保持原地。
-5. 只有角色活着完成整段探索后才累计当前区域 `exploredDays`。
-6. 不允许一次探索 A 区却修改 B 区进度。
-7. 阶段只允许随累计天数上升，不得下降。
-8. 已达到 `surveyed / 基本探明` 后仍可继续探索，但 R11 页面要明确告诉玩家该区域固定骨架已经基本探明；继续探索不会出现“第五阶段”。
-9. 新增 `explore-region` SessionCommand / 等价命令，进入 debug log / digest / replay / persistence。
-10. 探索结果页只展示当前轮可确定的内容：
-    - 花费时间；
-    - 累计探索天数；
-    - 当前探索阶段；
-    - 如果跨阶段，显示 `初步探索 → 较为熟悉`；
-    - 不虚构“找到灵药 / 遇到妖兽 / 看见洞府”。
-11. **R11 不向 Chronicle 逐次写入每次 1/3/10 天探索。** 这是可重复日常行为，后续《此世传》需要聚合，不得现在制造流水账。
-12. 新增最小区域页 / 地图下方区域面板：
-    - 当前区域名称与简介；
-    - 客观危险；
-    - 当前角色风险；
-    - 当前探索阶段；
-    - 累计探索天数；
-    - 1 / 3 / 10 天探索按钮。
-13. 非 wilderness 地点不显示探索按钮；继续显示 R10 旅行入口即可。
-14. R11 可以声明“已知资源 / 已知妖兽 / 已知子地点”的**空状态位置**，但不得硬编码假内容；如果没有已由世界知识支持的数据，就显示“尚未掌握”或干脆不展示。
-15. R11 不通过探索自动发现 R09 rumored 的其他固定节点；固定地点知识状态仍由明确知识来源推进。
-16. R11 不生成任何 R12 random sublocation。
-17. R11 不给予灵石、材料、修为、属性、关系或职业经验。
-18. R11 不造成战斗、伤势、中毒或随机死亡；真实探索风险后续与事件 / 战斗系统接入，本轮先冻结可重放的时间与熟悉度骨架。
-19. 保持 R05～R10、Archive、legacy replay 兼容。
-20. 新增测试至少覆盖：
-   - 只有 3 个 wilderness fixed region 可探索；
-   - 聚落 / 坊市 / 宗门 / fixed-entry 不可探索；
-   - 1 / 3 / 10 天合法，其他天数拒绝；
-   - 探索正确推进唯一 worldDay；
-   - exploredDays 只写当前区域；
-   - 0 / 1 / 5 / 15 / 30 天边界得到正确阶段；
-   - 跨阶段结果正确；
-   - surveyed 后没有第五阶段；
-   - 极高风险仍不硬阻止；
-   - 探索不修改 knowledge、currentLocationId、资源、修为、关系；
-   - 寿终途中不增加探索进度；
-   - 保存 / 刷新恢复 exploredDays；
-   - `explore-region` command 可 replay；
-   - 没有 exploration 字段的 R05～R10 状态仍能读取；
-   - legacy adult 不被强行套入探索系统。
-21. 更新 `HANDOFF.md`；本轮成功后把 `CURRENT_TASK.md` 切换到 R12。
+1. 新增正式 sublocation runtime 类型与 resolver / generator。
+2. 只为三个 fixed wilderness 生成首版 4～6 个实例。
+3. 生成必须 deterministic：同 runSeed / command history 得到同样实例。
+4. 生成完成后写入唯一 GameState optional runtime 字段。
+5. 新增 `initialize-sublocations` SessionCommand / 等价命令：
+   - 只允许 R09 knowledge 已初始化的 V2 adult；
+   - 只执行一次；
+   - 进入 debug log / digest / replay / persistence；
+   - 不推进时间。
+6. R11 区域探索成功完成后，调用最小发现 resolver：
+   - 只检查当前 wilderness；
+   - 使用累计 exploredDays 与固定 threshold；
+   - 达标实例变 discovered；
+   - 不重新生成实例；
+   - 不改变其他区域实例。
+7. 如果 R11 探索途中寿终，没有增加 exploredDays，也不得触发新子地点发现。
+8. 已发现子地点进入当前区域页面的“已确认子地点”列表。
+9. 未发现实例不泄露数量、archetype 或门槛。
+10. 发现结果可以附加在本次探索结果页，但不写逐次 Chronicle 流水账；如果首次发现是值得记录的世界事实，可暂时只进入状态，Chronicle 聚合规则后续统一处理。
+11. 本轮不允许点击进入子地点形成独立场景页；可以把“已确认子地点”做成不可操作的信息项，进入 / 访问由后续轮次负责。
+12. 不把子地点自动升级成 `knowledge.locations` 的 fixed-world id；R09 fixed location knowledge 与 R12 sublocation knowledge 是不同层级，避免污染 11 个固定节点命名空间。
+13. 保存 / 刷新保持实例与 discovered 状态。
+14. `initialize-sublocations` 与发现后的 `explore-region` 都必须可 replay。
+15. 保持 R05～R11、Archive、legacy replay 兼容。
+16. 更新 `HANDOFF.md`；成功后把 `CURRENT_TASK.md` 切到 R13。
+
+---
+
+## 必须测试
+
+至少覆盖：
+
+1. 只生成 4～6 个实例；
+2. 只挂在 3 个 wilderness；
+3. archetype 与父区域适配合法；
+4. 同 seed / replay 生成结果一致；
+5. 不同 seed 至少存在组合变化；
+6. 初始化只执行一次；
+7. 初始化不推进 worldDay；
+8. 未发现实例不进入玩家可见 view model；
+9. 3 / 8 / 18 / 30 等 threshold 边界发现正确；
+10. 一次长探索可同时跨过多个门槛；
+11. 探索 A 区不发现 B 区子地点；
+12. 已发现状态不回退；
+13. 寿终探索不触发发现；
+14. 子地点状态不修改灵石、修为、关系、fixed location knowledge、currentLocationId；
+15. 保存 / 刷新保持；
+16. SessionCommand 可 replay；
+17. 没有 sublocation 字段的 R05～R11 旧状态仍合法；
+18. legacy adult 不被强制生成新世界子地点。
+
+---
 
 ## UI 原则
 
-1. 地图依然是玩家认知地图；探索页不能突然展示全区域资源表。
-2. 区域页首先回答：
-   - 我现在在哪里；
-   - 这里客观有多危险；
-   - 以我现在的状态，大致有多危险；
-   - 我对这里熟到什么程度；
-   - 我准备花多少天继续摸清这里。
-3. 按钮自然：
-   - `探索 1 天`；
-   - `探索 3 天`；
-   - `探索 10 天`。
-4. 不显示“探索经验 +60”“区域熟练度 37/100”之类游戏化经验条；阶段与累计时间即可。
-5. 不显示推荐等级。
-6. 不做探索动画、地图迷雾动画或第三方地图库。
-7. 文案克制，不写“命运齿轮”“你感到这片山林在呼唤你”等 AI 式句子。
+1. 继续以当前固定区域页面为主，不另做大地图。
+2. 只显示 `discovered` 子地点。
+3. 未发现数量不显示 `2/5` 之类提示。
+4. 子地点列表只展示 archetype 级别已确认信息，不显示假资源和假危险度。
+5. 不给未实现的“进入洞府 / 搜索药谷 / 清剿兽巢”假按钮。
+6. 不显示发现概率。
+7. 不显示内部 threshold 数值。
+8. 不做迷雾动画、粒子特效或第三方地图库。
+
+---
 
 ## 本轮禁止
 
-- 不实现 R12 随机子地点；
-- 不生成洞府 / 药谷 / 巢穴 / 遗迹；
-- 不实现秘境；
-- 不掉落正式资源；
-- 不做采集收益；
-- 不做狩猎收益；
-- 不做妖兽遭遇；
+- 不补完整 8～12 个正式子地点内容池；
+- 不做资源掉落；
+- 不做采集；
+- 不做妖兽生成；
 - 不做战斗；
+- 不做子地点内部节点；
+- 不做秘境；
+- 不做洞府宝箱；
+- 不做遗迹传承；
+- 不做寒潭鳞蟒；
+- 不做独角苍狼；
+- 不做随机 NPC；
 - 不做旅行事件；
-- 不做伤势 / 中毒结算；
-- 不做商店；
-- 不做宗门任务；
-- 不做正式修炼；
 - 不接 LLM API；
 - 不回到 legacy `ActionPanel`。
 
+---
+
 ## 验收标准
 
-1. 玩家抵达 discovered wilderness 后能进行 1 / 3 / 10 天真实探索。
-2. 探索推进唯一 worldDay 并形成持久的区域探索天数。
-3. 探索阶段按 1 / 5 / 15 / 30 天门槛正确推进。
-4. 客观危险与当前风险同时可见，且不硬限制高风险探索。
-5. 探索结果不伪造资源、妖兽、地点或剧情。
-6. 非野外固定地点没有探索按钮。
-7. 探索不会改变 location knowledge 或旅行路线状态。
-8. 寿终边界正确。
-9. replay / V3 保存 / 刷新恢复正常。
-10. 旧 R05～R10 replay digest 不因空 exploration 初始字段被改写。
-11. 没有提前实现 R12。
-12. `npm run typecheck` 通过。
-13. `npm test` 通过。
-14. `npm run build` 通过。
-15. `HANDOFF.md` 已更新。
+1. 每一世拥有有限、稳定、可重放的随机子地点组合。
+2. 同一人生刷新不改变组合。
+3. 不同人生组合可以不同。
+4. 未发现地点完全不泄露。
+5. R11 探索天数能逐步揭示当前区域子地点。
+6. 已发现子地点能在当前区域页面看到。
+7. 不生成奖励、战斗或剧情假内容。
+8. 不污染 fixed-world knowledge。
+9. replay / V3 保存正常。
+10. R05～R11 旧 digest 兼容。
+11. `npm run typecheck` 通过。
+12. `npm test` 通过。
+13. `npm run build` 通过。
+14. `HANDOFF.md` 已更新。
 
-完成后立即停下，不得自行进入 R12。
+完成后立即停下，不得自行进入 R13。
