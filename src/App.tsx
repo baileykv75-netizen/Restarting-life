@@ -9,6 +9,7 @@ import { ChroniclePanel } from './components/ChroniclePanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { GameStatusBar } from './components/GameStatusBar'
+import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
 import { WorldMapPanel } from './components/WorldMapPanel'
 import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
@@ -56,8 +57,10 @@ function App() {
     stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
-  } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
+  } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <WorldMapPanel state={state} />
+  } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
+    stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
     stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} onInitializeWorld={() => persistCommand({ type: 'initialize-world' })} />
   } else if (activeEvent) {
