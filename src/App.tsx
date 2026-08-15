@@ -40,6 +40,23 @@ function App() {
   function persistStart() { try { const next = startAndSaveRun(window.localStorage, game, Date.now()); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法开启新的人生') } }
   function persistBirthChoice(candidateId: string) { try { const next = chooseBirthAndSave(window.localStorage, game, candidateId); setGame(next); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法确定这一世') } }
   function persistCommand(command: SessionCommand) { try { const result = commandAndSave(window.localStorage, game, command); if (!result.applied) { setNotice(result.reason ?? '当前操作无法执行'); return } setGame(result.persistent); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '本次操作未能保存') } }
+  function persistExplore(days: ExplorationDuration) {
+    try {
+      let working = game
+      const currentState = working.currentSession?.state
+      if (currentState && !currentState.sublocations) {
+        const initialized = commandAndSave(window.localStorage, working, { type: 'game-action', action: { type: 'INITIALIZE_SUBLOCATIONS' } })
+        if (!initialized.applied) { setNotice(initialized.reason ?? '本世子地点无法初始化'); return }
+        working = initialized.persistent
+      }
+      const result = commandAndSave(window.localStorage, working, { type: 'explore-region', days })
+      if (!result.applied) { setNotice(result.reason ?? '当前无法探索'); return }
+      setGame(result.persistent)
+      setNotice(null)
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '本次探索未能保存')
+    }
+  }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
 
   if (error) return <main className="landing-shell"><section className="landing-card danger-card"><p className="eyebrow">此世问长生 · V2.0</p><h1>本地存档需要处理</h1><p className="story-text">这份存档没有通过完整性校验。为避免继续损坏记录，游戏没有加载它。</p><p className="error-text">{error}</p><button className="primary-button" onClick={recoverSave} type="button">清除损坏存档并重新开始</button>{notice && <p className="notice">{notice}</p>}</section></main>
@@ -59,7 +76,7 @@ function App() {
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={(days: ExplorationDuration) => persistCommand({ type: 'explore-region', days })} />
+    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
