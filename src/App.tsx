@@ -6,6 +6,7 @@ import { BirthSelectionPanel } from './components/BirthSelectionPanel'
 import { CharacterPanel } from './components/CharacterPanel'
 import { ChildhoodPanel } from './components/ChildhoodPanel'
 import { ChroniclePanel } from './components/ChroniclePanel'
+import { CultivationPanel } from './components/CultivationPanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { GameStatusBar } from './components/GameStatusBar'
@@ -14,6 +15,7 @@ import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetup
 import { SecretRealmPanel } from './components/SecretRealmPanel'
 import { WorldMapPanel } from './components/WorldMapPanel'
 import { getAvailableActions } from './core/actionEngine'
+import type { CultivationDuration } from './core/cultivationEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
@@ -29,6 +31,7 @@ import './world-map.css'
 import './secret-realm.css'
 import './inventory.css'
 import './equipment.css'
+import './cultivation.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -84,6 +87,19 @@ function App() {
           return
         }
         working = initializedEquipment.persistent
+        workingState = working.currentSession?.state
+        changed = true
+      }
+
+      if (workingState?.adultEntry?.resolved && !workingState.cultivation.practiceInitialized) {
+        const initializedCultivation = commandAndSave(window.localStorage, working, { type: 'initialize-cultivation' })
+        if (!initializedCultivation.applied) {
+          if (changed) setGame(working)
+          setNotice(initializedCultivation.reason ?? '本世修炼状态无法初始化')
+          return
+        }
+        working = initializedCultivation.persistent
+        workingState = working.currentSession?.state
         changed = true
       }
 
@@ -128,6 +144,7 @@ function App() {
       setNotice(caught instanceof Error ? caught.message : '本次探索未能保存')
     }
   }
+  function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
 
   if (error) return <main className="landing-shell"><section className="landing-card danger-card"><p className="eyebrow">此世问长生 · V2.0</p><h1>本地存档需要处理</h1><p className="story-text">这份存档没有通过完整性校验。为避免继续损坏记录，游戏没有加载它。</p><p className="error-text">{error}</p><button className="primary-button" onClick={recoverSave} type="button">清除损坏存档并重新开始</button>{notice && <p className="notice">{notice}</p>}</section></main>
@@ -149,7 +166,7 @@ function App() {
   } else if (state.secretRealm?.sunkenVeinChamber.active) {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />
+    stageContent = <><WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />{state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onCultivate={persistCultivate} />}</>
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
