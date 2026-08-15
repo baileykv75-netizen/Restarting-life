@@ -1,4 +1,5 @@
 import { FORMAL_EVENTS } from '../data/events/formalEvents'
+import { getWorldLocationById } from '../data/worldLocations'
 import type { StateChange } from '../types/chronicle'
 import type { PlayerAction, SessionCommand } from '../types/command'
 import type { StatKey } from '../types/content'
@@ -16,6 +17,7 @@ import type { CreateGameStateOptions } from './gameState'
 import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
 import { getGameStateDigest } from './stateDigest'
 import { formatDuration } from './timeEngine'
+import { resolveFastTravel, resolveTravel, type TravelResult } from './travelEngine'
 import { resolveWorldInitialization } from './worldLocationEngine'
 
 export const FORMAL_EVENT_CATALOG = createEventCatalog(FORMAL_EVENTS)
@@ -31,8 +33,25 @@ function buildChanges(before: OutcomeSnapshot, after: GameSession['state']): Sta
 function buildOutcome(before: OutcomeSnapshot, after: GameSession['state'], title: string, narrative: string, consequence?: string): ResolvedOutcome { return { title, narrative, changes: buildChanges(before, after), consequence: consequence ?? null } }
 function actionTitle(action: PlayerAction): string { if (action === 'cultivate') return '闭关结束'; if (action === 'explore') return '外出归来'; if (action === 'livelihood') return '差事做完了'; return '突破结果' }
 function actionNarrative(action: PlayerAction): string { if (action === 'cultivate') return '这一段修炼告一段落。'; if (action === 'explore') return '你结束这次外出，回到了熟悉的地方。'; if (action === 'livelihood') return '这段日子忙完，报酬也已经结清。'; return '' }
+function travelOutcome(before: GameSession['state'], result: TravelResult, fast: boolean): ResolvedOutcome {
+  const destination = result.destinationId ? getWorldLocationById(result.destinationId) : undefined
+  const origin = before.world.currentLocationId ? getWorldLocationById(before.world.currentLocationId) : undefined
+  const changes: StateChange[] = [{ label: '时间', value: `+${formatDuration(result.travelDays)}`, tone: 'neutral' }]
+  if (result.arrived && destination) changes.push({ label: '地点', value: `${origin?.name ?? '出发地'} → ${destination.name}`, tone: 'neutral' })
+  if (!result.arrived && result.state.status !== 'playing') changes.push({ label: '状态', value: result.state.endReason ?? '旅途中死亡', tone: 'negative' })
+  return {
+    title: result.arrived ? (fast ? '赶路结束' : `抵达${destination?.name ?? '目的地'}`) : '旅途中止',
+    narrative: result.arrived
+      ? fast
+        ? `你沿已经走熟的路线前往${destination?.name ?? '目的地'}，共用了${formatDuration(result.travelDays)}。`
+        : `你从${origin?.name ?? '出发地'}前往${destination?.name ?? '目的地'}，用了${formatDuration(result.travelDays)}，已经抵达。`
+      : `这段路原本预计前往${destination?.name ?? '目的地'}，但你没能走到终点。`,
+    changes,
+    consequence: null,
+  }
+}
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
@@ -61,6 +80,12 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveLocationKnowledgeInitialization(before)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location-knowledge']
+  } else if (command.type === 'travel' || command.type === 'fast-travel') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = command.type === 'travel' ? resolveTravel(before, command.destinationId) : resolveFastTravel(before, command.destinationId)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied) pendingResult = travelOutcome(before, result, command.type === 'fast-travel')
+    effectTypes = command.type === 'travel' ? ['world:travel'] : ['world:fast-travel']
   } else if (command.type === 'action') {
     const snapshot = captureOutcomeSnapshot(before); const result = performPlayerAction(before, command.action, FORMAL_EVENTS, FORMAL_EVENT_CATALOG); nextState = result.state; applied = result.applied; reason = result.reason
     if (applied) { if (nextState.events.currentEventId !== null) pendingAction = { action: command.action, snapshot }; else { pendingAction = null; pendingResult = buildOutcome(snapshot, nextState, actionTitle(command.action), actionNarrative(command.action)); nextState = appendChronicleEntry(nextState, createActionChronicleEntry(command.action, pendingResult, snapshot, nextState.worldDay, nextState.chronicle.length + 1)) } }
