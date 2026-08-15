@@ -7,5 +7,6 @@ export type SessionCommand =
   | { type: 'choice'; choiceId: string }
   | { type: 'childhood-choice'; choiceId: string }
   | { type: 'adult-entry-choice'; optionId: string }
+  | { type: 'initialize-world' }
   | { type: 'continue' }
   | { type: 'game-action'; action: GameAction }

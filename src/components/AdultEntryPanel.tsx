@@ -4,16 +4,17 @@ import type { GameState } from '../types/game'
 interface AdultEntryPanelProps {
   state: GameState
   onChoice: (optionId: string) => void
+  onInitializeWorld: () => void
 }
 
-export function AdultEntryPanel({ state, onChoice }: AdultEntryPanelProps) {
+export function AdultEntryPanel({ state, onChoice, onInitializeWorld }: AdultEntryPanelProps) {
   const view = getAdultEntryView(state)
   if (!view) {
     return <section className="story-card adult-entry-card"><p className="story-kicker">十六岁</p><h2>成年入口尚未建立</h2><p className="story-text">当前出身没有对应的成年入口数据。游戏已停在安全状态，没有回落到旧版行动循环。</p></section>
   }
 
   if (view.progress.resolved && view.selectedOption) {
-    return <section className="story-card adult-entry-card adult-entry-resolved"><p className="story-kicker">成年起点已确定</p><h2>{view.selectedOption.label}</h2><p className="story-text">{view.selectedOption.resultText}</p><div className="adult-entry-origin"><span>下一阶段起点</span><strong>{view.selectedOption.startingLocationLabel}</strong></div><p className="muted adult-entry-stop">R07 到这里结束。地图、旅行和地点行动将在 R08 正式展开。</p></section>
+    return <section className="story-card adult-entry-card adult-entry-resolved"><p className="story-kicker">成年起点已确定</p><h2>{view.selectedOption.label}</h2><p className="story-text">{view.selectedOption.resultText}</p><div className="adult-entry-origin"><span>当前落脚处</span><strong>{view.selectedOption.startingLocationLabel}</strong></div><p className="muted adult-entry-stop">成年方向已经定下。确认落脚处后，青霞地界的固定世界骨架会展开；这一步不会产生旅行耗时。</p><button className="primary-button" onClick={onInitializeWorld} type="button">确认当前落脚处</button></section>
   }
 
   return (

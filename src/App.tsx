@@ -9,6 +9,7 @@ import { ChroniclePanel } from './components/ChroniclePanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { GameStatusBar } from './components/GameStatusBar'
+import { WorldMapPanel } from './components/WorldMapPanel'
 import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
@@ -20,6 +21,7 @@ import './experience-cleanup.css'
 import './birth-selection.css'
 import './childhood.css'
 import './adult-entry.css'
+import './world-map.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -54,8 +56,10 @@ function App() {
     stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
+  } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
+    stageContent = <WorldMapPanel state={state} />
   } else if (state.lifeStage === 'adult') {
-    stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} />
+    stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} onInitializeWorld={() => persistCommand({ type: 'initialize-world' })} />
   } else if (activeEvent) {
     stageContent = <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
   } else {
