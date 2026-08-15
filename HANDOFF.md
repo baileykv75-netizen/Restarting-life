@@ -4,100 +4,23 @@
 
 ## 当前状态
 
-- 当前开发主线：**V2.0 架构地基与 R05 出生三选一已完成，下一步进入童年关键节点。**
-- R00.1～R00.3 迁移准备已完成。
-- R01 已把 live `GameState` 扩展为 V2 后续流程的唯一状态真源。
-- R02 已建立 V2 `GameAction -> reducer -> Session -> replay/persistence` 调度边界。
-- R03 已把 V3 单档自动保存行为锁成可回归验证的浏览器闭环。
-- R04 已建立 V2 Game Shell。
-- C00 已建立 `V2_CONTENT_BIBLE.md`，成为首版世界与具体内容真源。
-- R05 已把新人生入口替换为真正的出生三选一；选择后进入 `lifeStage = childhood`，不会落回 legacy 四按钮主循环。
-- legacy Action/Event/Result/End 与旧出生 wrapper 仍只为旧人生、旧测试与迁移期兼容保留，不得继续扩张。
-- V2.0 不另开仓库，不建立长期并行 `src/v2/` 或第二套 GameState。
+- 当前开发主线：**R06 童年关键节点已完成，下一轮进入 R07 成年 / 入道入口。**
+- R00.1～R00.3：迁移、存档 V3 与开发规则已完成。
+- R01：唯一 `GameState` V2 扩展完成。
+- R02：统一 `GameAction / SessionCommand / reducer / replay` 边界完成。
+- R03：V3 单档自动保存与恢复回归完成。
+- R04：V2 Game Shell 完成。
+- C00：`V2_CONTENT_BIBLE.md` 已成为首版具体内容真源。
+- R05：出生三选一完成。
+- R06：每个正式出身的首批两段童年关键节点完成；结束后准确到 16 岁并停在成年入口。
+- legacy Action/Event/Result/End 与旧出生 wrapper 只为旧人生、旧测试与迁移兼容保留，不得继续扩张。
+- 不另开仓库，不建立长期并行 `src/v2/` 或第二套 GameState。
 
-## 已完成
+## 内容真源与仍待后续冻结的缺口
 
-### R00.1｜设计与施工真源落库
+具体出身、地点、人物、功法、物品、妖兽、事件与世界设定以 `V2_CONTENT_BIBLE.md` 为准。
 
-已建立 `V2_GAME_DESIGN.md`、`V2_GITHUB_ROADMAP.md`、`V2_MIGRATION_AUDIT.md`、`AGENTS.md`、`CURRENT_TASK.md`、`HANDOFF.md`，并切换 README 到 V2.0 迁移主线。
-
-### R00.2｜冻结 V1.2 旧玩法边界
-
-已明确以下内容仅为迁移期 legacy：
-
-- `ActionPanel` 旧主操作壳；
-- `actionEngine` 的四行为 + `duration -> drawEvent(category)` 主循环；
-- 全局 `FORMAL_EVENTS` 大池作为主世界驱动；
-- 固定人生 chain 作为全局路线。
-
-### R00.3｜存档 V3 与人生阶段入口
-
-已完成：
-
-- `PersistentGame.schemaVersion = 3`；
-- 当前槽 `restarting-life:v3`；
-- v2/v1 保留为只读迁移输入；
-- `birth-selection / life / ended` 三阶段；
-- checksum 与迁移链继续有效；
-- 真正旧 V2 活跃人生迁入 V3 时封存，不静默套用新规则。
-
-### R01｜扩展现有统一 GameState
-
-已完成：
-
-- `GameState.schemaVersion = 3`；
-- `lifeStage = legacy-adult / childhood / adult`；
-- `identity.physiqueIds: string[]`；
-- `world.currentLocationId`；
-- `knowledge.locations`，状态为 `rumored / discovered`；
-- 新字段进入保存、加载、clone、digest 与 seeded replay 使用的同一 GameState。
-
-### R02｜统一 GameAction / Reducer 与 Session 调度边界
-
-已完成：
-
-- V2 `GameAction` 与 legacy `PlayerAction` 分离；
-- `applyGameAction(state, action)`；
-- 当前支持 `ADVANCE_TIME / SET_FLAG / REMOVE_FLAG / SET_LIFE_STAGE / SET_CURRENT_LOCATION / SET_LOCATION_KNOWLEDGE`；
-- GameAction 进入 debug log / digest / seeded replay / PersistentGame 生命周期。
-
-### R03｜V3 单档自动保存行为补全
-
-已通过浏览器层行为测试锁定：
-
-- 开始人生立即落盘；
-- command / GameAction 成功自动保存；
-- 拒绝命令不覆盖最后有效存档；
-- 关键 V3 状态刷新保持；
-- 寿终后 `ended + currentSession + Archive` 一起恢复；
-- `clearGame()` 删除 v3/v2/v1 三代槽；
-- checksum 与旧版迁移行为不退化。
-
-### R04｜V2 Shell 页面骨架
-
-已完成：
-
-- 单一 `App.tsx`；
-- 顶部品牌 / 状态带 / 三栏主界面；
-- `GameStatusBar` 只读取真实 GameState；
-- 不展示尚未实现的地图、背包、功法、事务假入口；
-- legacy UI 仅在旧成人流程继续兼容。
-
-### C00｜首版内容真源冻结
-
-`V2_CONTENT_BIBLE.md` 已冻结当前已认可内容，包括：
-
-- 青霞地界、黑风矿变、8 个主地点 / 区域；
-- 青云宗、陆 / 孟 / 谢三家、西渠；
-- 8 个出身、灵根体系、无特殊体质 + 7 体质、首版 12 天赋；
-- 童年事件池与多路径入道；
-- 资源、经济、丹药、符箓、装备、功法；
-- 半自动节拍战斗、8 种妖兽、6 类人类敌人；
-- NPC、关系、炼丹 / 炼器 / 御兽；
-- 3 个世界事件、6 条事件链、30 个普通事件骨架；
-- 《此世记》/《此世传》文风规则。
-
-仍需后续冻结的内容继续保留：
+仍需在对应开发轮前补齐，但当前不得由 Codex 自行发明：
 
 1. 炼气 → 筑基、筑基 → 金丹的具体突破资源与流程；
 2. 筑基至金丹级主修传承；
@@ -106,31 +29,56 @@
 5. 8～12 个重大机缘具体内容；
 6. 30 个普通事件的正式正文。
 
-不得让 Codex 临时用占位内容补齐这些缺口。
+## 已完成核心轮次
 
 ### R05｜出生三选一
 
-已完成 V2 正式新人生入口：
+- `phase = birth-selection` 已成为真实可玩阶段；
+- 一次生成并保存 3 个候选，刷新 / 重开不会重抽；
+- 三候选出身互不重复，强弱不做补偿；
+- 使用 Content Bible 的 8 个出身、正式灵根、无特殊体质 + 7 体质、12 个首版天赋；
+- 出身把出生地、关系、地点认知、童年池、成年入口、资源写成可读取 seed/tag；
+- 天赋 / 体质通过 `ruleTags` 提供真实规则接口；
+- 选择后只保留一个权威 `GameState`；
+- `pendingBirthSelection` 进入 V3 存档 / checksum；
+- selected birth seed 可由 replay 重建；
+- legacy 旧出生 / Archive / replay 保持兼容。
 
-- `phase = birth-selection` 现在是真正可玩的阶段；
-- 点击开始后一次性生成并保存 3 个候选，刷新 / 关闭再打开仍为同一组三人；
-- 重复点击开始不会重抽，也不会重复增加人生计数；
-- 三个候选的出身互不重复，出生强弱不做补偿；
-- 正式接入 Content Bible 的 8 个出身、35 个具体灵根组合 / 异灵根、无特殊体质 + 7 体质、12 个首版天赋；
-- 出身写入出生地、关系、已知地点、童年池、成年入口与资源 seed/tag，但 R05 不伪造真实地图状态；
-- 天赋和体质使用未来系统可读取的 `ruleTags`，不再只是文学说明 + 数值；
-- 谢家、陆家候选姓名会保持对应家族姓氏；
-- 选择后只建立一个权威 `GameState`，`lifeStage = childhood`，当前年龄从出生开始；
-- 未选择候选不会残留为第二份角色状态；
-- `pendingBirthSelection` 进入 V3 checksum / 单档保存并可刷新恢复；
-- 通过可编码 selected birth seed，使选择后的 Session 仍能被现有 replay 从 `runSeed` 重建；
-- legacy `generateBirthState()` 对普通旧 seed 仍保持 16 岁直接出生，旧回放 / 旧档案不被切断；
-- 新出生 UI 明确展示出身、灵根、体质、1～3 天赋、资源、已知世界种子、关系与成年入口，不显示推荐、稀有度或隐藏气运；
-- 选择进入童年后不再露出 legacy 四按钮，只显示童年阶段入口。
+R05 主实现：`1a69418ef90ff50e93f3c60f2c1e3bab02a81854`
 
-R05 主实现 commit：`1a69418ef90ff50e93f3c60f2c1e3bab02a81854`。
+### R06｜童年关键节点
 
-CI：run `31861441415`，verify job `94955452642`：
+首版已实现 8 个出身 × 2 个节点，共 16 个正式童年节点：
+
+- 白石村佃户：收成不好 / 山里来的伤者；
+- 黑风山猎户：第一次跟猎 / 不该出现的脚印；
+- 青石镇药铺：混进药材里的怪草 / 出价异常的客人；
+- 临河县武馆：正式学武 / 真正的修士；
+- 青霞坊散修：第一次测灵 / 家里缺灵石；
+- 谢家旁支：测灵与登记 / 第一次学符；
+- 陆家嫡系：家族测灵 / 灵田见习；
+- 青云宗执事后人：宗门测灵 / 观看弟子切磋。
+
+实现边界：
+
+- 新增权威 `ChildhoodProgress`，进入唯一 GameState；
+- `childhood-choice` 走现有 SessionCommand → resolver → debug log → digest → replay → persistence；
+- 每世固定两节点，第一节点约 8 岁、第二节点约 12 岁；中间年份聚合跳过；
+- 选项只显示可知耗时、明显风险和直接成本；
+- choice 可真实改变 flags / tags / relation / stats / spirit stones；
+- 测灵事件只确认 R05 已经确定的 `spiritRootId`，绝不重抽；
+- 猎户事件读取察微知著 / 危机直觉；药铺事件读取百草灵体 / 辨药；武馆与宗门切磋读取兵器熟手；
+- 天赋 / 体质优先改变信息或可选行动，而不是只加数值；
+- Chronicle 只记录两个关键节点，不逐年写流水账；
+- 第二节点完成后强制 `worldDay = birthDay + 16 * DAYS_PER_YEAR`、`lifeStage = adult`；
+- 成年状态停在安全过渡页，不显示 legacy 四按钮，不提前实现 R07；
+- 旧 schema-3 存档允许没有 `childhood` 字段，新人生会明确写入该状态。
+
+R06 主实现：`0b6d1d81d2d56e2f0fe134166c122d749c05a82f`
+
+R06-FIX：`f453d75ea292634d3efb6fce8aac8a791929dee6`
+
+R06-FIX CI：run `31863503118`，verify job `94960710083`：
 
 - typecheck：通过；
 - test：通过；
@@ -138,7 +86,7 @@ CI：run `31861441415`，verify job `94955452642`：
 
 ## 当前唯一状态与调度规则
 
-后续正式 V2 系统继续使用：
+正式 V2 系统继续使用：
 
 ```text
 UI / feature
@@ -150,43 +98,46 @@ UI / feature
 → auto-save
 ```
 
-禁止：React 页面自己 mutate GameState / 自己写 localStorage；禁止第二套 GameState 或长期并行 store。
+禁止：
+
+- React 页面直接 mutate 核心状态；
+- React 页面自己写 localStorage；
+- 新建 `GameStateV2`；
+- 新建长期并行 V2 store；
+- 为单个内容绕过统一 resolver / persistence；
+- 把未冻结内容临时编成正式设定。
 
 ## 当前可复用基础设施
 
-- React + TypeScript + Vite；
-- Vitest；
+- React + TypeScript + Vite + Vitest；
 - Seeded RNG；
 - 单一 `worldDay`；
-- Session / Command；
-- GameAction reducer；
+- Session / Command / GameAction；
 - state digest / debug log / replay；
-- `PersistentGame` + `pendingBirthSelection`；
-- localStorage + checksum + migration；
-- condition / effect / event；
+- `PersistentGame` + V3 checksum / migration；
 - Chronicle / Archive；
 - V2 Game Shell；
-- 正式出生内容 data 层。
+- 正式出生 data；
+- `ChildhoodProgress` / childhood resolver / 16 个童年节点。
 
-## 当前主迁移方向
+## 当前迁移主线
 
 ```text
-出生三选一（已完成）
-→ 童年关键节点
-→ 成年入口
-→ 当前地点 + 角色状态 + 已知世界
-→ 上下文可执行活动
-→ 时间 / 探索 / 战斗 / 修炼 / 资源 / 因果
-→ 必要时触发事件
-→ Chronicle
+出生三选一 ✅
+→ 童年关键节点 ✅
+→ 成年 / 入道入口（R07）
+→ 地点节点与旅行（R08+）
+→ 探索 / 世界活动
+→ 资源 / 修炼 / 战斗 / 宗门 / 职业
+→ 世界事件 / 完整一世
 ```
 
 ## 下一轮
 
 执行：
 
-> **R06｜童年关键节点**
+> **R07｜成年 / 入道入口**
 
-R06 只把已选出生带入 2 个首批关键童年节点，并在童年结束后推进到 16 岁 / `lifeStage = adult`。不实现成年入道，不提前做地图、旅行、宗门、战斗或职业系统。
+R07 只负责把 16 岁角色从童年结果接到符合出身、灵根、关系与经历的成年起点，并形成不同的仙道接触入口。它不实现正式地图旅行、修炼数值循环、宗门完整玩法、战斗或职业系统。
 
 具体范围以 `CURRENT_TASK.md` 为准。
