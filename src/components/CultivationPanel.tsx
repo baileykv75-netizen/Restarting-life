@@ -52,7 +52,9 @@ export function CultivationPanel({
   const auxiliaryTechniques = known.filter((entry) => entry.category !== 'main')
   const main = state.cultivation.mainTechniqueId ? getCultivationTechniqueById(state.cultivation.mainTechniqueId) : undefined
   const location = state.world.currentLocationId ? getWorldLocationById(state.world.currentLocationId) : undefined
-  const oneDayPreview = main ? calculateCultivationPreview(state, main.id, 1) : null
+  const oneDayPreview = main && state.cultivation.realm !== 'foundation' && state.cultivation.realm !== 'golden_core'
+    ? calculateCultivationPreview(state, main.id, 1)
+    : null
   const techniqueSystemReady = state.cultivation.techniqueSystemInitialized === true
 
   return (
@@ -88,11 +90,11 @@ export function CultivationPanel({
                       <span className="technique-status">当前主修</span>
                     ) : !state.cultivation.mainTechniqueId && cultivationReady ? (
                       <button className="text-button" onClick={() => onSelectTechnique(technique.id)} type="button">设为主修</button>
-                    ) : changePreview ? (
+                    ) : changePreview && state.cultivation.realm !== 'foundation' ? (
                       <button className="text-button" onClick={() => onChangeMainTechnique(technique.id)} type="button">改修</button>
                     ) : null}
                   </div>
-                  {changePreview && (
+                  {changePreview && state.cultivation.realm !== 'foundation' && (
                     <p className="technique-cost">改修需 {changePreview.adaptationDays} 日；当前小阶段修为预计损失 {(changePreview.cultivationLossRatio * 100).toFixed(0)}%（{changePreview.cultivationLossPoints} 点）。</p>
                   )}
                   {!cultivationReady && <p className="technique-cost">你掌握的这一部分还不足以作为当前可执行主修运转。</p>}
@@ -101,8 +103,12 @@ export function CultivationPanel({
             })}
           </div>
 
-          {main && isQiNineComplete(state) ? (
-            <p className="cultivation-note complete">炼气九层已经圆满。继续提升需要准备筑基。</p>
+          {state.cultivation.realm === 'foundation' ? (
+            <p className="cultivation-note complete">筑基已经完成。当前低阶主修不会在本轮自动继续推进筑基修为；后续需要获得并接入真正的筑基阶段传承。</p>
+          ) : state.cultivation.realm === 'golden_core' ? (
+            <p className="cultivation-note complete">当前首版修炼闭环已经达到金丹层级。</p>
+          ) : main && isQiNineComplete(state) ? (
+            <p className="cultivation-note complete">炼气九层已经圆满。普通吐纳已经停止，接下来需要准备筑基。</p>
           ) : main ? (
             <>
               {oneDayPreview && (
