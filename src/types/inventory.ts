@@ -1,3 +1,5 @@
+import type { EquipmentSlot, ItemQuality } from './equipment'
+
 export type ItemCategory =
   | 'material'
   | 'pill'
@@ -15,6 +17,11 @@ export interface ItemDefinition {
   stackLimit: number
   slotCost: number
   capacityBonus?: number
+  equipmentSlot?: EquipmentSlot
+  tier?: number
+  quality?: ItemQuality
+  description?: string
+  ruleTags?: readonly string[]
 }
 
 export interface InventoryStack {

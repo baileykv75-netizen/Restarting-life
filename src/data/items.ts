@@ -10,6 +10,16 @@ export const ITEM_DEFINITIONS = [
   { id: 'rock_lizard_carapace', name: '岩甲蜥背甲', category: 'material', stackLimit: 1, slotCost: 2 },
   { id: 'rock_lizard_mineral_crystal', name: '岩甲蜥矿性结晶', category: 'material', stackLimit: 10, slotCost: 1 },
   { id: 'small_storage_bag', name: '小型储物袋', category: 'storage-bag', stackLimit: 1, slotCost: 1, capacityBonus: 12 },
+  { id: 'qingfeng_sword', name: '青锋剑', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '标准、稳定、通用的基准兵器。', ruleTags: ['weapon:sword', 'combat:standard-baseline'] },
+  { id: 'black_iron_greatsword', name: '黑铁重剑', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '节拍较慢、伤害较高，并具有天然护甲穿透倾向。', ruleTags: ['weapon:greatsword', 'combat:slow', 'combat:high-damage', 'combat:armor-penetration'] },
+  { id: 'red_pattern_blade', name: '赤纹刀', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '火属性灵力驱动强招时更容易发挥爆发。', ruleTags: ['weapon:blade', 'element:fire', 'combat:fire-burst-hook'] },
+  { id: 'green_bamboo_spirit_bow', name: '青竹灵弓', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '正常开战可争取一次远程先手，近身后普通攻击效率下降。', ruleTags: ['weapon:bow', 'combat:ranged-opening-hook', 'combat:melee-efficiency-penalty-hook'] },
+  { id: 'black_iron_armor', name: '黑铁护甲', category: 'armor', stackLimit: 1, slotCost: 1, equipmentSlot: 'armor', description: '防御高，但会影响身法与逃跑。', ruleTags: ['armor:heavy', 'combat:high-defense-hook', 'mobility:penalty-hook'] },
+  { id: 'green_wolf_soft_armor', name: '青狼软甲', category: 'armor', stackLimit: 1, slotCost: 1, equipmentSlot: 'armor', description: '防御略低，但不明显影响移动。', ruleTags: ['armor:light', 'combat:moderate-defense-hook', 'mobility:neutral-hook'] },
+  { id: 'heart_guard_mirror', name: '护心镜', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'protective-artifact', description: '遭遇重伤级攻击时可提供显著减伤，触发后需要恢复或修复。', ruleTags: ['artifact:protective', 'combat:severe-hit-mitigation-hook', 'artifact:cooldown-or-repair-hook'] },
+  { id: 'spirit_suppressing_jade', name: '镇灵玉', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'protective-artifact', description: '针对神识冲击与心神干扰提供防护。', ruleTags: ['artifact:protective', 'mind:resistance-hook', 'spirit-sense:defense-hook'] },
+  { id: 'flowing_cloud_boots', name: '流云靴', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'support-artifact', description: '帮助移动、逃跑与山野赶路。', ruleTags: ['artifact:support', 'mobility:travel-hook', 'mobility:flee-hook'] },
+  { id: 'spirit_seeking_compass', name: '寻灵盘', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'support-artifact', description: '探测附近明显灵气异常，只提供异常提示，不直接暴露隐藏坐标。', ruleTags: ['artifact:support', 'exploration:qi-anomaly-hook'] },
 ] as const satisfies readonly ItemDefinition[]
 
 const ITEM_BY_ID = new Map<string, ItemDefinition>(ITEM_DEFINITIONS.map((item) => [item.id, item]))

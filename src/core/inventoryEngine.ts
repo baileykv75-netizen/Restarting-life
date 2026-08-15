@@ -150,6 +150,13 @@ export function addItem(state: GameState, itemId: string, quantity: number): Inv
 
 export function removeItem(state: GameState, itemId: string, quantity: number): InventoryMutationResult {
   if (!state.inventory) return { state, applied: false, reason: 'INVENTORY_NOT_INITIALIZED' }
+  if (isPositiveInteger(quantity) && state.equipment) {
+    const currentQuantity = state.inventory.stacks[itemId]?.quantity ?? 0
+    const isEquipped = Object.values(state.equipment).some((equippedId) => equippedId === itemId)
+    if (isEquipped && currentQuantity - quantity < 1) {
+      return { state, applied: false, reason: '请先卸下正在装备的物品' }
+    }
+  }
   const result = removeFromInventory(state.inventory, itemId, quantity)
   if (!result.inventory) return { state, applied: false, reason: result.reason }
   return { state: { ...state, inventory: result.inventory }, applied: true }

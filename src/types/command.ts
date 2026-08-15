@@ -1,3 +1,4 @@
+import type { EquipmentSlot } from './equipment'
 import type { ExplorationDuration } from './exploration'
 import type { GameAction } from './gameAction'
 import type { SecretRealmAction } from './secretRealm'
@@ -15,6 +16,9 @@ export type SessionCommand =
   | { type: 'secret-realm'; action: SecretRealmAction }
   | { type: 'initialize-inventory' }
   | { type: 'inventory-drop'; itemId: string; quantity: number }
+  | { type: 'initialize-equipment' }
+  | { type: 'equip-item'; itemId: string }
+  | { type: 'unequip-slot'; slot: EquipmentSlot }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
   | { type: 'explore-region'; days: ExplorationDuration }

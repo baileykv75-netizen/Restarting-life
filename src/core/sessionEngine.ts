@@ -11,6 +11,7 @@ import { generateBirthState } from './birthEngine'
 import { resolveBreakthroughAttempt } from './breakthroughEngine'
 import { resolveChildhoodChoice } from './childhoodEngine'
 import { appendChronicleEntry, createActionChronicleEntry, createEventChronicleEntry } from './chronicleEngine'
+import { resolveEquipItem, resolveEquipmentInitialization, resolveUnequipSlot } from './equipmentEngine'
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
@@ -69,7 +70,7 @@ function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
   }
 }
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'initialize-equipment') return ['equipment:initialize']; if (command.type === 'equip-item') return ['equipment:equip']; if (command.type === 'unequip-slot') return ['equipment:unequip']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
@@ -121,6 +122,18 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveInventoryDrop(before, command.itemId, command.quantity)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['inventory:drop']
+  } else if (command.type === 'initialize-equipment') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveEquipmentInitialization(before)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:initialize']
+  } else if (command.type === 'equip-item') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveEquipItem(before, command.itemId)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:equip']
+  } else if (command.type === 'unequip-slot') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveUnequipSlot(before, command.slot)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:unequip']
   } else if (command.type === 'travel' || command.type === 'fast-travel') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = command.type === 'travel' ? resolveTravel(before, command.destinationId) : resolveFastTravel(before, command.destinationId)
