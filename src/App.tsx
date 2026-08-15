@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActionPanel } from './components/ActionPanel'
 import { AdultEntryPanel } from './components/AdultEntryPanel'
 import { ArchivePanel } from './components/ArchivePanel'
@@ -39,6 +39,20 @@ function App() {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const session = game.currentSession
   const state = session?.state ?? null
+
+  useEffect(() => {
+    if (error) return
+    const currentState = game.currentSession?.state
+    if (!currentState || currentState.secretRealm || !currentState.sublocations) return
+    if (currentState.status !== 'playing' || currentState.lifeStage !== 'adult' || currentState.flags.location_knowledge_initialized !== true) return
+    try {
+      const initialized = commandAndSave(window.localStorage, game, { type: 'initialize-secret-realm' })
+      if (initialized.applied) setGame(initialized.persistent)
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '本世秘境状态无法初始化')
+    }
+  }, [error, game])
+
   function persistStart() { try { const next = startAndSaveRun(window.localStorage, game, Date.now()); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法开启新的人生') } }
   function persistBirthChoice(candidateId: string) { try { const next = chooseBirthAndSave(window.localStorage, game, candidateId); setGame(next); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法确定这一世') } }
   function persistCommand(command: SessionCommand) { try { const result = commandAndSave(window.localStorage, game, command); if (!result.applied) { setNotice(result.reason ?? '当前操作无法执行'); return } setGame(result.persistent); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '本次操作未能保存') } }
