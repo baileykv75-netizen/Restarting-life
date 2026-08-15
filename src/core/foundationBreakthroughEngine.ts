@@ -1,4 +1,4 @@
-import { getSpiritRootById } from '../data/spiritRoots'
+import { SPIRIT_ROOTS } from '../data/spiritRoots'
 import { getCultivationTechniqueById } from '../data/techniques'
 import { getWorldLocationById } from '../data/worldLocations'
 import type { StateChange } from '../types/chronicle'
@@ -132,7 +132,7 @@ export function calculateFoundationBreakthroughPreview(
   if (!location || !technique) return null
 
   const modifiers: FoundationModifier[] = []
-  const root = getSpiritRootById(state.identity.spiritRootId)
+  const root = SPIRIT_ROOTS.find((entry) => entry.id === state.identity.spiritRootId)
   if (!technique.universal) {
     const matched = Boolean(root?.elements.some((element) => technique.preferredElements.includes(element)))
     addModifier(modifiers, 'affinity', matched ? '灵根与主修契合' : '灵根与主修不契合', matched ? 5 : -10)
