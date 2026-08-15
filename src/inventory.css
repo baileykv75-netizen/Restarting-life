@@ -1,0 +1,128 @@
+.inventory-card {
+  margin-top: 16px;
+}
+
+.inventory-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inventory-heading h2 {
+  margin-bottom: 0;
+}
+
+.inventory-heading > strong {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(177, 196, 183, 0.14);
+  border-radius: 999px;
+  color: #cbd7cf;
+  background: rgba(102, 130, 113, 0.07);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.inventory-capacity-note,
+.inventory-empty {
+  margin-top: 12px;
+}
+
+.inventory-capacity-note {
+  color: #9eaaa3;
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.inventory-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.inventory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.inventory-item-copy {
+  min-width: 0;
+}
+
+.inventory-item-copy > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.inventory-item-copy strong {
+  color: #d9d2c5;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.inventory-item-copy span,
+.inventory-item-copy small,
+.inventory-item-copy em {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.inventory-item-copy span {
+  color: #7f8a83;
+  font-size: 0.67rem;
+}
+
+.inventory-item-copy small {
+  display: block;
+  margin-top: 4px;
+  color: #989f99;
+  font-size: 0.7rem;
+}
+
+.inventory-item-copy em {
+  display: block;
+  margin-top: 5px;
+  color: #b79b88;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+.inventory-drop-button {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(185, 160, 145, 0.16);
+  border-radius: 8px;
+  color: #bfae9f;
+  background: rgba(128, 82, 63, 0.05);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.inventory-drop-button:hover:not(:disabled) {
+  background: rgba(128, 82, 63, 0.11);
+}
+
+.inventory-drop-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+@media (max-width: 560px) {
+  .inventory-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inventory-drop-button {
+    width: 100%;
+  }
+}
