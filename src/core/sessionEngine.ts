@@ -16,6 +16,7 @@ import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
 import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
 import { getExplorationStageLabel, resolveRegionExploration, type RegionExplorationResult } from './regionExplorationEngine'
+import { refreshSunkenVeinDiscovery, resolveSecretRealmAction, resolveSecretRealmInitialization } from './secretRealmEngine'
 import { getGameStateDigest } from './stateDigest'
 import { formatDuration } from './timeEngine'
 import { resolveFastTravel, resolveTravel, type TravelResult } from './travelEngine'
@@ -67,7 +68,7 @@ function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
   }
 }
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
@@ -96,6 +97,16 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveLocationKnowledgeInitialization(before)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location-knowledge']
+  } else if (command.type === 'initialize-secret-realm') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveSecretRealmInitialization(before)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-secret-realm']
+  } else if (command.type === 'secret-realm') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveSecretRealmAction(before, command.action)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (nextState.status === 'playing') pendingResult = result.outcome ?? null
+    effectTypes = [`world:secret-realm:${command.action}`]
   } else if (command.type === 'travel' || command.type === 'fast-travel') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = command.type === 'travel' ? resolveTravel(before, command.destinationId) : resolveFastTravel(before, command.destinationId)
@@ -105,7 +116,8 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
   } else if (command.type === 'explore-region') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveRegionExploration(before, command.days)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    nextState = result.state.secretRealm ? refreshSunkenVeinDiscovery(result.state) : result.state
+    applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed) pendingResult = explorationOutcome(result)
     effectTypes = ['world:explore-region']
   } else if (command.type === 'action') {
