@@ -1,5 +1,5 @@
 import { getSpiritRootById, SPIRIT_ROOTS } from '../data/spiritRoots'
-import { getTechniqueById, type TechniqueDefinition } from '../data/techniques'
+import { getCultivationTechniqueById, getTechniqueById, type CultivationTechniqueDefinition } from '../data/techniques'
 import { getWorldLocationById } from '../data/worldLocations'
 import {
   FOUNDATION_EARLY_TO_MIDDLE_THRESHOLD,
@@ -11,6 +11,12 @@ import type { StateChange } from '../types/chronicle'
 import type { GameState, Realm } from '../types/game'
 import type { ResolvedOutcome } from '../types/persistence'
 import type { QiDensity } from '../types/world'
+import {
+  addTechniqueProficiency,
+  calculateTechniqueProficiencyGain,
+  getProficiencyLabel,
+  getTechniqueProficiencyStage,
+} from './techniqueEngine'
 import { DAYS_PER_YEAR, formatDuration } from './timeEngine'
 import { advanceWorldTime } from './worldEngine'
 
@@ -146,7 +152,7 @@ export interface CultivationFactor {
 export interface CultivationPreview {
   days: CultivationDuration
   gain: number
-  technique: TechniqueDefinition
+  technique: CultivationTechniqueDefinition
   factors: CultivationFactor[]
   environmentLabel: string
 }
@@ -208,9 +214,15 @@ export function resolveMainTechniqueSelection(state: GameState, techniqueId: str
   if (state.lifeStage !== 'adult') return r16Rejected(state, 'CULTIVATION_REQUIRES_ADULT')
   if (!state.cultivation.practiceInitialized) return r16Rejected(state, 'CULTIVATION_NOT_INITIALIZED')
   if (state.identity.spiritRootId === 'none') return r16Rejected(state, 'NO_SPIRIT_ROOT')
-  if (!getTechniqueById(techniqueId)) return r16Rejected(state, 'UNKNOWN_TECHNIQUE')
+  const technique = getTechniqueById(techniqueId)
+  if (!technique) return r16Rejected(state, 'UNKNOWN_TECHNIQUE')
+  if (technique.category !== 'main') return r16Rejected(state, 'TECHNIQUE_NOT_MAIN')
+  if (!getCultivationTechniqueById(techniqueId)) return r16Rejected(state, 'TECHNIQUE_BALANCE_NOT_FROZEN')
   if (!(state.cultivation.knownTechniqueIds ?? []).includes(techniqueId)) return r16Rejected(state, 'TECHNIQUE_NOT_KNOWN')
   if (state.cultivation.mainTechniqueId === techniqueId) return r16Rejected(state, 'MAIN_TECHNIQUE_UNCHANGED')
+  if (state.cultivation.techniqueSystemInitialized && state.cultivation.mainTechniqueId) {
+    return r16Rejected(state, 'MAIN_TECHNIQUE_CHANGE_REQUIRES_ADAPTATION')
+  }
   return {
     state: { ...state, cultivation: { ...state.cultivation, mainTechniqueId: techniqueId } },
     applied: true,
@@ -230,14 +242,14 @@ function getEnvironment(state: GameState): { multiplier: number; label: string }
   return { multiplier: ENVIRONMENT_MULTIPLIER[location.qiDensity], label: ENVIRONMENT_LABEL[location.qiDensity] }
 }
 
-function getAffinityMultiplier(state: GameState, technique: TechniqueDefinition): number {
+function getAffinityMultiplier(state: GameState, technique: CultivationTechniqueDefinition): number {
   if (technique.universal) return 1
   const root = SPIRIT_ROOTS.find((entry) => entry.id === state.identity.spiritRootId)
   if (!root) return 0.85
   return root.elements.some((element) => technique.preferredElements.includes(element)) ? 1.15 : 0.85
 }
 
-function getTraitMultiplier(state: GameState, technique: TechniqueDefinition, days: CultivationDuration): { multiplier: number; factors: CultivationFactor[] } {
+function getTraitMultiplier(state: GameState, technique: CultivationTechniqueDefinition, days: CultivationDuration): { multiplier: number; factors: CultivationFactor[] } {
   let multiplier = 1
   const factors: CultivationFactor[] = []
   if (days >= 10 && state.identity.talentIds.includes('still_mind')) {
@@ -256,7 +268,7 @@ function getTraitMultiplier(state: GameState, technique: TechniqueDefinition, da
 }
 
 export function calculateCultivationPreview(state: GameState, techniqueId: string, days: CultivationDuration): CultivationPreview | null {
-  const technique = getTechniqueById(techniqueId)
+  const technique = getCultivationTechniqueById(techniqueId)
   const root = SPIRIT_ROOTS.find((entry) => entry.id === state.identity.spiritRootId)
   const environment = getEnvironment(state)
   if (!technique || !root || !environment) return null
@@ -340,12 +352,21 @@ function applyR16Progress(state: GameState, gain: number): { state: GameState; e
   return { state: next, enteredQi }
 }
 
-function buildR16Outcome(before: GameState, after: GameState, preview: CultivationPreview): ResolvedOutcome {
+function buildR16Outcome(
+  before: GameState,
+  after: GameState,
+  preview: CultivationPreview,
+  proficiencyBefore?: string,
+  proficiencyAfter?: string,
+): ResolvedOutcome {
   const beforeRealm = formatCultivationRealm(before.cultivation.realm, before.cultivation.stage)
   const afterRealm = formatCultivationRealm(after.cultivation.realm, after.cultivation.stage)
   const changes: StateChange[] = [{ label: '时间', value: `+${formatDuration(preview.days)}`, tone: 'neutral' }]
   if (beforeRealm !== afterRealm) changes.push({ label: '境界', value: `${beforeRealm} → ${afterRealm}`, tone: 'positive' })
   changes.push({ label: '修为', value: `${formatCultivationProgress(before.resources.cultivation)} → ${formatCultivationProgress(after.resources.cultivation)}`, tone: 'positive' })
+  if (proficiencyBefore && proficiencyAfter && proficiencyBefore !== proficiencyAfter) {
+    changes.push({ label: '主修熟练', value: `${proficiencyBefore} → ${proficiencyAfter}`, tone: 'positive' })
+  }
   return {
     title: `闭关${formatDuration(preview.days)}`,
     narrative: `你按${preview.technique.name}运转周天，${formatDuration(preview.days)}后结束吐纳。`,
@@ -377,12 +398,22 @@ export function resolveCultivateDays(state: GameState, days: number): R16Cultiva
   }
 
   const progressed = applyR16Progress(advanced, preview.gain)
+  const proficiencyBefore = state.cultivation.techniqueSystemInitialized
+    ? getProficiencyLabel(getTechniqueProficiencyStage(state, mainTechniqueId))
+    : undefined
+  const withProficiency = state.cultivation.techniqueSystemInitialized
+    ? addTechniqueProficiency(progressed.state, mainTechniqueId, calculateTechniqueProficiencyGain(state, days))
+    : progressed.state
+  const proficiencyAfter = state.cultivation.techniqueSystemInitialized
+    ? getProficiencyLabel(getTechniqueProficiencyStage(withProficiency, mainTechniqueId))
+    : undefined
+
   return {
-    state: progressed.state,
+    state: withProficiency,
     applied: true,
     completed: true,
     gainApplied: preview.gain,
     enteredQi: progressed.enteredQi,
-    outcome: buildR16Outcome(state, progressed.state, preview),
+    outcome: buildR16Outcome(state, withProficiency, preview, proficiencyBefore, proficiencyAfter),
   }
 }
