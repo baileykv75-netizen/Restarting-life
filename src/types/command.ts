@@ -1,3 +1,4 @@
+import type { ExplorationDuration } from './exploration'
 import type { GameAction } from './gameAction'
 
 export type PlayerAction = 'cultivate' | 'explore' | 'livelihood' | 'breakthrough'
@@ -11,5 +12,6 @@ export type SessionCommand =
   | { type: 'initialize-location-knowledge' }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
+  | { type: 'explore-region'; days: ExplorationDuration }
   | { type: 'continue' }
   | { type: 'game-action'; action: GameAction }
