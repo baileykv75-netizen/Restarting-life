@@ -1,5 +1,6 @@
 import { getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
 import { getLocationKnowledgeStatus, getVisibleWorldConnections, getVisibleWorldLocations } from '../core/locationKnowledgeEngine'
+import { getDirectTravelOptions, getFastTravelOptions } from '../core/travelEngine'
 import type { GameState } from '../types/game'
 import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
 
@@ -9,7 +10,13 @@ const TYPE_LABELS: Record<WorldLocationType, string> = {
 const DANGER_LABELS: Record<WorldDanger, string> = { safe: '安全', low: '较低', moderate: '一般', high: '较高', extreme: '危险' }
 const QI_LABELS: Record<QiDensity, string> = { none: '几乎无', thin: '稀薄', low: '较低', medium: '中等', high: '浓郁' }
 
-export function WorldMapPanel({ state }: { state: GameState }) {
+interface WorldMapPanelProps {
+  state: GameState
+  onTravel: (destinationId: string) => void
+  onFastTravel: (destinationId: string) => void
+}
+
+export function WorldMapPanel({ state, onTravel, onFastTravel }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   if (!current) {
@@ -25,6 +32,8 @@ export function WorldMapPanel({ state }: { state: GameState }) {
   const adjacent = current.adjacentLocationIds
     .map((id) => ({ location: getWorldLocationById(id), status: getLocationKnowledgeStatus(state, id) }))
     .filter((entry) => entry.location && entry.status !== 'unknown')
+  const directTravel = getDirectTravelOptions(state)
+  const fastTravel = getFastTravelOptions(state).filter((option) => option.routeIds.length > 1)
 
   return <section className="story-card world-map-card">
     <div className="world-map-heading"><div><p className="story-kicker">青霞地界 · 你的见闻</p><h2>{current.name}</h2></div><span>你在这里</span></div>
@@ -40,7 +49,14 @@ export function WorldMapPanel({ state }: { state: GameState }) {
       <p className="story-text">{current.description}</p>
       {parent && getLocationKnowledgeStatus(state, parent.id) !== 'unknown' && <p className="world-location-parent">所属区域 · <strong>{getLocationKnowledgeStatus(state, parent.id) === 'rumored' ? `传闻中的${parent.name}` : parent.name}</strong></p>}
       <p className="world-location-adjacent">已知相邻 · {adjacent.length > 0 ? adjacent.map(({ location, status }) => status === 'rumored' ? `传闻中的${location!.name}` : location!.name).join('、') : '暂无'}</p>
-      <p className="muted world-map-stop">地图只显示你这一世真正知道或听说过的地点；未知地点与隐藏连接不会提前出现。本轮仍没有旅行按钮。</p>
+
+      <div className="travel-section">
+        <p className="subsection-title">从这里出发</p>
+        {directTravel.length > 0 ? <div className="travel-options">{directTravel.map((option) => <button className="travel-option" key={option.route.id} onClick={() => onTravel(option.destination.id)} type="button"><strong>前往{option.destination.name} · {option.travelDays}天</strong><span>{option.route.description}</span></button>)}</div> : <p className="muted">目前没有已经确认、并且与这里直接相邻的可前往地点。</p>}
+      </div>
+
+      {fastTravel.length > 0 && <div className="travel-section fast-travel-section"><p className="subsection-title">沿走熟的路线前往</p><div className="travel-options">{fastTravel.map((option) => <button className="travel-option secondary-travel" key={option.destination.id} onClick={() => onFastTravel(option.destination.id)} type="button"><strong>快速前往{option.destination.name} · {option.travelDays}天</strong><span>沿 {option.routeIds.length} 段已走过的稳定路线一次赶到，中途不停靠。</span></button>)}</div></div>}
+      <p className="muted world-map-stop">传闻地点仍不能直接导航；未知地点不会出现。旅行只推进时间和位置，本轮没有路途随机事件。</p>
     </div>
   </section>
 }
