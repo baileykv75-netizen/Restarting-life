@@ -13,6 +13,7 @@ import { appendChronicleEntry, createActionChronicleEntry, createEventChronicleE
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
+import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
 import { getGameStateDigest } from './stateDigest'
 import { formatDuration } from './timeEngine'
 import { resolveWorldInitialization } from './worldLocationEngine'
@@ -31,7 +32,7 @@ function buildOutcome(before: OutcomeSnapshot, after: GameSession['state'], titl
 function actionTitle(action: PlayerAction): string { if (action === 'cultivate') return '闭关结束'; if (action === 'explore') return '外出归来'; if (action === 'livelihood') return '差事做完了'; return '突破结果' }
 function actionNarrative(action: PlayerAction): string { if (action === 'cultivate') return '这一段修炼告一段落。'; if (action === 'explore') return '你结束这次外出，回到了熟悉的地方。'; if (action === 'livelihood') return '这段日子忙完，报酬也已经结清。'; return '' }
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
@@ -56,6 +57,10 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveWorldInitialization(before)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location']
+  } else if (command.type === 'initialize-location-knowledge') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveLocationKnowledgeInitialization(before)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location-knowledge']
   } else if (command.type === 'action') {
     const snapshot = captureOutcomeSnapshot(before); const result = performPlayerAction(before, command.action, FORMAL_EVENTS, FORMAL_EVENT_CATALOG); nextState = result.state; applied = result.applied; reason = result.reason
     if (applied) { if (nextState.events.currentEventId !== null) pendingAction = { action: command.action, snapshot }; else { pendingAction = null; pendingResult = buildOutcome(snapshot, nextState, actionTitle(command.action), actionNarrative(command.action)); nextState = appendChronicleEntry(nextState, createActionChronicleEntry(command.action, pendingResult, snapshot, nextState.worldDay, nextState.chronicle.length + 1)) } }
