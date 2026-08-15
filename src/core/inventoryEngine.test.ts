@@ -13,6 +13,7 @@ import {
   removeItem,
   resolveInventoryDrop,
   resolveInventoryInitialization,
+  resolvePendingMaterialsTransfer,
 } from './inventoryEngine'
 import { executeSessionCommand } from './sessionEngine'
 import { generateSunkenVeinRewards } from './secretRealmEngine'
@@ -60,6 +61,32 @@ function initializedState(seed = 'r14-initialized'): GameState {
   const result = resolveInventoryInitialization(baseState(seed))
   if (!result.applied || !result.state.inventory) throw new Error('test inventory failed to initialize')
   return result.state
+}
+
+function activeHerbBedState(seed: string): GameState {
+  const initialized = resolveInventoryInitialization(stateWithPending({}, seed))
+  if (!initialized.applied || !initialized.state.inventory || !initialized.state.secretRealm) {
+    throw new Error('test secret realm inventory failed to initialize')
+  }
+  const runtime = initialized.state.secretRealm.sunkenVeinChamber
+  return {
+    ...initialized.state,
+    world: { currentLocationId: 'blackwind_mountain' },
+    secretRealm: {
+      sunkenVeinChamber: {
+        ...runtime,
+        active: true,
+        currentNodeId: 'seepage-herb-bed',
+        gateOpened: false,
+        gateMethod: null,
+        coreLockedBehindPlayer: false,
+        cleared: false,
+        nodeClaims: { herbBed: false, sideRoom: false, core: false },
+        knowledge: { ventSequence: false, mineIncidentEvidence: false },
+        encounter: 'unresolved',
+      },
+    },
+  }
 }
 
 describe('R14 inventory runtime', () => {
@@ -111,6 +138,51 @@ describe('R14 inventory runtime', () => {
     expect(result.reason).toBe('INVENTORY_PENDING_UNKNOWN_ITEM')
     expect(result.state.inventory).toBeUndefined()
     expect(result.state.secretRealm?.sunkenVeinChamber.pendingMaterials).toEqual(invalidPending)
+  })
+
+  it('moves newly produced R13 materials into an already initialized inventory instead of keeping a second stock', () => {
+    let state = resolveInventoryInitialization(stateWithPending({}, 'r14-live-transfer')).state
+    const runtime = state.secretRealm!.sunkenVeinChamber
+    state = {
+      ...state,
+      secretRealm: {
+        sunkenVeinChamber: {
+          ...runtime,
+          pendingMaterials: { green_dew_grass: 2, black_iron: 1 },
+        },
+      },
+    }
+    const result = resolvePendingMaterialsTransfer(state)
+    expect(result.applied).toBe(true)
+    expect(getInventoryQuantity(result.state, 'green_dew_grass')).toBe(2)
+    expect(getInventoryQuantity(result.state, 'black_iron')).toBe(1)
+    expect(result.state.secretRealm?.sunkenVeinChamber.pendingMaterials).toEqual({})
+  })
+
+  it('rolls back a secret-realm pickup when formal inventory lacks capacity', () => {
+    let state = activeHerbBedState('r14-realm-full')
+    state = addItem(state, 'rock_lizard_carapace', 6).state
+    expect(getInventoryUsage(state)).toEqual({ usedSlots: 12, capacitySlots: 12 })
+    const beforeDigest = getGameStateDigest(state)
+    const session: GameSession = { state, debugLog: [], pendingResult: null, pendingAction: null }
+    const result = executeSessionCommand(session, { type: 'secret-realm', action: 'inspect-herb-bed' })
+    expect(result.applied).toBe(false)
+    expect(result.reason).toBe('INVENTORY_CAPACITY_EXCEEDED')
+    expect(getGameStateDigest(result.session.state)).toBe(beforeDigest)
+    expect(result.session.state.secretRealm?.sunkenVeinChamber.nodeClaims.herbBed).toBe(false)
+    expect(result.session.state.secretRealm?.sunkenVeinChamber.pendingMaterials).toEqual({})
+  })
+
+  it('stores successful new secret-realm pickup directly in formal inventory', () => {
+    const state = activeHerbBedState('r14-realm-store')
+    const session: GameSession = { state, debugLog: [], pendingResult: null, pendingAction: null }
+    const result = executeSessionCommand(session, { type: 'secret-realm', action: 'inspect-herb-bed' })
+    expect(result.applied).toBe(true)
+    expect(result.session.state.worldDay).toBe(state.worldDay + 1)
+    expect(result.session.state.secretRealm?.sunkenVeinChamber.nodeClaims.herbBed).toBe(true)
+    expect(result.session.state.secretRealm?.sunkenVeinChamber.pendingMaterials).toEqual({})
+    expect(getInventoryQuantity(result.session.state, 'green_dew_grass')).toBeGreaterThanOrEqual(2)
+    expect(getInventoryQuantity(result.session.state, 'water_spirit_moss')).toBeGreaterThanOrEqual(1)
   })
 
   it('stacks canonical items and derives extra slot use after stackLimit is crossed', () => {
