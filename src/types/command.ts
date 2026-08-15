@@ -26,6 +26,8 @@ export type SessionCommand =
   | { type: 'set-auxiliary-technique'; techniqueId: string; enabled: boolean }
   | { type: 'practice-technique-days'; techniqueId: string; days: 1 | 3 | 10 | 30 }
   | { type: 'cultivate-days'; days: 1 | 3 | 10 | 30 }
+  | { type: 'attempt-foundation-breakthrough'; usePozhangDan: boolean; useNingjiDan: boolean; spiritStoneInvestment: 0 | 30 | 60 }
+  | { type: 'recuperate-days'; days: 10 | 30 }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
   | { type: 'explore-region'; days: ExplorationDuration }
