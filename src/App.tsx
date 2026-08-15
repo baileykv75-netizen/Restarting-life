@@ -9,6 +9,7 @@ import { ChroniclePanel } from './components/ChroniclePanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { GameStatusBar } from './components/GameStatusBar'
+import { InventoryPanel } from './components/InventoryPanel'
 import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
 import { SecretRealmPanel } from './components/SecretRealmPanel'
 import { WorldMapPanel } from './components/WorldMapPanel'
@@ -26,6 +27,7 @@ import './childhood.css'
 import './adult-entry.css'
 import './world-map.css'
 import './secret-realm.css'
+import './inventory.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -42,14 +44,42 @@ function App() {
 
   useEffect(() => {
     if (error) return
-    const currentState = game.currentSession?.state
-    if (!currentState || currentState.secretRealm || !currentState.sublocations) return
-    if (currentState.status !== 'playing' || currentState.lifeStage !== 'adult' || currentState.flags.location_knowledge_initialized !== true) return
+    const currentSession = game.currentSession
+    const currentState = currentSession?.state
+    if (!currentSession || !currentState) return
+    if (currentState.status !== 'playing' || currentState.lifeStage !== 'adult') return
+    if (currentSession.pendingResult || currentSession.pendingAction || currentState.events.currentEventId !== null) return
+
     try {
-      const initialized = commandAndSave(window.localStorage, game, { type: 'initialize-secret-realm' })
-      if (initialized.applied) setGame(initialized.persistent)
+      let working = game
+      let changed = false
+      let workingState = working.currentSession?.state
+
+      if (workingState?.sublocations && !workingState.secretRealm && workingState.flags.location_knowledge_initialized === true) {
+        const initializedRealm = commandAndSave(window.localStorage, working, { type: 'initialize-secret-realm' })
+        if (!initializedRealm.applied) { setNotice(initializedRealm.reason ?? '本世秘境状态无法初始化'); return }
+        working = initializedRealm.persistent
+        workingState = working.currentSession?.state
+        changed = true
+      }
+
+      if (workingState && !workingState.inventory) {
+        const initializedInventory = commandAndSave(window.localStorage, working, { type: 'initialize-inventory' })
+        if (!initializedInventory.applied) {
+          if (changed) setGame(working)
+          setNotice(initializedInventory.reason ?? '本世背包无法初始化')
+          return
+        }
+        working = initializedInventory.persistent
+        changed = true
+      }
+
+      if (changed) {
+        setGame(working)
+        setNotice(null)
+      }
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '本世秘境状态无法初始化')
+      setNotice(caught instanceof Error ? caught.message : '本世运行状态无法初始化')
     }
   }, [error, game])
 
@@ -70,6 +100,12 @@ function App() {
         const initializedRealm = commandAndSave(window.localStorage, working, { type: 'initialize-secret-realm' })
         if (!initializedRealm.applied) { setNotice(initializedRealm.reason ?? '本世秘境状态无法初始化'); return }
         working = initializedRealm.persistent
+        currentState = working.currentSession?.state
+      }
+      if (currentState && !currentState.inventory) {
+        const initializedInventory = commandAndSave(window.localStorage, working, { type: 'initialize-inventory' })
+        if (!initializedInventory.applied) { setNotice(initializedInventory.reason ?? '本世背包无法初始化'); return }
+        working = initializedInventory.persistent
       }
       const result = commandAndSave(window.localStorage, working, { type: 'explore-region', days })
       if (!result.applied) { setNotice(result.reason ?? '当前无法探索'); return }
@@ -111,6 +147,6 @@ function App() {
     stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
   }
 
-  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} /><section className="main-stage" aria-label="当前经历">{stageContent}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
+  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
 }
 export default App
