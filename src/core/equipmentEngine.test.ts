@@ -110,7 +110,7 @@ describe('R15 equipment state', () => {
     expect(formatItemGrade({})).toBe('品阶未标定')
     const equipmentDefinitions = ITEM_DEFINITIONS.filter((item) => 'equipmentSlot' in item)
     expect(equipmentDefinitions).toHaveLength(10)
-    for (const item of equipmentDefinitions) expect(formatItemGrade(item)).toBe('品阶未标定')
+    for (const item of equipmentDefinitions) expect(formatItemGrade(getItemDefinition(item.id)!)).toBe('品阶未标定')
   })
 
   it('persists and deep-clones the four equipment references on save/reload', () => {
