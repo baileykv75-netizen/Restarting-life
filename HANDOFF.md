@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 当前开发主线：**R11 区域页面 + 探索动作已完成，下一轮进入 R12 随机子地点。**
+- 当前开发主线：**R12 随机子地点运行骨架已完成。R13 秘境实现前必须先补齐 / 冻结首版秘境具体内容。**
 - R00.1～R00.3：迁移、存档 V3 与开发规则完成。
 - R01：唯一 `GameState` 完成。
 - R02：统一 `GameAction / SessionCommand / reducer / replay` 边界完成。
@@ -17,7 +17,8 @@
 - R08：11 个固定世界节点与当前地点初始化完成。
 - R09：地点知识 `Unknown → Rumored → Discovered` 与认知地图完成。
 - R10：固定路线、逐节点旅行、旅行时间、已走路线记录与多段快速前往完成。
-- R11：黑风山 / 灵溪谷 / 万兽岭的固定区域探索进度、风险展示、1/3/10 天探索与 replay / persistence 完成。
+- R11：黑风山 / 灵溪谷 / 万兽岭固定区域探索、风险展示、1/3/10 天探索完成。
+- R12：每世有限随机子地点、确定性生成、探索门槛发现、隐藏信息隔离与保存 / replay 完成。
 - legacy Action/Event/Result/End 只为旧档、旧测试与迁移兼容保留，不得继续扩张。
 
 ## 内容真源与仍待后续补齐的缺口
@@ -29,110 +30,128 @@
 1. 炼气 → 筑基、筑基 → 金丹的具体突破资源与流程；
 2. 筑基至金丹级主修传承；
 3. 2～3 个具体延寿物；
-4. **R12 随机子地点具体内容池：目标 8～12 个；当前 Bible 只冻结了洞府 / 药谷 / 兽巢 / 遗迹等内容家族，不能由实现者临时批量编造细节；**
-5. 1～2 个小秘境；
-6. 8～12 个重大机缘具体内容；
-7. 30 个普通事件正式正文。
+4. **随机子地点正式内容池：目标 8～12 个。R12 当前只有洞府 / 药谷 / 兽巢 / 遗迹四类运行 archetype，没有擅自编造正式命名地点；**
+5. **R13 前置：至少 1 个首版小秘境的具体世界来源、入口条件、分支节点、资源内容、核心区风险与退出规则；目前尚未冻结，禁止实现者临时编造；**
+6. 后续可再补第 2 个小秘境；
+7. 8～12 个重大机缘具体内容；
+8. 30 个普通事件正式正文。
 
-## R05～R10 已完成摘要
+## R11 摘要
 
-- R05：三个出生候选一次生成并保存，选择后进入唯一 GameState。
-- R06：16 个童年关键节点走 Session / replay / persistence，结束准确到 16 岁。
-- R07：8 出身按灵根、童年、关系和出生 seed 形成不同成年入口。
-- R08：11 个固定地点进入 static data，`initialize-world` 只物化 `world.currentLocationId`。
-- R09：`knowledge.locations` 成为玩家认知唯一真源；Unknown 隐藏、Rumored 模糊、Discovered 完整；地图不再全知。
-- R10：11 条固定无向路线有正式旅行时间；普通旅行与快速前往均推进唯一 `worldDay` 并进入 replay / persistence。
+- 可探索固定 wilderness：黑风山、灵溪谷、万兽岭。
+- 探索时长：1 / 3 / 10 天。
+- 阶段：0 未系统探索；1–4 初步；5–14 较为熟悉；15–29 深入；30+ 基本探明。
+- `GameState.exploration` 为 optional，第一次完成探索才 materialize，保护 R05～R10 replay digest。
+- 探索推进唯一 `worldDay`；寿终途中不增加进度。
+- 不掉资源、不触发战斗、不生成剧情。
 
-R10 代码 CI：run `31876717239`，verify job `94993440316`，typecheck / test / build 全通过。  
-R10 最终交接 CI：run `31876815400`，verify job `94993678674`，typecheck / test / build 全通过。
+R11 代码 CI：run `31877727939`，verify job `94995815459`，typecheck / test / build 全通过。  
+R11 最终交接 CI：run `31877817161`，typecheck / test / build 全通过。
 
-## R11｜区域页面 + 探索动作
+## R12｜随机子地点运行骨架
 
-### 探索状态与兼容
+### 运行态
 
-新增可选 `GameState.exploration`：
+新增 optional `GameState.sublocations`：
 
 ```ts
-interface ExplorationState {
-  locations: Record<string, { locationId: string; exploredDays: number }>
+interface SublocationRuntime {
+  id: string
+  parentLocationId: string
+  archetype: 'cave' | 'herb-valley' | 'beast-nest' | 'ruin'
+  discoveryThresholdDays: number
+  discovered: boolean
+}
+
+interface SublocationState {
+  generated: Record<string, SublocationRuntime>
 }
 ```
 
-兼容规则已经锁定：
+兼容规则：
 
-- `createInitialGameState()` **不写空 exploration**；
-- R05～R10 旧人生 / replay 因此不会平白多一个空字段；
-- 第一次成功完成 R11 探索后才 materialize；
-- V3 保存 / 读取会保留并克隆已有探索进度；
-- 未探索的其他区域不会被自动补零记录。
+- `createInitialGameState()` 不写空 `sublocations`；
+- R05～R11 旧状态仍合法；
+- 第一次真正进行 R12 区域探索前，通过统一 `game-action:INITIALIZE_SUBLOCATIONS` 一次 materialize；
+- 初始化动作进入 debug log / digest / replay；
+- 不推进时间；
+- legacy-adult 不允许初始化。
 
-### 首版可探索区域
+### 确定性生成
 
-只有 R08 中 `type = wilderness` 的三个固定区域：
+生成只使用 `seedToState(`${runSeed}:r12-sublocations`)` 与现有 `randomInt()`：
 
-- `blackwind_mountain`｜黑风山；
-- `lingxi_valley`｜灵溪谷；
-- `beast_ridge`｜万兽岭。
+- 不使用 `Math.random()`；
+- 不消耗 / 改写主 `rngState`，避免 R12 改变旧事件随机序列；
+- 同一 `runSeed` 始终得到同一组合；
+- 不同人生可以不同；
+- 一世只生成一次，刷新 / 离开区域不重抽。
 
-白石村、青石镇、临河县、青霞坊市、青云宗、陆家庄、黑风山山脚、青云宗家属区均不会出现 R11 探索按钮。
+首版只生成 **4～6 个实例**：
 
-### 探索阶段
+- 黑风山：固定 2 个，`cave | ruin`；
+- 灵溪谷：1～2 个，`herb-valley | ruin`；
+- 万兽岭：1～2 个，`beast-nest | ruin`。
 
-按累计有效探索天数派生：
+这只是运行骨架，不等于正式 8～12 个命名地点内容池。
 
-```text
-0 天       尚未系统探索
-1–4 天     初步探索
-5–14 天    较为熟悉
-15–29 天   深入探索
-30+ 天     基本探明
-```
+### 发现规则
 
-- 只允许 1 / 3 / 10 天三种时长；
-- 阶段没有第五级；
-- `surveyed` 后仍可继续探索，但只增加时间和累计天数；
-- R11 不写“探索经验值 / 熟练度百分比”。
+每个实例生成时固定一个门槛：
 
-### 时间与死亡边界
+- 第一实例：3 / 8 天之一；
+- 第二实例：18 / 30 天之一。
 
-`resolveRegionExploration()`：
+R11 `explore-region` 成功结束后：
 
-- 复用现有 `ADVANCE_TIME / advanceWorldTime`；
-- 只有角色活着完成整段探索才增加 `exploredDays`；
-- 探索期间寿元耗尽时死亡优先，本次探索不入账；
-- 不修改当前位置、地点知识、路线记录、灵石、修为、属性、关系；
-- 不触发战斗、伤势、中毒、资源掉落或随机事件。
+- 只检查当前 wilderness；
+- 用累计 `exploredDays` 对照固定门槛；
+- 达标即 `discovered = true`；
+- 一次长探索可以揭示多个实例；
+- 已发现永不回退；
+- 寿终探索因为不增加 `exploredDays`，也不会触发发现；
+- 不修改 fixed-world `knowledge.locations`。
 
-### 当前风险
+### 信息隔离与 UI
 
-区域页同时显示：
+未发现子地点：
 
-- R08 静态客观危险；
-- 当前角色风险：`较低 / 可控 / 较高 / 极高`。
+- 不进入地图；
+- 不进入区域列表；
+- 不显示数量；
+- 不显示 archetype；
+- 不显示发现门槛；
+- 不允许直接访问。
 
-当前风险只由地点危险 + 当前境界 / 小阶段确定性派生，不使用 RNG、不显示推荐等级，也不会因为“极高”硬禁止探索。
+已发现后只显示克制的 archetype 级信息：
 
-### Session / UI
+- 一处洞府遗迹；
+- 一片野生药谷；
+- 一处兽巢；
+- 一处残破遗迹。
 
-新增 `explore-region` SessionCommand：
+当前没有“进入 / 搜索 / 清剿”假按钮，也没有宝物、妖兽、传承、奖励或剧情假内容。
 
-- 进入 debug log / digest / replay / persistence；
-- 成功后显示花费时间、累计探索天数和当前阶段；
-- 跨阶段时显示阶段变化；
-- **不会逐次向 Chronicle 写日常探索流水账**；
-- 地图下方仅在 wilderness 显示区域探索面板与 `探索 1 天 / 3 天 / 10 天`。
+### 保存与 replay
 
-R11 没有生成洞府、药谷、兽巢、遗迹，没有假资源表，没有探索随机事件。
+- V3 save / load 保留 `sublocations.generated` 和 discovered 状态；
+- load 路径对 exploration / sublocations runtime 做独立深拷贝；
+- 初始化通过现有 `game-action` SessionCommand 进入日志；
+- 发现通过原有 `explore-region` command 确定性重放。
 
-### R11 主要提交
+### R12 主要提交
 
-- 类型与可选 GameState：`4918e2546acaef4e986ff4246a08a381786f0774`、`f790a37146298eda364325b027455c164444ee04`
-- 探索核心：`190f3e112a2ff181b45af7d9331c26ff9cd91845`
-- Session / 存档：`7948e67dca43bcb5fb44cb09874f2a30ecc18bf3`、`90fbf2c6775504ec49ec2d0095f32962bc46ee35`
-- UI：`a55e03cfd5606414850d65e62e83c64ab298325c`、`65259defa71f8a185a905b48d44d9cfef104b7b0`、`963d59561a61445fb5d8a2cc94540d92e8af7757`
-- 测试：`d8ddaafb9bbee75aee2174e0987923aaee49188d`
+- runtime type：`42d8bd09114ef5ff598ac5dd8ad2c02f3ebeda73`
+- deterministic engine：`c748e2a3ead3b28e8a276b7bcad05668c6ccb41d`
+- optional GameState：`673b5ad047df3c3b791a5687562b1f45e85cb505`
+- reducer action：`7b80bc7a589c5db09a068a68e59f3408fea9b901`、`3b9e0a1b49ffe28712f2f58154e322feb70e8fd1`
+- exploration discovery integration：`60dcb0cf7980567e8a0b7e33a689977d82b6b82e`
+- first-exploration initialization：`95bbdf06fb74e73dffdc2fd82129c40b9780e0e6`
+- visible UI：`d605bd0cb89c2bf35f40d8feafc7de7ca778f8dd`、`0cf2d98b00d2db30d57372ee5777ba974ba2f841`
+- save reload：`89b9503e97c651374077c7b92351d19e24dc7d54`
+- tests：`33b949eb8d435ca1b40292e2338cfb3ffa45d750`
 
-R11 代码 CI：run `31877727939`，verify job `94995815459`：
+R12 代码 CI：run `31878114082`，verify job `94996709406`：
 
 - typecheck：通过；
 - test：通过；
@@ -162,17 +181,19 @@ UI / feature
 → 地点知识状态 ✅
 → 节点旅行与时间 ✅
 → 区域页面 + 探索动作 ✅
-→ 随机子地点（R12）
-→ 资源 / 修炼 / 战斗 / 宗门 / 职业
-→ 世界事件 / 完整一世
+→ 随机子地点 ✅
+→ C13 秘境内容冻结（R13 前置）
+→ R13 秘境最小闭环
+→ R14 背包与物品
+→ 后续修炼 / 战斗 / 宗门 / 职业 / 世界事件
 ```
 
-## 下一轮
+## 下一步
 
 执行：
 
-> **R12｜随机子地点**
+> **C13｜首版秘境内容冻结（R13 前置）**
 
-R12 要在 R11 的固定区域探索进度上建立“每一世固定、不同人生组合不同”的子地点运行骨架，并通过探索阶段逐步发现。**但当前具体子地点内容池仍不完整：实现前必须以 Content Bible 已冻结内容家族为边界，不允许 Codex 临时批量创造 8～12 个正式地点。**
+原因：路线要求 R13 做一个真正可玩的分支秘境，并包含资源、占位战斗、核心区不可回头点；但 `V2_CONTENT_BIBLE.md` 尚未冻结任何一个具体秘境。根据 `AGENTS.md`，不能让实现者自行编造世界来源、资源、节点与剧情后反向固化。
 
-具体范围以 `CURRENT_TASK.md` 为准。
+C13 只负责把 **1 个首版小秘境** 设计并写回 Content Bible，明确世界来源、入口、4～6 个节点、分支、资源、风险、核心区回头规则和首版占位战斗边界。完成内容冻结后再进入 R13 代码实现。
