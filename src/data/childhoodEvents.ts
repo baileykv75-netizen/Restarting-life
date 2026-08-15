@@ -43,9 +43,7 @@ export const CHILDHOOD_EVENTS = [
   {
     id: 'apothecary_strange_herb', backgroundId: 'qingstone_apothecary', title: '混进药材里的怪草', ageYears: 8,
     narrative: '一筐从山里收来的普通药材中混进了一株颜色发青的小草。父亲没有认出来，只说它的根须太完整，不像采药人随手割来的杂草，先别扔。',
-    insights: [
-      { requiresAnyTags: ['physique_rule:physique:herb', 'talent_rule:profession:herb_identification'], text: '你闻到叶片被掐开后有很淡的清凉气味，和旁边几味普通草药明显不同。' },
-    ],
+    insights: [{ requiresAnyTags: ['physique_rule:physique:herb', 'talent_rule:profession:herb_identification'], text: '你闻到叶片被掐开后有很淡的清凉气味，和旁边几味普通草药明显不同。' }],
     choices: [
       { id: 'sort_carefully', label: '把整筐药重新分一遍', days: 2, timeText: '需2天。', resultText: '你把相似的草叶一株株分开，虽然仍叫不出那怪草的名字，却练熟了最基本的辨别办法。', effects: [{ type: 'tag', tag: 'skill_seed:herb_sorting' }, { type: 'stat', stat: 'comprehension', delta: 1 }] },
       { id: 'preserve_sample', label: '把怪草单独包好，等懂行的人来看', days: 1, timeText: '占去1天。', resultText: '药草被完整留了下来。几天后，怀生药铺的人专门过来看了一眼，没让你们把它当普通草药卖掉。', effects: [{ type: 'relationship', id: 'huaisheng_apothecary', label: '怀生药铺', delta: 1 }, { type: 'flag', key: 'childhood_strange_herb_preserved', value: true }] },
@@ -147,7 +145,9 @@ export const CHILDHOOD_EVENTS = [
   },
 ] as const satisfies readonly ChildhoodEventDefinition[]
 
-const CHILDHOOD_EVENT_MAP = new Map(CHILDHOOD_EVENTS.map((event) => [event.id, event]))
+const CHILDHOOD_EVENT_MAP = new Map<string, ChildhoodEventDefinition>(
+  CHILDHOOD_EVENTS.map((event) => [event.id, event]),
+)
 
 const EVENT_IDS_BY_BACKGROUND: Record<string, readonly [string, string]> = {
   baishi_tenant: ['baishi_harvest_shortfall', 'baishi_injured_stranger'],
