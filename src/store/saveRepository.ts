@@ -94,13 +94,33 @@ function clonePendingBirthSelection(pending: PendingBirthSelection | null): Pend
   }
 }
 
+function cloneLoadedExploration(persistent: PersistentGame): PersistentGame {
+  const session = persistent.currentSession
+  const exploration = session?.state.exploration
+  if (!session || !exploration) return persistent
+  return {
+    ...persistent,
+    currentSession: {
+      ...session,
+      state: {
+        ...session.state,
+        exploration: {
+          locations: Object.fromEntries(
+            Object.entries(exploration.locations).map(([id, progress]) => [id, { ...progress }]),
+          ),
+        },
+      },
+    },
+  }
+}
+
 function parseV3Save(raw: string): PersistentGame {
   const parsed = parseJson(raw)
   if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
   const envelope = parsed as Partial<SaveEnvelopeV3>
   if (envelope.schemaVersion !== 3 || !isPersistentGameV3(envelope.payload)) throw new Error('Unsupported or invalid save schema')
   verifyChecksum(envelope.payload, envelope.checksum)
-  const normalized = normalizePersistentGameV3(envelope.payload)
+  const normalized = cloneLoadedExploration(normalizePersistentGameV3(envelope.payload))
   if (envelope.payload.pendingBirthSelection === undefined) return normalized
   return { ...normalized, pendingBirthSelection: clonePendingBirthSelection(envelope.payload.pendingBirthSelection) }
 }
