@@ -19,6 +19,7 @@ export interface WorldLocationDefinition {
   name: string
   type: WorldLocationType
   description: string
+  rumorText: string
   danger: WorldDanger
   qiDensity: QiDensity
   adjacentLocationIds: readonly string[]
