@@ -17,6 +17,15 @@
 .world-location-facts span { padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,.035); color: #9ea8a1; font: 500 .76rem/1.2 ui-sans-serif, system-ui, sans-serif; }
 .world-location-parent, .world-location-adjacent { margin: 10px 0 0; color: #a9afa9; font-size: .86rem; line-height: 1.6; }
 .world-location-parent strong { color: #d4d0c4; }
+.travel-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(181, 201, 188, .1); }
+.travel-options { display: grid; gap: 9px; margin-top: 10px; }
+.travel-option { width: 100%; padding: 12px 13px; border: 1px solid rgba(181, 201, 188, .22); border-radius: 10px; background: rgba(181, 201, 188, .055); color: #dedad0; text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease; }
+.travel-option:hover { border-color: rgba(181, 201, 188, .42); background: rgba(181, 201, 188, .09); }
+.travel-option strong, .travel-option span { display: block; }
+.travel-option strong { font-size: .9rem; }
+.travel-option span { margin-top: 5px; color: #969f99; font-size: .76rem; line-height: 1.45; }
+.fast-travel-section { margin-top: 14px; }
+.travel-option.secondary-travel { background: rgba(255,255,255,.025); border-style: dashed; }
 .world-map-stop { margin-top: 14px; }
 .world-map-error .error-text { word-break: break-all; }
 .knowledge-setup-card { padding: clamp(22px, 3vw, 32px); }
