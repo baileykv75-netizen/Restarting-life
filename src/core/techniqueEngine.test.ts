@@ -12,7 +12,6 @@ import {
   getMainTechniqueChangePreview,
   getProficiencyStage,
   getTechniqueProficiencyPoints,
-  getTechniqueProficiencyStage,
   isTechniqueMoveUnlocked,
   resolveChangeMainTechnique,
   resolveSetAuxiliaryTechnique,
