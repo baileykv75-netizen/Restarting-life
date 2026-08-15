@@ -19,6 +19,7 @@ import type { CultivationDuration } from './core/cultivationEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
+import type { TechniquePracticeDuration } from './core/techniqueEngine'
 import type { PlayerAction, SessionCommand } from './types/command'
 import type { ExplorationDuration } from './types/exploration'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
@@ -103,6 +104,17 @@ function App() {
         changed = true
       }
 
+      if (workingState?.adultEntry?.resolved && workingState.cultivation.practiceInitialized && !workingState.cultivation.techniqueSystemInitialized) {
+        const initializedTechniques = commandAndSave(window.localStorage, working, { type: 'initialize-technique-system' })
+        if (!initializedTechniques.applied) {
+          if (changed) setGame(working)
+          setNotice(initializedTechniques.reason ?? '本世功法实践状态无法初始化')
+          return
+        }
+        working = initializedTechniques.persistent
+        changed = true
+      }
+
       if (changed) {
         setGame(working)
         setNotice(null)
@@ -145,6 +157,7 @@ function App() {
     }
   }
   function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
+  function persistTechniquePractice(techniqueId: string, days: TechniquePracticeDuration) { persistCommand({ type: 'practice-technique-days', techniqueId, days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
 
   if (error) return <main className="landing-shell"><section className="landing-card danger-card"><p className="eyebrow">此世问长生 · V2.0</p><h1>本地存档需要处理</h1><p className="story-text">这份存档没有通过完整性校验。为避免继续损坏记录，游戏没有加载它。</p><p className="error-text">{error}</p><button className="primary-button" onClick={recoverSave} type="button">清除损坏存档并重新开始</button>{notice && <p className="notice">{notice}</p>}</section></main>
@@ -166,7 +179,7 @@ function App() {
   } else if (state.secretRealm?.sunkenVeinChamber.active) {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <><WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />{state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onCultivate={persistCultivate} />}</>
+    stageContent = <><WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />{state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}</>
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
