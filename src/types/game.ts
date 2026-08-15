@@ -2,6 +2,7 @@ import type { AdultEntryProgress } from './adultEntry'
 import type { ChildhoodProgress } from './childhood'
 import type { ChronicleEntry } from './chronicle'
 import type { ExplorationState } from './exploration'
+import type { InventoryState } from './inventory'
 import type { SecretRealmState } from './secretRealm'
 import type { SublocationState } from './sublocation'
 
@@ -29,6 +30,8 @@ export interface GameState {
   sublocations?: SublocationState
   /** Optional for R05-R12 compatibility; materialized only by the explicit R13 secret-realm bootstrap command. */
   secretRealm?: SecretRealmState
+  /** Optional for R05-R13 compatibility; materialized only by the explicit R14 inventory bootstrap command. */
+  inventory?: InventoryState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
