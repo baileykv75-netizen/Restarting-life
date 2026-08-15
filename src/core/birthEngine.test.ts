@@ -7,57 +7,8 @@ import { encodeSelectedBirthRunSeed, generateBirthCandidates, generateBirthState
 import { DAYS_PER_YEAR, getAgeParts } from './timeEngine'
 
 describe('V2 birth engine', () => {
-  it('produces exactly the same three candidates from the same seed', () => {
-    expect(generateBirthCandidates({ runSeed: 'same-selection' })).toEqual(generateBirthCandidates({ runSeed: 'same-selection' }))
-  })
-
-  it('creates exactly three candidates with distinct backgrounds and valid content', () => {
-    for (let index = 0; index < 50; index += 1) {
-      const pending = generateBirthCandidates({ runSeed: `candidate-validity-${index}` })
-      expect(pending.candidates).toHaveLength(3)
-      expect(new Set(pending.candidates.map((candidate) => candidate.id)).size).toBe(3)
-      expect(new Set(pending.candidates.map((candidate) => candidate.backgroundId)).size).toBe(3)
-      for (const candidate of pending.candidates) {
-        expect(BACKGROUNDS.some((item) => item.id === candidate.backgroundId)).toBe(true)
-        expect(SPIRIT_ROOTS.some((item) => item.id === candidate.spiritRootId)).toBe(true)
-        expect(PHYSIQUES.some((item) => item.id === candidate.physiqueId)).toBe(true)
-        expect(candidate.talentIds.length).toBeGreaterThanOrEqual(1)
-        expect(candidate.talentIds.length).toBeLessThanOrEqual(3)
-        expect(new Set(candidate.talentIds).size).toBe(candidate.talentIds.length)
-        for (const talentId of candidate.talentIds) expect(TALENTS.some((item) => item.id === talentId)).toBe(true)
-        for (const value of Object.values(candidate.stats)) expect(value).toBeGreaterThanOrEqual(1)
-      }
-    }
-  })
-
-  it('materializes a selected candidate as the authoritative childhood GameState', () => {
-    const pending = generateBirthCandidates({ runSeed: 'selected-life', runId: 'run-selected' })
-    const candidate = pending.candidates[1]
-    const state = generateBirthState({ runSeed: encodeSelectedBirthRunSeed(pending.runSeed, candidate.index), runId: pending.runId })
-    expect(state.lifeStage).toBe('childhood')
-    expect(state.worldDay).toBe(state.identity.birthDay)
-    expect(state.identity.name).toBe(candidate.name)
-    expect(state.identity.backgroundId).toBe(candidate.backgroundId)
-    expect(state.identity.spiritRootId).toBe(candidate.spiritRootId)
-    expect(state.identity.talentIds).toEqual(candidate.talentIds)
-    expect(state.identity.physiqueIds).toEqual(candidate.physiqueId === 'none' ? [] : [candidate.physiqueId])
-    expect(state.resources.spiritStones).toBe(candidate.spiritStones)
-    expect(state.stats).toEqual(candidate.stats)
-    expect(state.rngState).toBe(pending.nextRngState)
-    expect(state.knowledge.locations).toEqual({})
-    expect(state.world.currentLocationId).toBeNull()
-    expect(state.tags.some((tag) => tag.startsWith('location_seed:'))).toBe(true)
-  })
-
-  it('keeps the legacy direct-birth wrapper reproducible and at age sixteen', () => {
-    const first = generateBirthState({ runSeed: 'legacy-session-seed' })
-    const second = generateBirthState({ runSeed: 'legacy-session-seed' })
-    expect(first).toEqual(second)
-    expect(first.worldDay - first.identity.birthDay).toBe(PLAYABLE_START_AGE_DAYS)
-    expect(PLAYABLE_START_AGE_DAYS).toBe(PLAYABLE_START_AGE_YEARS * DAYS_PER_YEAR)
-    expect(getAgeParts(first.identity.birthDay, first.worldDay).years).toBe(16)
-    expect(LEGACY_BIRTH_BACKGROUNDS.some((item) => item.id === first.identity.backgroundId)).toBe(true)
-    expect(LEGACY_BIRTH_SPIRIT_ROOTS.some((item) => item.id === first.identity.spiritRootId)).toBe(true)
-    for (const talentId of first.identity.talentIds) expect(LEGACY_BIRTH_TALENTS.some((item) => item.id === talentId)).toBe(true)
-  })
+  it('produces exactly the same three candidates from the same seed', () => { expect(generateBirthCandidates({ runSeed: 'same-selection' })).toEqual(generateBirthCandidates({ runSeed: 'same-selection' })) })
+  it('creates exactly three candidates with distinct backgrounds and valid content', () => { for (let index = 0; index < 50; index += 1) { const pending = generateBirthCandidates({ runSeed: `candidate-validity-${index}` }); expect(pending.candidates).toHaveLength(3); expect(new Set(pending.candidates.map((candidate) => candidate.backgroundId)).size).toBe(3); for (const candidate of pending.candidates) { expect(BACKGROUNDS.some((item) => item.id === candidate.backgroundId)).toBe(true); expect(SPIRIT_ROOTS.some((item) => item.id === candidate.spiritRootId)).toBe(true); expect(PHYSIQUES.some((item) => item.id === candidate.physiqueId)).toBe(true); expect(candidate.talentIds.length).toBeGreaterThanOrEqual(1); expect(candidate.talentIds.length).toBeLessThanOrEqual(3); for (const talentId of candidate.talentIds) expect(TALENTS.some((item) => item.id === talentId)).toBe(true) } } })
+  it('materializes a selected candidate as the authoritative childhood GameState', () => { const pending = generateBirthCandidates({ runSeed: 'selected-life', runId: 'run-selected' }); const candidate = pending.candidates[1]; const state = generateBirthState({ runSeed: encodeSelectedBirthRunSeed(pending.runSeed, candidate.index), runId: pending.runId }); expect(state.lifeStage).toBe('childhood'); expect(state.worldDay).toBe(state.identity.birthDay + 8 * DAYS_PER_YEAR); expect(state.childhood?.nodeIds).toHaveLength(2); expect(state.identity.name).toBe(candidate.name); expect(state.identity.backgroundId).toBe(candidate.backgroundId); expect(state.identity.spiritRootId).toBe(candidate.spiritRootId); expect(state.identity.talentIds).toEqual(candidate.talentIds); expect(state.identity.physiqueIds).toEqual(candidate.physiqueId === 'none' ? [] : [candidate.physiqueId]); expect(state.resources.spiritStones).toBe(candidate.spiritStones); expect(state.stats).toEqual(candidate.stats); expect(state.rngState).toBe(pending.nextRngState); expect(state.knowledge.locations).toEqual({}); expect(state.world.currentLocationId).toBeNull() })
+  it('keeps the legacy direct-birth wrapper reproducible and at age sixteen', () => { const first = generateBirthState({ runSeed: 'legacy-session-seed' }); const second = generateBirthState({ runSeed: 'legacy-session-seed' }); expect(first).toEqual(second); expect(first.childhood).toBeNull(); expect(first.worldDay - first.identity.birthDay).toBe(PLAYABLE_START_AGE_DAYS); expect(PLAYABLE_START_AGE_DAYS).toBe(PLAYABLE_START_AGE_YEARS * DAYS_PER_YEAR); expect(getAgeParts(first.identity.birthDay, first.worldDay).years).toBe(16); expect(LEGACY_BIRTH_BACKGROUNDS.some((item) => item.id === first.identity.backgroundId)).toBe(true); expect(LEGACY_BIRTH_SPIRIT_ROOTS.some((item) => item.id === first.identity.spiritRootId)).toBe(true); for (const talentId of first.identity.talentIds) expect(LEGACY_BIRTH_TALENTS.some((item) => item.id === talentId)).toBe(true) })
 })

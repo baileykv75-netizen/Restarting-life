@@ -1,66 +1,16 @@
 import type { GameState } from '../types/game'
 import { seedToState } from './rng'
 
-export interface CreateGameStateOptions {
-  runSeed: string
-  runId?: string
-}
+export interface CreateGameStateOptions { runSeed: string; runId?: string }
 
-export function createInitialGameState({
-  runSeed,
-  runId = `run-${runSeed}`,
-}: CreateGameStateOptions): GameState {
-  if (runSeed.trim().length === 0) {
-    throw new Error('runSeed must not be empty')
-  }
-
+export function createInitialGameState({ runSeed, runId = `run-${runSeed}` }: CreateGameStateOptions): GameState {
+  if (runSeed.trim().length === 0) throw new Error('runSeed must not be empty')
   return {
-    schemaVersion: 3,
-    runId,
-    runSeed,
-    rngState: seedToState(runSeed),
-    status: 'playing',
-    lifeStage: 'legacy-adult',
-    worldDay: 0,
-    identity: {
-      name: '未命名',
-      birthDay: 0,
-      backgroundId: '',
-      spiritRootId: '',
-      physiqueIds: [],
-      talentIds: [],
-      faction: 'mortal',
-    },
-    stats: {
-      constitution: 5,
-      comprehension: 5,
-      spiritSense: 5,
-      mentality: 5,
-      luck: 5,
-    },
-    resources: {
-      spiritStones: 0,
-      cultivation: 0,
-    },
-    cultivation: {
-      realm: 'mortal',
-      stage: 0,
-    },
-    world: {
-      currentLocationId: null,
-    },
-    knowledge: {
-      locations: {},
-    },
-    tags: [],
-    flags: {},
-    relationships: {},
-    events: {
-      currentEventId: null,
-      queue: [],
-      history: [],
-    },
-    chronicle: [],
-    endReason: null,
+    schemaVersion: 3, runId, runSeed, rngState: seedToState(runSeed), status: 'playing', lifeStage: 'legacy-adult', worldDay: 0, childhood: null,
+    identity: { name: '未命名', birthDay: 0, backgroundId: '', spiritRootId: '', physiqueIds: [], talentIds: [], faction: 'mortal' },
+    stats: { constitution: 5, comprehension: 5, spiritSense: 5, mentality: 5, luck: 5 },
+    resources: { spiritStones: 0, cultivation: 0 }, cultivation: { realm: 'mortal', stage: 0 },
+    world: { currentLocationId: null }, knowledge: { locations: {} }, tags: [], flags: {}, relationships: {},
+    events: { currentEventId: null, queue: [], history: [] }, chronicle: [], endReason: null,
   }
 }
