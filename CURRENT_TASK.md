@@ -1,157 +1,151 @@
-# 当前任务：V2 R16 - 基础修炼
+# 当前任务：V2 R17 - 功法系统
 
 ## 本轮唯一目标
 
-在 C16 已冻结的世界内容上，实现首版真正可玩的基础修炼闭环：
+在 R16 已有正式基础修炼之上，补齐首版功法的**结构、分类、熟练度与改修成本**，使同一套修炼状态可以继续承载：
 
 ```text
-已有真实功法传授入口
-→ 初始化本世修炼实践状态
-→ 选择已掌握主修
-→ 选择修炼 1 / 3 / 10 / 30 日
-→ 读取灵根 / 主修 / 当前地点环境 / 已有相关天赋体质
-→ 推进唯一 worldDay
-→ 累积修为进度
-→ 引气入体 / 炼气 1～9 层自然推进
-→ 炼气九层 100% 停在筑基准备入口
+已真实掌握的功法
+→ 一门当前主修
+→ 多门已知辅修 / 战斗术法
+→ 熟练度：入门 → 熟练 → 小成 → 大成
+→ 修炼 / 专门练习推动熟练
+→ 改修另一门已知主修时承担真实时间与适应成本
 ```
 
-本轮只解决**基础修炼**。
+本轮只做功法系统本身。
 
-**不实现 R17 完整功法获取 / 转修 / 熟练度，不实现 R18 筑基突破，不消耗凝基丹，不实现 R19 金丹，不做战斗或宗门系统。**
+**不实现 R18 炼气→筑基突破，不使用凝基丹 / 破障丹，不做 R19 金丹，不做商店、宗门传功、拜师、遗迹掉落或杀人夺宝的完整获取玩法，不做正式战斗。**
 
 ---
 
-## 必须先阅读
+# 一、必须先阅读
 
 1. `AGENTS.md`
-2. `V2_GAME_DESIGN.md` 的时间、修炼、寿元、透明度规则
-3. `V2_CONTENT_BIBLE.md` 第 6、7、8、10、11、16、35 节
-4. `HANDOFF.md` 的 R15 / C16
-5. `V2_GITHUB_ROADMAP.md` 的 R16 / R17
-6. `src/data/adultEntries.ts`
-7. `src/data/spiritRoots.ts`
-8. `src/data/worldLocations.ts`
+2. `V2_GAME_DESIGN.md` 的主修 / 辅修 / 改修 / 功法熟练规则
+3. `V2_CONTENT_BIBLE.md` 第 16、35 节
+4. `HANDOFF.md` 的 R16
+5. `V2_GITHUB_ROADMAP.md` 的 R17 / R18
+6. `src/data/techniques.ts`
+7. `src/core/cultivationEngine.ts`
+8. `src/types/game.ts`
+9. `src/core/sessionEngine.ts`
 
-若代码中的旧 legacy 修炼逻辑与本任务冲突，只允许保护兼容，不得把旧全局 ActionPanel 修炼扩成 V2 正式玩法。
+若 R17 与 R16 的 optional cultivation 字段发生冲突，优先做最小兼容扩展，禁止另起 `TechniqueStateV2` 或第二套修炼 store。
 
 ---
 
-# 一、兼容与唯一状态原则
+# 二、最重要的内容边界：R17 不负责凭空发功法
 
-R16 必须保护 R05～R15 已有 replay digest。
+R07 / R16 已经严格区分：
 
-## 1. 不创建第二套角色状态
+- 真正学到功法；
+- 只有宗门 / 坊市 / 修士门路。
 
-继续使用唯一 `GameState`。
+R17 必须继续保持这一点。
 
-允许在现有：
+## 允许
+
+- 已经存在于 `knownTechniqueIds` 的功法进入熟练度系统；
+- 未来真实地点 / NPC / 宗门 / 战利品 resolver 可以调用统一“学会功法”能力；
+- 测试可以构造“已经真实掌握两门功法”的 state 来验证改修。
+
+## 禁止
+
+- UI 出现“免费学习《赤阳诀》”用于演示；
+- 因为到了青霞坊就自动获得坊市全部功法；
+- 因为加入 `knownTechniqueIds` 方便测试，就反向把测试 fixture 当世界设定；
+- 给尚未冻结具体来源 / 价格的功法临时编商店货架；
+- 把普通 `adult_access_seed` 当成已学功法。
+
+### 当前获取来源的处理
+
+本轮不新增完整获取玩法。
+
+如果为了后续统一接口需要 `learn-technique` resolver / engine function，可以实现为**内部正式能力**，但必须由调用者提供已经成立的世界来源事实；R17 UI 本身不得提供无来源学习按钮。
+
+---
+
+# 三、继续使用唯一 cultivation 状态
+
+R16 已有：
 
 ```ts
-state.cultivation
+cultivation: {
+  realm
+  stage
+  practiceInitialized?: true
+  knownTechniqueIds?: string[]
+  mainTechniqueId?: string | null
+}
 ```
 
-上增加 optional 的 R16 字段，例如：
+R17 只能在这里最小扩展，例如：
 
 ```ts
-mainTechniqueId?: string | null
-knownTechniqueIds?: string[]
-practiceInitialized?: true
-```
+interface TechniquePracticeState {
+  proficiencyPoints: number
+}
 
-或等价最小结构。
+cultivation: {
+  ...
+  auxiliaryTechniqueIds?: string[]
+  techniquePractice?: Record<string, TechniquePracticeState>
+}
+```
 
 要求：
 
-- 旧 `createInitialGameState()` 不得因为 R16 自动补这些字段；
-- 通过显式 `initialize-cultivation` SessionCommand 第一次 materialize；
-- bootstrap 不推进时间、不消耗 RNG；
-- 不创建长期并行 `CultivationStateV2`；
-- R17 必须继续扩展这套字段，而不是另起第二套 TechniqueState。
-
-`resources.cultivation` 继续作为唯一“当前小阶段修为进度”真源，不复制一个第二进度条。
-
-## 2. 只在正式 V2 成年人生启用
-
-R16 正式修炼入口只对：
-
-```text
-lifeStage === adult
-status === playing
-```
-
-开放。
-
-`legacy-adult` 继续走旧兼容逻辑，不主动迁移成 R16 修炼状态，避免改变旧人生 digest。
+- 不另建长期 `techniques` store；
+- `knownTechniqueIds` 仍是角色真正掌握功法的唯一列表；
+- `mainTechniqueId` 仍是唯一主修；
+- `auxiliaryTechniqueIds` 只是对 known 的角色使用分类 / 配置，不代表第二库存；
+- `techniquePractice` 只保存角色实践状态，不复制静态 TechniqueDefinition；
+- 老 R05～R16 state 没有这些 optional 字段仍合法；
+- R17 初始化 / normalization 不得给旧 replay 被动塞空对象。
 
 ---
 
-# 二、R07 功法入口如何接入
+# 四、TechniqueDefinition 正式分类
 
-R07 已经区分：
+在 R16 `src/data/techniques.ts` 上扩展，不新建第二张功法表。
 
-- 真正得到基础功法初步传授：`cultivation_method_access_seed`
-- 只有宗门 / 修士 / 坊市门路：普通 `adult_access_seed`
+至少支持：
 
-R16 必须尊重这个区别。
-
-## 1. 有明确功法传授 seed
-
-当前直接可用于 R16 的 seed：
-
-```text
-xiaozhoutian_tuna
-qingyuan_yinqi
-xie_basic_qi_method
-lu_basic_qi_method
+```ts
+type TechniqueCategory =
+  | 'main'
+  | 'combat'
+  | 'movement'
+  | 'body'
+  | 'secret'
 ```
 
-处理规则：
+字段可最小扩展：
 
-- `xiaozhoutian_tuna` → 已掌握《小周天吐纳法》；
-- `qingyuan_yinqi` → 已掌握《青元引气诀》；
-- `xie_basic_qi_method` 是 R07 的家族基础吐纳入口，不新增“谢氏神功”。R16 兼容映射到本地最常见的《小周天吐纳法》基础运转；
-- `lu_basic_qi_method` 是 R07 的陆家基础培养入口，不新增未冻结功法。R16 先兼容映射到《小周天吐纳法》；《春木养元功》等陆家更容易获得的正式路线等 R17 的真实功法获取 / 学习系统接入。
+```ts
+category
+moves?: readonly TechniqueMoveDefinition[]
+ruleTags
+```
 
-这两个兼容映射只是把 R07 的泛化 seed 落到已经冻结的现有基础功法，**不得反向新增新的正式功法名称。**
+主修才拥有 R16 修炼效率相关字段。
 
-## 2. 只有门路但没有功法
+`select-main-technique` 从 R17 起必须校验：
 
-例如：
+```text
+category === main
+```
 
-- 青云宗招录机会；
-- 坊市修士接触；
-- wandering cultivator contact；
-- blackwind anomaly contact；
-- loose cultivator network。
-
-这些**不能在 R16 自动变成功法**。
-
-UI 应自然显示：
-
-> 你还没有一门真正可以开始吐纳的主修功法。
-
-不要显示“系统尚未解锁 R17”之类开发文案。
-
-实际购买、拜师、宗门传功、遗迹得法等由 R17 / 后续地点事务真正解决。
-
-## 3. 无灵根
-
-`spiritRootId === none` 时：
-
-- `initialize-cultivation` 可以保持合法；
-- 不能选择普通吐纳法开始修炼；
-- 不出现“修炼 30 日然后修为 +0”的假按钮；
-- UI 说明现有普通吐纳无法引气即可；
-- 不提供保底改根。
+不能把《青锋剑诀》或《轻身术》选成主修吐纳法。
 
 ---
 
-# 三、R16 首批 TechniqueDefinition
+# 五、本轮允许数据化的已有内容
 
-建立静态 data 定义，不把整份定义写进存档。
+只允许使用 Content Bible 第 16 节已经存在的名称与招式，不扩几十门功法。
 
-本轮只登记以下 **6 门**已冻结基础主修，用于建立可扩展计算结构：
+## 1. R16 六门主修继续保留
 
 1. 《小周天吐纳法》
 2. 《青元引气诀》
@@ -160,539 +154,449 @@ UI 应自然显示：
 5. 《寒水经》
 6. 《厚土养气篇》
 
-其中 R16 新人生正常通过 R07 直接掌握的主要仍是《小周天吐纳法》与《青元引气诀》；其余四门先作为正式静态定义与测试样本，不新增购买 / 掉落 / 家族赠送来源。
+这六门继续是当前 R16 可执行修炼定义。
 
-R17 再把《庚金锐气诀》《风行吐纳篇》《雷引诀》《阴髓录》残篇及完整学习来源正式接入。
+### 暂不随意补数值的主修
 
-最小字段可包含：
+Content Bible 还已有：
 
-```ts
-id
-name
-baseEfficiency
-preferredElements
-universal
-stabilityTags / ruleTags
-```
+- 《庚金锐气诀》；
+- 《风行吐纳篇》；
+- 《雷引诀》；
+- 《阴髓录》残篇。
 
-禁止加入技能树、招式解锁、熟练度等级、随机词条。
+R17 可以把它们登记成正式 main category / 内容 registry，但**如果 R16 计算所需的精确 baseEfficiency 仍未冻结，不得自行猜一组效率数字并让它们进入实际修炼。**
 
-### R16 基础效率锚点
+可以标记为尚未接入基础效率 / acquisition，等真正获得与使用前补齐必要平衡锚点。
 
-仅用于本轮修炼速度：
+## 2. 已冻结战斗术法
 
-| 功法 | baseEfficiency |
-|---|---:|
-| 小周天吐纳法 | 1.00 |
-| 青元引气诀 | 1.08 |
-| 春木养元功 | 1.04 |
-| 赤阳诀 | 1.08 |
-| 寒水经 | 1.04 |
-| 厚土养气篇 | 1.02 |
+允许数据化：
 
-这些是修炼效率锚点，不代表战斗强度，不生成“功法战力”。
+### 《青锋剑诀》
 
----
+- 刺；
+- 斩；
+- 御剑追击（小成后）。
 
-# 四、修为进度唯一语义
+### 《赤焰术》
 
-R16 正式把成年 V2 人生中的：
+- 火弹；
+- 炎爆。
 
-```ts
-resources.cultivation
-```
+### 《缚藤术》
 
-解释为**当前小阶段修为点**。
+- 缠束；
+- 荆刺。
 
-统一：
+### 《水幕术》
 
-```text
-1000 修为点 = 当前阶段 100.0%
-```
+- 短时防御 / 减伤动作。
 
-UI 显示百分比到 1 位小数，例如：
+### 《石甲术》
 
-```text
-炼气三层 · 64.7%
-```
+- 护体动作，正式战斗效果 R20 再接。
 
-但状态仍存整数修为点，避免浮点漂移。
+### 《金芒诀》
 
-## 1. 凡人有灵根 + 主修
-
-正式修炼开始时：
-
-```text
-凡人 / 引气入体 0～100%
-```
-
-达到 1000 后：
-
-```text
-realm = qi
-stage = 1
-```
-
-溢出的修为继续进入炼气一层进度。
-
-这就是 R16 的正常“入道”，不另加一次抽卡成功率或强制剧情。
-
-## 2. 炼气 1～8 层
-
-每累计 1000 点：
-
-```text
-stage += 1
-resources.cultivation -= 1000
-```
-
-允许一次 30 日修炼跨越一个小层，但结果必须清楚显示前后境界 / 进度。
-
-## 3. 炼气九层
-
-炼气九层最多：
-
-```text
-resources.cultivation = 1000
-```
-
-即 100%。
-
-达到后不再继续累积隐藏修为，不自动筑基、不调用旧突破事件。
-
-UI 显示自然文案：
-
-> 炼气九层已经圆满。继续提升需要准备筑基。
-
-R18 再实现真正筑基动作。
-
----
-
-# 五、基础修炼公式
-
-R16 需要一套透明、确定性的基础公式，不使用 RNG。
-
-## 1. 基础日进度
-
-```text
-basePointsPerDay = 4
-```
-
-本次修为：
-
-```text
-gain = floor(
-  days
-  × 4
-  × spiritRootMultiplier
-  × techniqueEfficiency
-  × affinityMultiplier
-  × environmentMultiplier
-  × traitMultiplier
-)
-```
-
-所有乘数来源必须能在当前 GameState / 静态定义中解释。
-
-## 2. 灵根
-
-直接复用 `src/data/spiritRoots.ts` 已存在的：
-
-```ts
-cultivationMultiplier
-```
-
-不得再复制第二套单双三四五灵根速度表。
-
-无灵根 multiplier = 0，并由行动可用性提前拦截。
-
-## 3. 功法契合
-
-### 通用功法
-
-- 小周天吐纳法：`1.00`
-- 青元引气诀：`1.00`
-
-### 属性功法
-
-若灵根 elements 包含功法主属性：
-
-```text
-affinityMultiplier = 1.15
-```
-
-否则：
-
-```text
-affinityMultiplier = 0.85
-```
-
-寒水经额外把 `ice` 视为契合。
-
-R16 不做复杂多属性配比，不计算“木 37% / 水 24%”。
-
-## 4. 地点环境
-
-优先复用现有 `WorldLocationDefinition.qiDensity`，第一版换算：
-
-| qiDensity | environmentMultiplier |
-|---|---:|
-| none | 0.55 |
-| thin | 0.70 |
-| low | 0.80 |
-| medium | 1.00 |
-| high | 1.15 |
+- 穿透型远程动作。
 
 要求：
 
-- 黑风山 / 万兽岭当前 static data 都是 medium，本轮不因为“危险”额外加速修炼；
-- R16 不随机制造野外经脉伤；
-- 青霞坊当前只使用公共环境，不把静修院付费房间偷偷免费算进去；
-- 静修院 3 / 8 灵石每 10 日的房间内容已经在 C16 冻结，但等真正的地点子设施 / 付费修炼动作接入时再用；
-- 青云宗 `high` 只有已有正式宗门修炼权限的状态才能完整使用；如果当前 V2 还没有正式弟子权限事实，按 `medium` 结算“宗门外围环境”，不得让普通访客白用核心灵脉；
-- 不新增“上佳”假地点节点。
+- moves 只记录已冻结名字、解锁要求和 future hook；
+- R17 不计算伤害 / 灵力消耗 / 冷却；
+- R20 再让招式真正进入战斗。
 
-## 5. 天赋与体质
+## 3. 身法 / 炼体 / 秘术
 
-R16 只接已经有明确修炼职责的内容，避免所有天赋都硬塞数值：
+可以登记已有：
 
-### 静心守一
+- 《轻身术》；
+- 《流云步》；
+- 《踏风行》；
+- 《伏岳锻体篇》；
+- 《铁衣功》；
+- 《燃血诀》。
 
-若拥有 `still_mind` 且本次修炼时长 ≥10 日：
-
-```text
-traitMultiplier *= 1.08
-```
-
-短修炼不加成。
-
-### 赤阳灵体
-
-修《赤阳诀》：
-
-```text
-traitMultiplier *= 1.10
-```
-
-### 玄阴灵体
-
-修《寒水经》：
-
-```text
-traitMultiplier *= 1.10
-```
-
-其他体质 / 天赋在 R16 不强行加修炼速度；例如举一反三更适合 R17 学习 / 转修，百草灵体属于炼丹 / 探索。
-
-## 6. 伤势
-
-C16 已冻结伤势会影响修炼与突破，但当前仓库尚没有完整 authoritative injury runtime。
-
-R16 **不得用 narrative flag 临时伪造第二套伤势系统**。
-
-因此本轮基础公式只读取当前已经真实结构化存在的因素；完整轻伤 / 重伤 / 经脉伤修炼惩罚在正式伤势状态进入 GameState 后接入。
-
-在 HANDOFF 中明确记录此连接点，不得忘记。
+R17 只建立分类与熟练结构；未冻结的具体战斗数值不在本轮编造。
 
 ---
 
-# 六、修炼时间
+# 六、熟练度四阶段
 
-玩家本轮提供四个真实时长：
+玩家可见阶段固定沿用设计真源：
 
 ```text
-1 日
-3 日
-10 日
-30 日
+入门 → 熟练 → 小成 → 大成
+```
+
+## 1. 状态语义
+
+内部只保存整数 `proficiencyPoints`；阶段由纯函数派生，不把 stage 和 points 两份真源同时写存档。
+
+建议第一版阈值：
+
+```text
+0      → 入门
+1000   → 熟练
+3000   → 小成
+6000   → 大成
+```
+
+这是实现平衡锚点，不是世界中的“经验等级”；UI 不显示 `1734 / 6000 XP`。
+
+玩家只看到当前阶段，可在详情中看到“距离下一阶段尚需一段练习”或等价自然描述，不显示技能树。
+
+## 2. 主修熟练增长
+
+R16 `cultivate-days` 成功完成后：
+
+```text
+当前 mainTechniqueId
+→ 增加与真实修炼天数对应的 proficiencyPoints
+```
+
+建议基础：
+
+```text
+20 点 / 修炼日
+```
+
+`举一反三 / quick_study` 对功法理解职责明确，可以在 R17 对主修 / 新功法练习提供：
+
+```text
+×1.15 熟练增长
+```
+
+但不得反过来直接给 R16 修为点额外加速；修为效率与功法熟练是两个不同结果。
+
+达到阈值自然提升阶段，不需要额外按钮。
+
+## 3. 招式解锁
+
+R17 只处理已经在 Content Bible 明确的阶段门槛。
+
+目前明确：
+
+- 《青锋剑诀》“御剑追击”需要小成。
+
+其余招式若 Content Bible 没写阶段，不得为了填 2～4 招给它们临时加“大成绝招”。
+
+R17 UI 可以显示：
+
+```text
+刺 · 可用
+斩 · 可用
+御剑追击 · 小成后掌握
+```
+
+但 R20 前没有“施放”按钮。
+
+---
+
+# 七、辅修 / 专门练习
+
+R17 必须允许角色拥有多门非主修功法，但不能把所有 known 都自动当成“已配置辅修”。
+
+允许：
+
+```text
+set-auxiliary-technique(techniqueId, enabled)
+```
+
+或等价命令。
+
+规则：
+
+- 只能配置 `knownTechniqueIds` 中的非 main category；
+- 主修不能同时作为 auxiliary；
+- 不做复杂辅修槽位数量 / 套装；
+- 首版可以允许多门辅修，但 UI 保持轻量列表；
+- 配置本身不消耗时间。
+
+### 专门练习
+
+为已知 combat / movement / body / secret 功法提供：
+
+```text
+practice-technique-days(techniqueId, 1 | 3 | 10 | 30)
 ```
 
 要求：
 
-- 全部推进唯一 `worldDay`；
-- 不建立“修炼月份”第二时钟；
-- 一次修炼就是一次完整 SessionCommand；
-- 不逐日弹普通事件；
-- R16 不实现长行动世界事件中断；
-- 选了 30 日就是投入 30 日，即使期间刚好跨入下一小层，剩余时间继续用于下一层；
-- 如果到炼气九层 100%，多余修为丢弃，不储存在隐藏字段里。
+- 推进唯一 worldDay；
+- 不增加 `resources.cultivation`；
+- 只增长该功法 proficiency；
+- 使用 R17 同一个熟练增长纯函数；
+- 寿终途中死亡优先，不结算熟练；
+- active secret realm / pending event / pending result 时不可练；
+- 普通练功不逐次污染 Chronicle。
 
-## 寿元优先
-
-必须复用已有寿元 / 时间死亡规则。
-
-如果角色在这次修炼期间寿终：
-
-- 死亡优先；
-- 不伪造“闭关完成”；
-- 不在死亡之后再晋小层；
-- 不生成成功修炼结果卡。
+不做木桩小游戏或挂机。
 
 ---
 
-# 七、SessionCommand
+# 八、主修改修成本
 
-新增正式命令，建议：
+R16 第一次选择主修免费，是为了完成首次入道。
+
+R17 起，若已经存在 `mainTechniqueId`，再次切到另一门已知 main technique 必须走正式改修 resolver，不能继续用 R16 的零成本换引用。
+
+## 1. 成本原则
+
+只体现设计真源已经冻结的：
+
+> 灵力转化 + 经脉调整 + 适应时间；性质差异越大，代价越高。
+
+第一版不做复杂经脉模拟。
+
+建议分三档：
+
+### 相近 / 通用转通用
+
+例如普通通用吐纳法之间：
 
 ```text
-initialize-cultivation
-select-main-technique(techniqueId)
-cultivate-days(days)
+3 日适应
+损失当前小阶段修为的 5%
 ```
 
-全部走：
+### 通用 ↔ 属性契合，或同属性体系
+
+```text
+7 日适应
+损失当前小阶段修为的 10%
+```
+
+### 明显不同属性 / 正常体系 ↔ 邪道体系
+
+```text
+14 日适应
+损失当前小阶段修为的 20%
+```
+
+这里的百分比只作用于**当前小阶段 `resources.cultivation`**，不会直接掉境界 / 掉炼气层数。
+
+实际损失：
+
+```text
+floor(currentCultivationPoints × ratio)
+```
+
+## 2. 举一反三
+
+`quick_study` 的职责包含转修适应，因此正式改修时：
+
+- 适应时间减少约 20%，向上取整；
+- 修为损失不减少，避免一个天赋同时吃掉全部代价。
+
+## 3. 邪道特殊永久代价
+
+C16 已冻结《阴髓录·凝煞篇》的寿元代价，但那是筑基后正式邪道延续；R17 不提前执行筑基后的永久减寿规则。
+
+《阴髓录》残篇作为低阶邪修主修未来接入时，如果缺少精确低阶转修代价，本轮不得自行复制“减 10 年”到炼气残篇。
+
+## 4. 结果透明
+
+改修按钮执行前必须展示：
+
+- 目标功法；
+- 需要适应多少日；
+- 当前小阶段修为预计损失多少；
+- 不显示未来隐藏事件概率。
+
+执行后自然写结果卡，不逐次写 Chronicle；如果改修本身未来触发重大身份 / 邪修事实，再由对应内容轮记录。
+
+---
+
+# 九、SessionCommand / replay
+
+建议新增：
+
+```text
+change-main-technique(techniqueId)
+set-auxiliary-technique(techniqueId, enabled)
+practice-technique-days(techniqueId, days)
+```
+
+如实现统一内部学习能力，可使用：
+
+```text
+learn-technique(techniqueId, sourceFact)
+```
+
+但 R17 UI 不暴露无来源学习。
+
+全部继续：
 
 ```text
 SessionCommand
-→ cultivation resolver
-→ GameState
+→ technique / cultivation resolver
+→ 唯一 GameState
 → debug log / digest / replay
 → PersistentGame
 → auto-save
 ```
 
-### initialize-cultivation
+要求：
 
-- 一世一次；
-- 从已有 R07 `cultivation_method_access_seed` 解析初始 `knownTechniqueIds`；
-- `mainTechniqueId` 初始为 null；
-- 不推进时间 / RNG；
-- 没有功法 seed 也能初始化为空 known list，表示“目前没学到能修的功法”。
-
-### select-main-technique
-
-- 只能选择 `knownTechniqueIds` 中的正式 definition；
-- R16 第一次选主修不收转换成本；
-- 切换到另一门已知功法在 R16 可以直接改引用，但**不得设计完整转功成本**；R17 接手后再实现正式切换成本；
-- 不推进时间 / RNG。
-
-### cultivate-days
-
-必须检查：
-
-1. adult / playing；
-2. 有灵根；
-3. cultivation 已初始化；
-4. mainTechniqueId 非空且属于 known；
-5. days 只能是 1 / 3 / 10 / 30；
-6. 当前不在 active secret realm；
-7. 当前没有 pending event / action / result；
-8. 炼气九层已 100% 时拒绝继续普通修炼。
-
-不得调用 legacy `performPlayerAction('cultivate')`。
+- 不使用 RNG；
+- 不修改无关 inventory / equipment / knowledge / relations；
+- 需要耗时的改修 / 专门练习复用唯一 worldDay / natural death；
+- pending result 必须先确认，不得静默吞结果。
 
 ---
 
-# 八、UI
+# 十、UI
 
-新增一个轻量 `CultivationPanel` 或等价组件，放在正式成年世界界面中，不恢复旧四按钮。
+在 R16 `CultivationPanel` 上扩展，不新做一套大而复杂的“技能树页面”。
 
-## 已有功法
+至少显示：
 
-显示：
-
-- 当前境界；
-- 当前修为百分比；
-- 已掌握主修列表；
-- 当前主修；
-- 当前地点灵气环境；
-- 当前能解释的效率来源；
-- 1 / 3 / 10 / 30 日修炼按钮。
-
-示例应接近：
+## 主修
 
 ```text
-主修：《青元引气诀》
-炼气二层 · 36.4%
-当前位置：青霞坊市｜灵气普通
-
-修炼 10 日
-预计推进：约 5.2%
+《青元引气诀》
+熟练度：熟练
+当前主修
 ```
 
-预计值必须用和 resolver **同一个纯计算函数**，不能 UI 自己复制公式。
+如果真实已知第二门主修，才显示“改修”操作与成本预览。
 
-## 没有主修
+## 辅修 / 战斗术法
 
-自然显示：
-
-> 你还没有一门真正可以开始吐纳的主修功法。
-
-不显示无效“修炼”按钮。
-
-## 无灵根
-
-自然显示普通吐纳无法引气，不做失败进度条。
-
-## 炼气九层圆满
-
-显示：
-
-> 炼气九层已经圆满。继续提升需要准备筑基。
-
-本轮没有筑基按钮。
-
-## 禁止出现
-
-- “修炼系统解锁中”；
-- “R17 将开放”；
-- 推荐功法；
-- 战力；
-- 自动挂机；
-- 修炼加速广告；
-- 隐藏概率；
-- 凝基丹 / 抱元丹使用按钮；
-- 突破按钮。
-
----
-
-# 九、结果与 Chronicle
-
-## 1. 结果卡
-
-修炼完成后结果只写实际发生内容，例如：
+真实已知才出现，例如：
 
 ```text
-闭关十日
-你按《青元引气诀》运转周天，十日后结束吐纳。
-
-时间：+10日
-修为：36.4% → 42.1%
+《青锋剑诀》 · 小成
+刺
+斩
+御剑追击
 ```
 
-跨小层时：
+未学会的功法不出现在“我的功法”列表中。
 
-```text
-境界：炼气二层 → 炼气三层
-修为：96.8% → 4.7%
-```
+可以另有克制的“已知功法详情”区域展示静态描述，但不得把整个 Content Bible 功法池伪装成可学习列表。
 
-不要写“命运”“代价已经落下”一类句子。
+禁止：
 
-## 2. Chronicle
-
-普通 1 / 3 / 10 / 30 日修炼**不逐次写 Chronicle**，避免《此世传》被闭关流水淹没。
-
-只允许本轮两个明显节点单列：
-
-- 首次成功引气入体、进入炼气一层；
-- 如现有 Chronicle 聚合能力足够，可记录一次炼气后期关键阶段；否则不新增，留给后续一生聚合。
-
-R16 不为每个小层自动写人生大事。
+- 技能树；
+- 技能点；
+- 功法抽卡；
+- SSR 稀有度；
+- 综合战力；
+- “推荐主修”；
+- 未冻结伤害数字；
+- R20 前的招式施放按钮；
+- 无来源学习按钮。
 
 ---
 
-# 十、保存 / replay
+# 十一、与 R16 的兼容要求
 
-- optional 修炼实践字段需要 save / clone 深拷贝；
-- 没有 R16 字段的旧存档保持没有；
-- initialize / select-main / cultivate 进入 debug log；
-- 同 snapshot + 同 commands 得到同 digest；
-- 修炼不使用 RNG；
-- 不改变无关 inventory / equipment / knowledge / relationships / exploration / secret realm 数据。
+1. 不删除 `adultEntry.resolved` 后才 bootstrap cultivation 的时序保护；
+2. R16 六门主修继续正常修炼；
+3. R16 只有一门功法的普通人生不因为 R17 被强塞第二门；
+4. R16 `cultivate-days` 继续使用原修为公式，只额外增长主修熟练；
+5. R16 引气入体 / 炼气 1～9 / 九层封顶不能回归；
+6. legacy `performBasicCultivation()` 继续只为旧档兼容，不扩张；
+7. R05～R16 旧状态没有 `techniquePractice / auxiliaryTechniqueIds` 时仍合法。
 
 ---
 
-# 十一、必须测试
+# 十二、必须测试
 
 至少覆盖：
 
-1. R05～R15 旧 V2 state 没有 R16 optional 字段仍合法；
-2. cultivation bootstrap 只执行一次；
-3. bootstrap 不推进时间、不改 RNG；
-4. R07 `xiaozhoutian_tuna` 正确解析为小周天；
-5. R07 `qingyuan_yinqi` 正确解析为青元引气诀；
-6. R07 `xie_basic_qi_method / lu_basic_qi_method` 不生成新功法名，兼容落到已有小周天；
-7. 只有 adult_access 而无 cultivation method seed 不会凭空获得功法；
-8. 无灵根不能普通修炼；
-9. 未掌握功法不能设为主修；
-10. 六门 R16 technique definitions 名称全部来自 Content Bible；
-11. 灵根直接读取现有 cultivationMultiplier；
-12. 属性功法契合 / 不契合修为不同；
-13. 静心守一只在 ≥10 日长修炼生效；
-14. 赤阳灵体 + 赤阳诀、玄阴灵体 + 寒水经生效；
-15. 不相关天赋不会莫名提高修炼速度；
-16. 不同 qiDensity 地点产生不同修炼推进；
-17. 黑风山 / 万兽岭危险不会被当作额外修炼加成；
-18. 无正式宗门权限不能白用青云宗核心 high 修炼倍率；
-19. 1 / 3 / 10 / 30 日世界时间正确推进；
-20. mortal 1000 点正确进入炼气一层；
-21. 一次长修炼可跨小层并正确保留溢出；
-22. 炼气 1～8 层正常升级；
-23. 炼气九层封顶 1000，不自动筑基；
-24. 达到九层圆满后普通 cultivate 被拒绝；
-25. 寿终途中死亡优先，不伪造完成 / 升层；
-26. 普通修炼不逐次污染 Chronicle；
-27. 首次引气入体可留下克制的一条 notable Chronicle；
-28. 预计修为与实际 resolver 使用同一函数；
-29. initialize / select-main / cultivate save / reload 保持；
-30. initialize / select-main / cultivate replay digest 稳定；
-31. R13 秘境、R14 背包、R15 装备测试不回归；
-32. legacy ActionPanel 行为不扩张；
-33. UI 不出现突破 / 凝基丹 / 抱元丹 / 战力 / 挂机假功能；
-34. `npm run typecheck` 通过；
-35. `npm test` 通过；
-36. `npm run build` 通过。
+1. R16 老状态没有 R17 optional 字段仍合法；
+2. `knownTechniqueIds` 仍是唯一“已学”真源；
+3. 非 known 功法不能配置 / 改修 / 专门练习；
+4. 非 main category 不能设为主修；
+5. main category 不能作为 auxiliary；
+6. 多门非主修可配置且不复制 known；
+7. 熟练阶段准确派生为入门 / 熟练 / 小成 / 大成；
+8. 不把 proficiency stage 冗余存入 GameState；
+9. 1 / 3 / 10 / 30 日主修修炼同时增加修为与主修熟练；
+10. quick_study 只加熟练 / 转修适应，不偷偷加 R16 修为；
+11. 专门练习只增对应熟练，不增 cultivation；
+12. 专门练习正确推进 worldDay；
+13. 寿终途中不结算熟练；
+14. 青锋剑诀小成前后的御剑追击门槛正确；
+15. 未冻结阶段要求的招式不会自行生成门槛；
+16. 第一次主修选择仍按 R16 免费；
+17. 已有主修后改修必须走成本 resolver；
+18. 三档改修时间 / 当前小阶段修为损失正确；
+19. quick_study 改修时间减免正确；
+20. 改修不会掉炼气层数 / 境界；
+21. pending result 阻止新的改修 / 练功；
+22. active secret realm 阻止练功；
+23. 无真实来源的功法不会因 R17 bootstrap 自动进入 known；
+24. R07 access-only 路线仍然不送功法；
+25. save / reload 深拷贝 techniquePractice / auxiliary list；
+26. Session replay digest 稳定；
+27. R13 / R14 / R15 / R16 测试继续通过；
+28. UI 不出现技能树 / 推荐 / 战力 / 无来源学习 / R20 招式施放；
+29. `npm run typecheck` 通过；
+30. `npm test` 通过；
+31. `npm run build` 通过。
 
 ---
 
-# 十二、本轮允许修改
+# 十三、本轮允许修改
 
 - `src/types/game.ts`
 - `src/types/command.ts`
-- 可新增最小 cultivation types
 - `src/data/techniques.ts`
 - `src/core/cultivationEngine.ts`
+- 可新增最小 `techniqueEngine.ts`（如果职责拆分明显更清楚）
 - `src/core/sessionEngine.ts`
 - persistence clone / normalize 的最小兼容修改
-- `src/App.tsx`
-- 一个 `CultivationPanel` + 对应 CSS
-- R16 tests
+- `src/components/CultivationPanel.tsx`
+- 对应 CSS
+- R17 tests
 - `HANDOFF.md`
-- R16 完成后再修改 `CURRENT_TASK.md`
+- R17 成功后再修改 `CURRENT_TASK.md`
 
-如果需要修改其它文件，必须是完成 R16 的最小必要依赖。
+修改其它文件必须是完成 R17 的最小必要依赖。
 
 ---
 
-# 十三、本轮禁止
+# 十四、本轮禁止
 
-- 不做 R17 完整功法学习 / 买卖 / 抢夺 / 师承；
-- 不做正式功法熟练度四阶段；
-- 不做转功代价；
-- 不做辅修 / 战斗招式；
-- 不做 R18 筑基 resolver；
-- 不做凝基丹使用；
-- 不做破障丹突破使用；
-- 不做 R19 结丹；
-- 不做抱元丹；
-- 不做常规金丹雷劫；
-- 不做完整伤势系统；
-- 不做聚气丹 / 丹毒；
-- 不实现静修院付费房间交易；
-- 不实现青云宗正式弟子权限系统；
-- 不实现世界事件中断闭关；
-- 不补装备具体品阶；
+- 不做 R18 筑基；
+- 不用凝基丹 / 破障丹突破；
+- 不做筑基失败伤势；
+- 不做 R19 金丹 / 抱元丹 / 延寿物；
+- 不做正式战斗；
+- 不计算招式伤害；
+- 不做丹药 / 符箓战斗使用；
+- 不做商店；
+- 不做完整宗门传功页面；
+- 不做拜师系统；
+- 不做遗迹随机掉完整功法；
+- 不做杀人夺宝系统；
+- 不新增几十门功法；
+- 不为剩余高阶 / 特殊主修乱填未冻结 baseEfficiency；
+- 不做技能树；
+- 不做装备具体品阶；
 - 不补延寿物；
-- 不补随机子地点模板；
+- 不补随机子地点正式模板；
 - 不补重大机缘 / 普通事件正文；
 - 不接 LLM API；
-- 不扩 legacy `ActionPanel`。
+- 不扩 legacy ActionPanel。
 
 ---
 
-# 十四、验收标准
+# 十五、验收标准
 
-1. 一个已经真实得到基础功法、且有灵根的成年角色，可以选择主修并修炼 1 / 3 / 10 / 30 日；
-2. 修炼真实推进唯一 worldDay 和唯一修为进度；
-3. 灵根、功法契合、地点环境、静心守一与两种相关体质真实改变效率；
-4. 凡人可通过修炼自然完成引气入体并进入炼气一层；
-5. 炼气 1～9 层可以通过修炼自然推进；
-6. 九层 100% 准确停住，不提前筑基；
-7. 没功法 / 无灵根时不伪造可修行为；
-8. 结果自然、透明，不污染 Chronicle；
-9. save / reload / replay 稳定；
-10. 旧 R05～R15 与 legacy 行为不回归；
-11. typecheck / test / build 全通过；
-12. 更新 `HANDOFF.md`；
-13. 成功后再把 `CURRENT_TASK.md` 切到 R17，并立即停下。
+1. R16 已知功法能拥有真实熟练度，并随真实练习增长；
+2. 熟练度四阶段正常派生，青锋剑诀已冻结的小成招式门槛可以表达；
+3. 已真实掌握多门主修时可以改修，并承担明确时间 / 当前阶段修为成本；
+4. 已知非主修可进入辅修 / 专门练习状态；
+5. 没有真实来源的功法不会被 R17 自动发给玩家；
+6. R16 修为 / 引气 / 炼气九层封顶行为不回归；
+7. save / reload / replay 稳定；
+8. legacy 行为不扩张；
+9. typecheck / test / build 全通过；
+10. 更新 `HANDOFF.md`；
+11. 成功后再把 `CURRENT_TASK.md` 切到 R18，并立即停下。
