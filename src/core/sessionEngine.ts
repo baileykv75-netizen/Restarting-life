@@ -72,7 +72,7 @@ function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
     narrative: `你在${location?.name ?? '当前区域'}进行了${formatDuration(result.days)}的系统探索。当前累计探索${result.exploredDays}天。`,
     changes: [
       { label: '时间', value: `+${formatDuration(result.days)}`, tone: 'neutral' },
-      { label: '累计探索', value: `${result.previousExpledDays}天 → ${result.exploredDays}天`, tone: 'neutral' },
+      { label: '累计探索', value: `${result.previousExploredDays}天 → ${result.exploredDays}天`, tone: 'neutral' },
       { label: '探索阶段', value: beforeStage === afterStage ? afterStage : `${beforeStage} → ${afterStage}`, tone: 'neutral' },
     ],
     consequence: null,
