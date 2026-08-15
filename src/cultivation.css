@@ -1,0 +1,110 @@
+.cultivation-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cultivation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cultivation-heading h2 {
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+}
+
+.cultivation-location {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.86rem;
+  text-align: right;
+}
+
+.cultivation-note {
+  margin: 14px 0 0;
+  color: var(--text-muted, #aeb4bf);
+  line-height: 1.7;
+}
+
+.cultivation-note.complete {
+  color: var(--text-main, #f1f3f5);
+}
+
+.cultivation-techniques,
+.cultivation-factors {
+  margin-top: 16px;
+}
+
+.cultivation-technique {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cultivation-technique.selected {
+  cursor: default;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.cultivation-technique span,
+.cultivation-action span,
+.cultivation-factor-list span {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.82rem;
+}
+
+.cultivation-factor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cultivation-factor-list span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.cultivation-actions {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cultivation-action {
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+}
+
+@media (max-width: 720px) {
+  .cultivation-heading {
+    flex-direction: column;
+  }
+
+  .cultivation-location {
+    text-align: left;
+  }
+
+  .cultivation-actions {
+    grid-template-columns: 1fr;
+  }
+}
