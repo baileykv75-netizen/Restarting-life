@@ -58,8 +58,9 @@ function appendMajorChronicle(
   narrative: string,
 ): GameState {
   const sequence = state.chronicle.length + 1
+  const canonicalSourceId = `${REALM_SOURCE_ID}:${sourceId}`
   const entry: ChronicleEntry = {
-    id: `chronicle:world:${sourceId}:${sequence}`,
+    id: `chronicle:world:${canonicalSourceId}:${sequence}`,
     startDay: state.worldDay,
     endDay: state.worldDay,
     title,
@@ -68,7 +69,7 @@ function appendMajorChronicle(
     changes: [],
     importance: 'major',
     sourceType: 'world',
-    sourceId,
+    sourceId: canonicalSourceId,
     locationId: BLACKWIND_ID,
   }
   return { ...state, chronicle: [...state.chronicle, entry] }
@@ -159,7 +160,8 @@ function shouldDiscover(state: GameState, runtime: SunkenVeinChamberRuntime): bo
 }
 
 function withRuntime(state: GameState, runtime: SunkenVeinChamberRuntime): GameState {
-  return { ...state, secretRealm: { sunkenVeinChamber: runtime } }
+  const secretRealm: SecretRealmState = { sunkenVeinChamber: runtime }
+  return { ...state, secretRealm }
 }
 
 export function resolveSecretRealmInitialization(state: GameState): SecretRealmCommandResult {
@@ -193,7 +195,7 @@ export function resolveSecretRealmInitialization(state: GameState): SecretRealmC
   if (discovered) {
     nextState = appendMajorChronicle(
       nextState,
-      'sunken-vein-discovery',
+      'discovery',
       '发现沉脉石室',
       '你在黑风山旧矿深处确认了一处被断层和坍塌重新封住的古修石室。现存结构与矿工支护完全不同。',
     )
@@ -207,7 +209,7 @@ export function refreshSunkenVeinDiscovery(state: GameState): GameState {
   if (!shouldDiscover(state, runtime)) return state
   return appendMajorChronicle(
     withRuntime(state, { ...runtime, discovered: true }),
-    'sunken-vein-discovery',
+    'discovery',
     '发现沉脉石室',
     '你在黑风山旧矿深处确认了一处被断层和坍塌重新封住的古修石室。现存结构与矿工支护完全不同。',
   )
@@ -235,6 +237,7 @@ function advanceOneDay(state: GameState): GameState {
 }
 
 function ensureOuterActive(state: GameState, runtime: SunkenVeinChamberRuntime): string | null {
+  if (state.status !== 'playing') return 'GAME_ENDED'
   if (!runtime.active) return 'SECRET_REALM_NOT_ACTIVE'
   if (runtime.coreLockedBehindPlayer) return 'SECRET_REALM_CORE_LOCKED'
   if (runtime.cleared) return 'SECRET_REALM_ALREADY_CLEARED'
@@ -403,7 +406,7 @@ function ventAndExit(state: GameState, runtime: SunkenVeinChamberRuntime): Secre
   }
   nextState = appendMajorChronicle(
     nextState,
-    'sunken-vein-cleared',
+    'cleared',
     '沉脉石室泄压',
     '你处理了脉心室的危险并打开内侧泄压结构，从断层返回黑风山。石刻证明这里原本是古修长期维护的引脉设施，而不是藏宝洞府。',
   )
