@@ -14,7 +14,7 @@ import { appendChronicleEntry, createActionChronicleEntry, createEventChronicleE
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
-import { resolveInventoryDrop, resolveInventoryInitialization } from './inventoryEngine'
+import { resolveInventoryDrop, resolveInventoryInitialization, resolvePendingMaterialsTransfer } from './inventoryEngine'
 import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
 import { getExplorationStageLabel, resolveRegionExploration, type RegionExplorationResult } from './regionExplorationEngine'
 import { refreshSunkenVeinDiscovery, resolveSecretRealmAction, resolveSecretRealmInitialization } from './secretRealmEngine'
@@ -106,6 +106,11 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveSecretRealmAction(before, command.action)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && nextState.inventory) {
+      const transfer = resolvePendingMaterialsTransfer(nextState)
+      if (!transfer.applied) return { session: workingSession, applied: false, reason: transfer.reason }
+      nextState = transfer.state
+    }
     if (nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = [`world:secret-realm:${command.action}`]
   } else if (command.type === 'initialize-inventory') {
