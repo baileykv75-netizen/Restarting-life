@@ -1,3 +1,4 @@
+import { getWorldLocationById } from '../data/worldLocations'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/game'
 import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { advanceWorldTime } from './worldEngine'
@@ -8,139 +9,49 @@ export interface GameActionResult {
   reason?: string
 }
 
-function rejected(state: GameState, reason: string): GameActionResult {
-  return { state, applied: false, reason }
-}
+function rejected(state: GameState, reason: string): GameActionResult { return { state, applied: false, reason } }
+function isNonEmptyId(value: string): boolean { return value.trim().length > 0 }
+function isLifeStage(value: unknown): value is LifeStage { return value === 'legacy-adult' || value === 'childhood' || value === 'adult' }
+function isLocationKnowledgeStatus(value: unknown): value is LocationKnowledgeStatus { return value === 'rumored' || value === 'discovered' }
+function isFlagValue(value: unknown): value is GameFlagValue { return typeof value === 'boolean' || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) }
 
-function isNonEmptyId(value: string): boolean {
-  return value.trim().length > 0
-}
-
-function isLifeStage(value: unknown): value is LifeStage {
-  return value === 'legacy-adult' || value === 'childhood' || value === 'adult'
-}
-
-function isLocationKnowledgeStatus(value: unknown): value is LocationKnowledgeStatus {
-  return value === 'rumored' || value === 'discovered'
-}
-
-function isFlagValue(value: unknown): value is GameFlagValue {
-  return (
-    typeof value === 'boolean' ||
-    typeof value === 'string' ||
-    (typeof value === 'number' && Number.isFinite(value))
-  )
-}
-
-/**
- * Pure authoritative reducer for V2 state mutations.
- *
- * It does not render UI text, draw random events, write saves or append
- * Chronicle prose. Player-facing flows dispatch these actions through the
- * Session layer so replay/debug/persistence remain on one path.
- */
 export function applyGameAction(state: GameState, action: GameAction): GameActionResult {
-  if (state.status !== 'playing') {
-    return rejected(state, 'GAME_ENDED')
-  }
+  if (state.status !== 'playing') return rejected(state, 'GAME_ENDED')
 
   switch (action.type) {
     case 'ADVANCE_TIME': {
-      if (!Number.isSafeInteger(action.days) || action.days <= 0) {
-        return rejected(state, 'INVALID_TIME')
-      }
-      return {
-        state: advanceWorldTime(state, action.days).state,
-        applied: true,
-      }
+      if (!Number.isSafeInteger(action.days) || action.days <= 0) return rejected(state, 'INVALID_TIME')
+      return { state: advanceWorldTime(state, action.days).state, applied: true }
     }
-
     case 'SET_FLAG': {
-      if (!isNonEmptyId(action.key) || !isFlagValue(action.value)) {
-        return rejected(state, 'INVALID_FLAG')
-      }
-      if (state.flags[action.key] === action.value) {
-        return rejected(state, 'NO_CHANGE')
-      }
-      return {
-        state: {
-          ...state,
-          flags: { ...state.flags, [action.key]: action.value },
-        },
-        applied: true,
-      }
+      if (!isNonEmptyId(action.key) || !isFlagValue(action.value)) return rejected(state, 'INVALID_FLAG')
+      if (state.flags[action.key] === action.value) return rejected(state, 'NO_CHANGE')
+      return { state: { ...state, flags: { ...state.flags, [action.key]: action.value } }, applied: true }
     }
-
     case 'REMOVE_FLAG': {
-      if (!isNonEmptyId(action.key)) {
-        return rejected(state, 'INVALID_FLAG')
-      }
-      if (!Object.prototype.hasOwnProperty.call(state.flags, action.key)) {
-        return rejected(state, 'FLAG_NOT_SET')
-      }
+      if (!isNonEmptyId(action.key)) return rejected(state, 'INVALID_FLAG')
+      if (!Object.prototype.hasOwnProperty.call(state.flags, action.key)) return rejected(state, 'FLAG_NOT_SET')
       const nextFlags = { ...state.flags }
       delete nextFlags[action.key]
-      return {
-        state: { ...state, flags: nextFlags },
-        applied: true,
-      }
+      return { state: { ...state, flags: nextFlags }, applied: true }
     }
-
     case 'SET_LIFE_STAGE': {
-      if (!isLifeStage(action.stage)) {
-        return rejected(state, 'INVALID_LIFE_STAGE')
-      }
-      if (state.lifeStage === action.stage) {
-        return rejected(state, 'NO_CHANGE')
-      }
-      return {
-        state: { ...state, lifeStage: action.stage },
-        applied: true,
-      }
+      if (!isLifeStage(action.stage)) return rejected(state, 'INVALID_LIFE_STAGE')
+      if (state.lifeStage === action.stage) return rejected(state, 'NO_CHANGE')
+      return { state: { ...state, lifeStage: action.stage }, applied: true }
     }
-
     case 'SET_CURRENT_LOCATION': {
-      if (action.locationId !== null && !isNonEmptyId(action.locationId)) {
-        return rejected(state, 'INVALID_LOCATION')
-      }
-      if (state.world.currentLocationId === action.locationId) {
-        return rejected(state, 'NO_CHANGE')
-      }
-      return {
-        state: {
-          ...state,
-          world: { ...state.world, currentLocationId: action.locationId },
-        },
-        applied: true,
-      }
+      if (action.locationId !== null && !isNonEmptyId(action.locationId)) return rejected(state, 'INVALID_LOCATION')
+      if (state.world.currentLocationId === action.locationId) return rejected(state, 'NO_CHANGE')
+      return { state: { ...state, world: { ...state.world, currentLocationId: action.locationId } }, applied: true }
     }
-
     case 'SET_LOCATION_KNOWLEDGE': {
-      if (!isNonEmptyId(action.locationId) || !isLocationKnowledgeStatus(action.status)) {
-        return rejected(state, 'INVALID_LOCATION_KNOWLEDGE')
-      }
-
+      if (!isNonEmptyId(action.locationId) || !isLocationKnowledgeStatus(action.status)) return rejected(state, 'INVALID_LOCATION_KNOWLEDGE')
+      if (!getWorldLocationById(action.locationId)) return rejected(state, 'INVALID_LOCATION_KNOWLEDGE_ID')
       const current = state.knowledge.locations[action.locationId]
-      if (current === 'discovered' && action.status === 'rumored') {
-        return rejected(state, 'LOCATION_KNOWLEDGE_CANNOT_DOWNGRADE')
-      }
-      if (current === action.status) {
-        return rejected(state, 'NO_CHANGE')
-      }
-
-      return {
-        state: {
-          ...state,
-          knowledge: {
-            ...state.knowledge,
-            locations: {
-              ...state.knowledge.locations,
-              [action.locationId]: action.status,
-            },
-          },
-        },
-        applied: true,
-      }
+      if (current === 'discovered' && action.status === 'rumored') return rejected(state, 'LOCATION_KNOWLEDGE_CANNOT_DOWNGRADE')
+      if (current === action.status) return rejected(state, 'NO_CHANGE')
+      return { state: { ...state, knowledge: { ...state.knowledge, locations: { ...state.knowledge.locations, [action.locationId]: action.status } } }, applied: true }
     }
   }
 }
