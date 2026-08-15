@@ -103,7 +103,10 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const inventory = session.state.inventory
   const equipment = session.state.equipment
   const knownTechniqueIds = session.state.cultivation.knownTechniqueIds
-  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !knownTechniqueIds) return persistent
+  const auxiliaryTechniqueIds = session.state.cultivation.auxiliaryTechniqueIds
+  const techniquePractice = session.state.cultivation.techniquePractice
+  const hasCultivationRuntime = Boolean(knownTechniqueIds || auxiliaryTechniqueIds || techniquePractice)
+  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !hasCultivationRuntime) return persistent
 
   return {
     ...persistent,
@@ -158,8 +161,21 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
             }
           : {}),
         ...(equipment ? { equipment: { ...equipment } } : {}),
-        ...(knownTechniqueIds
-          ? { cultivation: { ...session.state.cultivation, knownTechniqueIds: [...knownTechniqueIds] } }
+        ...(hasCultivationRuntime
+          ? {
+              cultivation: {
+                ...session.state.cultivation,
+                ...(knownTechniqueIds ? { knownTechniqueIds: [...knownTechniqueIds] } : {}),
+                ...(auxiliaryTechniqueIds ? { auxiliaryTechniqueIds: [...auxiliaryTechniqueIds] } : {}),
+                ...(techniquePractice
+                  ? {
+                      techniquePractice: Object.fromEntries(
+                        Object.entries(techniquePractice).map(([id, practice]) => [id, { ...practice }]),
+                      ),
+                    }
+                  : {}),
+              },
+            }
           : {}),
       },
     },
