@@ -34,7 +34,6 @@ describe('browser game store', () => {
     expect(first.pendingBirthSelection?.candidates).toHaveLength(3)
     expect(storage.getItem(SAVE_KEY)).not.toBeNull()
     expect(loadGame(storage)).toEqual(first)
-
     const secondStart = startAndSaveRun(storage, first, 999999)
     expect(secondStart).toEqual(first)
     expect(secondStart.meta.totalRuns).toBe(1)
@@ -62,12 +61,12 @@ describe('browser game store', () => {
     const stageResult = commandAndSave(storage, selected, { type: 'game-action', action: { type: 'SET_LIFE_STAGE', stage: 'adult' } })
     expect(stageResult.applied).toBe(true)
     const locationResult = commandAndSave(storage, stageResult.persistent, { type: 'game-action', action: { type: 'SET_CURRENT_LOCATION', locationId: 'test_location' } })
-    const knowledgeResult = commandAndSave(storage, locationResult.persistent, { type: 'game-action', action: { type: 'SET_LOCATION_KNOWLEDGE', locationId: 'hidden_cave', status: 'discovered' } })
+    const knowledgeResult = commandAndSave(storage, locationResult.persistent, { type: 'game-action', action: { type: 'SET_LOCATION_KNOWLEDGE', locationId: 'qingxia_market', status: 'discovered' } })
     const loaded = loadGame(storage)
     expect(loaded).toEqual(knowledgeResult.persistent)
     expect(loaded.currentSession?.state.lifeStage).toBe('adult')
     expect(loaded.currentSession?.state.world.currentLocationId).toBe('test_location')
-    expect(loaded.currentSession?.state.knowledge.locations.hidden_cave).toBe('discovered')
+    expect(loaded.currentSession?.state.knowledge.locations.qingxia_market).toBe('discovered')
   })
 
   it('does not overwrite the valid save when a reducer command is rejected', () => {
