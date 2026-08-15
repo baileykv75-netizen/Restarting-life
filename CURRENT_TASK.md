@@ -1,160 +1,138 @@
-# 当前任务：V2 R05 - 出生三选一
+# 当前任务：V2 R06 - 童年关键节点
 
 ## 本轮唯一目标
 
-把当前 landing 上“点击后直接随机生成一个 16 岁角色”的 legacy 开局，替换为 V2.0 正式的：
+把 R05 已确定的出生自然推进成一段短而有因果的童年：
 
-> **一次生成三个完整出生候选 → 自动保存 → 玩家选择其一 → 写入唯一 GameState → 进入童年阶段。**
+> **根据出身生成本世固定的 2 个关键童年节点 → 玩家逐个选择 → 推进唯一 worldDay / 记录可见后果 → 童年结束到 16 岁 → `lifeStage = adult`。**
 
-本轮只做“这一世是谁”的选择，不开始童年事件本身。
+本轮只完成童年，不实现 16 岁以后的入道选择；成年入口属于 R07。
 
 ## 内容来源约束
 
-R05 的正式世界内容必须读取并遵守 `V2_CONTENT_BIBLE.md`，不得让 Codex 自行改名、临时发明或用旧路线中的占位内容替换已冻结内容。
+必须先阅读并遵守：
 
-本轮具体使用：
+- `V2_CONTENT_BIBLE.md` 第 9 节童年结构与各出身事件池；
+- 第 30 节事件文本规则；
+- R05 已写入 GameState 的 `childhood_pool:* / birthplace_seed:* / relation_seed:* / location_seed:* / adult_entry:*` 等 seed/tag。
 
-- `V2_CONTENT_BIBLE.md` 第 5 节：8 个正式出身；
-- 第 6 节：灵根体系；
-- 第 7 节：无特殊体质 + 7 个正式特殊体质；
-- 第 8 节：首版正式 12 个天赋。
+本轮首批只落地下面 16 个已认可事件骨架，每个出身 2 个；不要自行再扩写第三批事件：
 
-本轮只把这些内容作为出生候选和后续可读的结构化定义接入，不得提前实现童年、地图、战斗、职业或事件逻辑。
+1. 白石村佃户之家：`收成不好`、`山里来的伤者`；
+2. 黑风山猎户之家：`第一次跟猎`、`不该出现的脚印`；
+3. 青石镇药铺之家：`混进药材里的怪草`、`出价异常的客人`；
+4. 临河县武馆之家：`正式学武`、`真正的修士`；
+5. 青霞坊散修之家：`第一次测灵`、`家里缺灵石`；
+6. 谢家旁支：`测灵与登记`、`第一次学符`；
+7. 陆家嫡系：`家族测灵`、`灵田见习`；
+8. 青云宗执事后人：`宗门测灵`、`观看弟子切磋`。
+
+正式文案必须克制、直接、基于 Content Bible 已写事实，不得用宿命、感悟或“代价已落在这一世”式句法填充篇幅。
 
 ## 必须实现
 
-1. `phase = birth-selection` 必须成为真正可玩的出生选择阶段，不再只是一个空壳状态。
-2. 每一世一次性生成 **3 个不同候选**；候选至少完整展示：
-   - 出身；
-   - 灵根；
-   - 体质；
-   - 1～3 个主要天赋；
-   - 明确可理解的初始资源 / 规则效果；
-   - 与成年入口有关的出身倾向或标签（只展示真实已写入数据的内容）。
-3. 三个候选生成后必须进入 V3 单档：
-   - 刷新页面仍是同一组三人；
-   - 关闭页面再打开仍是同一组三人；
-   - 不提供“刷新候选 / 重抽 / 换一批”按钮；
-   - 不能通过重复点击“开始”重新生成当前这一世的三人。
-4. 候选生成必须继续使用 seeded RNG；同一 pending birth seed 可复现同一组三人。
-5. `PersistentGame` 允许增加**最小的 pending birth selection 状态**，但不得创建第二套长期角色 store。
-6. 选择一个候选后：
-   - 建立唯一 `GameState`；
-   - `GameState.lifeStage = childhood`；
-   - `PersistentGame.phase = life`；
-   - `identity.backgroundId / spiritRootId / physiqueIds / talentIds` 正确写入；
-   - 初始属性、灵石、tags / flags 等候选真实效果一次性结算；
-   - 未选两个候选从当前 pending selection 中清除；
-   - 选择结果立即自动保存。
-7. 出身不能继续只是“属性 + 灵石”包装。扩展现有 background 数据时，至少要能表达 2 类以上真正影响后续人生的结构性信息，例如：
-   - 成年入道入口类型 / 身份倾向；
-   - 初始关系种子；
-   - 已知世界 / 出生地倾向（R08 地图落地前只存合法 seed/tag，不伪造可访问地图）；
-   - 童年事件池倾向；
-   - 初始资源 / 身份标签。
-   数值修正可以保留，但只能是其中一部分。
-8. 天赋必须有明确机制说明，不再只靠文学描述 + 数值加点。数据结构至少允许表达若干类真实规则：
-   - 修炼倾向；
-   - 探索 / 感知倾向；
-   - 特殊事件解锁 tag；
-   - 战斗 / 职业倾向；
-   - 属性修正。
-   R05 不需要把未来战斗/职业系统提前实现，但候选数据必须结构化，后续系统能直接读取。
-9. 新增正式 `Physique` 数据定义，并让候选显示 0～1 个主要体质；普通角色可以是“无特殊体质”。不得把体质等同于第三组纯属性天赋。
-10. 首轮内容量严格控制：
-    - 出身：固定使用 Content Bible 的 8 个正式出身；
-    - 天赋：固定使用 Content Bible 的首版 12 个正式天赋；
-    - 体质：固定使用“无特殊体质 + 7 个正式特殊体质”；
-    - 灵根继续复用并按 Content Bible 做最小扩展，不做纯度或随机词条系统。
-11. 保留 legacy 读取能力：已有旧人生 / Archive 仍能正确显示其 background / talent 等历史 ID；不要为了 R05 删除旧内容导致旧档案报错。
-12. 新增一个真正的出生选择 UI；重点是信息清楚、可比较，不堆大段小说式文案。
-13. 选择按钮必须明显，但不得用“推荐 / 最优 / 稀有度评分”暗示系统替玩家做决定。
-14. 出生候选之间允许明显不平衡；不要偷偷做三选一强制等价补偿。
-15. 更新测试覆盖：
-    - 同 seed 候选可复现；
-    - 三个候选 ID / 实体不同；
-    - pending selection 保存 / 加载保持；
-    - 刷新不会重抽；
-    - 不允许二次选择；
-    - 选择后进入 `life + childhood`；
-    - 选中候选的数据真实写入 GameState；
-    - 未选候选不残留为当前角色状态。
-16. 更新 `HANDOFF.md`，完成后把 `CURRENT_TASK.md` 切换到 R06。
-
-## 关于当前 legacy `generateBirthState`
-
-可以重构，但必须小步迁移。
-
-推荐结构：
-
-```text
-create / ensure pending birth selection
-→ generateBirthCandidates(seed)
-→ persist three candidates
-→ chooseBirthCandidate(candidateId)
-→ create one authoritative GameState
-```
-
-如果旧测试 / 旧 Archive 仍需要 legacy wrapper，可以暂时保留兼容入口，但不得继续让新玩家绕过三选一直接生成角色。
+1. 新增最小 `ChildhoodProgress` / 等价权威状态，并把它放进唯一 GameState 或其正式 V2 状态结构中；不得只存在 React state。
+2. 每个已选择出生在进入 childhood 时，根据其 `childhoodPoolId` 与 run seed 生成并锁定本世 **2 个首批关键节点**；刷新不能换节点、换顺序或重抽结果。
+3. 童年节点必须走统一 SessionCommand / resolver / GameState 边界，不允许组件直接改时间、flags、关系或 Chronicle。
+4. 两个节点安排在不同年龄段。节点之间未发生重要事情的年份直接聚合跳过，不逐日 / 逐月模拟。
+5. 仍然只使用唯一 `worldDay`。最终童年完成时角色年龄必须准确到 **16 岁**，不得新增第二套年龄计时。
+6. 每个事件提供 2～3 个自然行为选项；选择只展示角色合理知道的：
+   - 行为本身；
+   - 明确时间成本；
+   - 明显直接风险；
+   - 明确会付出的资源成本（如果有）。
+   不展示未来事件概率、隐藏关系值或远期奖励。
+7. 每个选项必须至少产生一种真实差异：
+   - flags / tags；
+   - 已有 relation seed 对应的轻量关系变化；
+   - 已知地点 seed / 传闻 seed 的变化；
+   - 少量合理属性变化；
+   - 凡俗技能 / 兴趣 seed；
+   - 资源变化。
+   禁止把所有选项写成对称的“属性 A +1 / 属性 B +1”。
+8. 灵根相关童年事件（散修 / 谢家 / 陆家 / 青云宗）不能重新随机灵根。R05 已经确定灵根；童年测灵只是**世界中的人第一次确认它并产生反应**。
+9. 黑风山猎户、药铺、武馆等事件必须读取 R05 已有天赋 / 体质 rule tag，在合理时提供额外信息或选项；至少覆盖：
+   - `察微知著` / `危机直觉`；
+   - `百草灵体` / `辨药`；
+   - `兵器熟手`；
+   不要求为所有 12 天赋写专属童年分支。
+10. 童年节点结束后写 Chronicle；无事发生的多年不能逐条记流水账。
+11. 两个节点完成后：
+   - `worldDay = birthDay + 16 * DAYS_PER_YEAR`；
+   - `lifeStage = adult`；
+   - 清除当前童年 pending node；
+   - 保留童年形成的 flags / tags / relations / knowledge seeds；
+   - 页面停在“成年起点尚未展开”的安全状态。
+12. R06 不把 `location_seed:*` 直接伪造成 R08 的正式 discovered 地图。需要记录童年地点认知时，继续使用 seed/tag/flag，真实地图状态等 R08。
+13. R06 不让成年后的 legacy `ActionPanel` 自动出现。即使 `lifeStage = adult`，在 R07 正式成年入口完成前也必须停在 V2 过渡页，避免玩家绕回旧四按钮。
+14. 新增测试至少覆盖：
+   - 同一 run seed / 同一出生得到同一两个童年节点；
+   - 刷新后节点与当前进度不变；
+   - 每个出身都只从自己首批两个事件中取节点；
+   - 测灵事件不改变 `spiritRootId`；
+   - choice 时间、flags / relation / seed 等只结算一次；
+   - 两节点结束后准确 16 岁且 `lifeStage = adult`；
+   - Chronicle 有关键节点但没有逐年流水账；
+   - 旧 legacy session / archive / replay 不退化。
+15. 更新 `HANDOFF.md`；成功后把 `CURRENT_TASK.md` 切换到 R07。
 
 ## 允许修改
 
-- `src/core/birthEngine.ts`
-- `src/core/persistentGameEngine.ts`
-- `src/store/browserGameStore.ts`
-- 必要的 persistence / migration 类型与 clone 逻辑
 - `src/types/game.ts`
-- `src/types/content.ts`
-- 可新增最小 `src/types/birth.ts`
-- `src/data/backgrounds.ts`
-- `src/data/talents.ts`
-- `src/data/spiritRoots.ts`（最小扩展）
-- 可新增 `src/data/physiques.ts`
+- 可新增最小 `src/types/childhood.ts`
+- `src/types/command.ts`
+- `src/core/sessionEngine.ts`
+- 可新增 `src/core/childhoodEngine.ts`
+- 必要的 state digest / clone / persistence 兼容代码
+- 可新增 `src/data/childhoodEvents.ts`
 - `src/App.tsx`
-- 可新增 1 个出生选择展示组件
+- 可新增 1 个童年事件展示组件
 - 对应 CSS 与测试
 - `HANDOFF.md`
 - `CURRENT_TASK.md`
 
+如果必须扩展 GameAction，只允许增加完成 R06 所必需的最小 action；不要借此把地图、背包、关系系统整体提前实现。
+
 ## 本轮禁止
 
-- 不实现童年事件内容；只在选择后进入 `lifeStage = childhood`。
-- 不进入成年 / 入道流程；留给 R07。
-- 不新增真实地点地图、旅行、探索。
-- 不新增背包、装备、战斗、宗门、炼丹、炼器、御兽。
-- 不新增元成长 / reroll 点数。
-- 不允许重新生成当前三候选。
-- 不做候选平衡补偿算法。
-- 不做候选稀有度评分或“系统推荐”。
-- 不接 LLM API。
-- 不用大段 AI 式宿命文案包装候选差异。
-- 不删除 legacy Archive 所依赖的数据 ID。
-- 不把 `V2_CONTENT_BIBLE.md` 中尚未冻结的突破、高阶功法、延寿物、秘境或重大机缘内容提前塞进 R05。
+- 不实现 R07 成年入道选择；
+- 不真正加入青云宗；
+- 不创建真实地点地图和旅行；
+- 不实现背包 / 装备；
+- 不实现正式修炼、突破、战斗；
+- 不实现炼丹、炼器、御兽；
+- 不增加家庭经营或日常养成；
+- 不把童年扩成十几个节点；
+- 不实现 Content Bible 里尚未冻结的重大机缘、秘境、延寿物或高阶功法；
+- 不接 LLM API；
+- 不批量生成长篇童年小说；
+- 不重新抽取或改变 R05 已经确定的出身、灵根、体质和天赋；
+- 不让 adult 过渡状态回到 legacy 四按钮。
 
 ## UI 原则
 
-1. **先让玩家知道“这个人到底有什么不同”**。
-2. 出身 / 灵根 / 体质 / 天赋各自承担不同含义，不要重复成四组属性词条。
-3. 能明确说机制就明确说机制，例如“更容易触发感知类事件”，不要只写“天生灵台澄明”。
-4. 不展示后端概率数字、隐藏气运或未来未发生结果。
-5. 不把候选做成 RPG 战力评分卡。
+1. 一次只展示当前关键节点，不做时间线选择菜单。
+2. 事件正文约 80～200 中文字以内；能短则短。
+3. 选项写“做什么”，不是“选择勇敢 / 选择谨慎”。
+4. 明确可知的耗时、资源、直接危险用自然短句写在选项附近。
+5. 结果只写发生了什么，不写设计说明和宿命总结。
+6. 两个节点之间允许直接显示“几年过去”，不需要制造事件填空。
 
 ## 验收标准
 
-1. 新游戏进入真正的三出生候选界面。
-2. 三个候选均可读懂其出身、灵根、体质、天赋和关键实际影响。
-3. 候选生成后刷新页面不变化。
-4. 无重抽入口。
-5. 选择一次后不可返回当前三选一重新选。
-6. 选择后 `PersistentGame.phase = life`。
-7. 选择后 `GameState.lifeStage = childhood`。
-8. 角色关键字段和候选完全一致。
-9. 出身 / 天赋数据结构已经不再局限于纯属性加点。
-10. 旧人生 / Archive 不因数据重构而报错。
-11. `npm run typecheck` 通过。
-12. `npm test` 通过。
-13. `npm run build` 通过。
-14. `HANDOFF.md` 已更新。
+1. R05 选完出生后能直接进入第一个童年关键节点。
+2. 每世首批童年固定 2 个节点，刷新不变化。
+3. 两个节点均来自当前出身对应的首批池。
+4. 选择产生真实且可保存的状态差异。
+5. worldDay 与节点耗时 / 年龄推进正确。
+6. 童年结束年龄准确为 16 岁。
+7. `lifeStage = adult`，但不进入 R07 内容、不显示 legacy 四按钮。
+8. Chronicle 只记录关键童年经历。
+9. R05 三选一和旧 Archive / replay 不退化。
+10. `npm run typecheck` 通过。
+11. `npm test` 通过。
+12. `npm run build` 通过。
+13. `HANDOFF.md` 已更新。
 
 ## 必须先阅读
 
@@ -165,4 +143,4 @@ create / ensure pending birth selection
 5. `V2_GITHUB_ROADMAP.md`
 6. `HANDOFF.md`
 
-完成后立即停下，不得自行进入 R06。
+完成后立即停下，不得自行进入 R07。
