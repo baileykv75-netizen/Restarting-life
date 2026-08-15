@@ -9,6 +9,7 @@ import { ChroniclePanel } from './components/ChroniclePanel'
 import { CultivationPanel } from './components/CultivationPanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
+import { FoundationBreakthroughPanel } from './components/FoundationBreakthroughPanel'
 import { GameStatusBar } from './components/GameStatusBar'
 import { InventoryPanel } from './components/InventoryPanel'
 import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
@@ -33,6 +34,7 @@ import './secret-realm.css'
 import './inventory.css'
 import './equipment.css'
 import './cultivation.css'
+import './foundation.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -179,7 +181,20 @@ function App() {
   } else if (state.secretRealm?.sunkenVeinChamber.active) {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <><WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />{state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}</>
+    stageContent = <>
+      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />
+      {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
+      <FoundationBreakthroughPanel
+        state={state}
+        onAttempt={(options) => persistCommand({
+          type: 'attempt-foundation-breakthrough',
+          usePozhangDan: options.usePozhangDan,
+          useNingjiDan: options.useNingjiDan,
+          spiritStoneInvestment: options.spiritStoneInvestment,
+        })}
+        onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })}
+      />
+    </>
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
