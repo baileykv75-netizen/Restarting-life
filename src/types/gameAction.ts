@@ -16,6 +16,7 @@ export type GameAction =
   | { type: 'REMOVE_FLAG'; key: string }
   | { type: 'SET_LIFE_STAGE'; stage: LifeStage }
   | { type: 'SET_CURRENT_LOCATION'; locationId: string | null }
+  | { type: 'INITIALIZE_SUBLOCATIONS' }
   | {
       type: 'SET_LOCATION_KNOWLEDGE'
       locationId: string
