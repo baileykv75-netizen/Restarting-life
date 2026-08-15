@@ -1,3 +1,4 @@
+import type { AdultEntryProgress } from './adultEntry'
 import type { ChildhoodProgress } from './childhood'
 import type { ChronicleEntry } from './chronicle'
 
@@ -17,6 +18,8 @@ export interface GameState {
   worldDay: number
   /** Optional only for schema-3 saves written before R06; all new V2 lives write it explicitly. */
   childhood?: ChildhoodProgress | null
+  /** Optional only for schema-3 saves written before R07; all new completed childhoods initialize it. */
+  adultEntry?: AdultEntryProgress | null
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }

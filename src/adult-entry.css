@@ -1,0 +1,18 @@
+.adult-entry-card { padding: clamp(24px, 4vw, 36px); }
+.adult-entry-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.adult-entry-heading > span { color: #aeb8b0; border: 1px solid rgba(181, 201, 188, .22); border-radius: 999px; padding: 5px 9px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .76rem; white-space: nowrap; }
+.adult-entry-context { margin: 18px 0 0; padding: 14px 16px; border-left: 2px solid rgba(181, 201, 188, .38); background: rgba(181, 201, 188, .045); }
+.adult-entry-context p { margin: 0; color: #c5cec7; line-height: 1.72; }
+.adult-entry-context p + p { margin-top: 8px; }
+.adult-entry-subtitle { margin-top: 24px; }
+.adult-entry-options { display: grid; gap: 11px; margin-top: 12px; }
+.adult-entry-option { width: 100%; padding: 15px 16px; text-align: left; border: 1px solid rgba(181, 201, 188, .18); border-radius: 12px; color: #ded8ca; background: rgba(255,255,255,.025); transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
+.adult-entry-option:hover { transform: translateY(-1px); border-color: rgba(181, 201, 188, .42); background: rgba(181, 201, 188, .055); }
+.adult-entry-option strong { display: block; font-weight: 650; }
+.adult-entry-option span { display: block; margin-top: 7px; color: #a9b0ab; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .84rem; line-height: 1.55; }
+.adult-entry-option em { display: block; margin-top: 8px; color: #79857d; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .76rem; font-style: normal; }
+.adult-entry-origin { display: flex; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 13px 15px; border: 1px solid rgba(181, 201, 188, .16); border-radius: 10px; }
+.adult-entry-origin span { color: #8f9d94; }
+.adult-entry-origin strong { color: #d7ddd8; }
+.adult-entry-stop { margin-top: 18px; }
+@media (max-width: 640px) { .adult-entry-heading { display: block; } .adult-entry-heading > span { display: inline-block; margin-top: 8px; } .adult-entry-origin { display: grid; gap: 4px; } }

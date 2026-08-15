@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ActionPanel } from './components/ActionPanel'
+import { AdultEntryPanel } from './components/AdultEntryPanel'
 import { ArchivePanel } from './components/ArchivePanel'
 import { BirthSelectionPanel } from './components/BirthSelectionPanel'
 import { CharacterPanel } from './components/CharacterPanel'
@@ -18,6 +19,7 @@ import { chooseBirthAndSave, clearGame, commandAndSave, loadGame, startAndSaveRu
 import './experience-cleanup.css'
 import './birth-selection.css'
 import './childhood.css'
+import './adult-entry.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -50,10 +52,10 @@ function App() {
     stageContent = session.pendingResult ? <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} /> : <ChildhoodPanel state={state} onChoice={(choiceId) => persistCommand({ type: 'childhood-choice', choiceId })} />
   } else if (session.pendingResult) {
     stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
-  } else if (state.lifeStage === 'adult') {
-    stageContent = <section className="story-card adult-transition-card"><p className="story-kicker">十六岁</p><h2>童年已经过去。</h2><p className="story-text">这一世的出身、童年经历和已经形成的关系都保留下来了。成年后的去处与入道入口将在下一阶段展开。</p></section>
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
+  } else if (state.lifeStage === 'adult') {
+    stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} />
   } else if (activeEvent) {
     stageContent = <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
   } else {
