@@ -1,23 +1,22 @@
-# 当前任务：V2 R13 - 沉脉石室秘境最小闭环
+# 当前任务：V2 R14 - 背包与储物袋
 
 ## 本轮唯一目标
 
-严格按照 `V2_CONTENT_BIBLE.md` 第 34 节，把首版第一秘境 **黑风山「沉脉石室」** 做成一个真正可保存、可重放、可死亡、可永久清空的一次性小型分支秘境：
+在 R13 已经产生真实材料的基础上，建立首版**唯一正式物品库存与携带容量**，并把沉脉石室的 `pendingMaterials` 安全接管进背包：
 
 ```text
-发现入口
-→ 进入裂隙矿廊
-→ 自由选择外围分支
-→ 可随时退出外围
-→ 锁脉石门明确警告
-→ 主动进入不可回头核心
-→ 成年岩甲蜥最小危险遭遇
-→ 成功泄压 / 或死亡
-→ 从断层出口离开
-→ 本世资源与历史状态永久改变
+R13 结构化待接管材料
+→ R14 InventoryState
+→ 同类物品堆叠
+→ 容量 / 大型物品占位
+→ 丢弃
+→ 小型储物袋扩容
+→ save / replay 保持
 ```
 
-本轮只验证 **秘境运行闭环**，不是背包轮、正式战斗轮或第二秘境内容轮。
+本轮只解决“物品在哪里、能不能继续拿、占多少携带空间”。
+
+**不实现 R15 装备、不实现丹药使用、不实现商店、不实现掉落系统扩张。**
 
 ---
 
@@ -25,505 +24,376 @@
 
 1. `AGENTS.md`
 2. `V2_GAME_DESIGN.md`
-3. `V2_CONTENT_BIBLE.md`，重点第 34 节
-4. `C13_SECRET_REALM_FREEZE.md`
-5. `HANDOFF.md`
-6. `V2_GITHUB_ROADMAP.md` 的 R13
+3. `V2_CONTENT_BIBLE.md`，重点第 12～15 节
+4. `HANDOFF.md` 的 R13
+5. `V2_GITHUB_ROADMAP.md` 的 R14
 
-冲突时遵循 `AGENTS.md` 的优先级；不得用旧路线中的示例覆盖 Content Bible 已冻结内容。
+具体物品名称、世界来源与品阶只能来自 Content Bible；不得因为做背包自行增加新丹药、新法器或新材料。
 
 ---
 
-## 一、兼容与唯一状态原则
+# 一、兼容与唯一状态原则
 
-R13 必须继续保护 R05～R12 已有 replay digest。
+R14 必须继续保护 R05～R13 已有 replay digest。
 
-### 1. 新运行态必须 optional
+## 1. InventoryState 必须 optional
 
 允许新增等价结构：
 
 ```ts
-interface SecretRealmState {
-  sunkenVeinChamber: SunkenVeinChamberRuntime
+interface InventoryStack {
+  itemId: string
+  quantity: number
 }
 
-interface SunkenVeinChamberRuntime {
-  anchorSublocationId: string
-  discovered: boolean
-  active: boolean
-  currentNodeId: SecretRealmNodeId | null
-  coreLockedBehindPlayer: boolean
-  cleared: boolean
-  nodeClaims: Record<string, boolean>
-  knowledge: {
-    ventSequence: boolean
-    mineIncidentEvidence: boolean
-  }
-  materialClaims: Record<string, number>
+interface InventoryState {
+  stacks: Record<string, InventoryStack>
+  baseCapacitySlots: number
+  storageBagItemId: string | null
 }
 ```
 
-字段名允许按现有代码风格调整，但语义必须等价。
+字段名可按代码风格调整，但要求：
 
-要求：
+- `GameState.inventory` 必须 optional；
+- `createInitialGameState()` 不得给所有旧人生补空背包；
+- 通过显式 `initialize-inventory` SessionCommand 第一次 materialize；
+- bootstrap 进入 debug log / digest / replay / persistence；
+- UI 不显示“初始化背包”按钮；
+- 不创建第二套 React inventory store；
+- 不把 R13 `pendingMaterials` 留成长期第二库存。
 
-- 新字段必须 optional；
-- `createInitialGameState()` **不得给旧人生自动补空 secret-realm 对象**；
-- 不得修改 R12 `INITIALIZE_SUBLOCATIONS` 的历史语义；
-- 不得让旧 `explore-region` 命令在没有 R13 runtime 的状态里突然生成秘境；
-- 不新建第二套 store / React local state 作为秘境真源。
-
-### 2. 显式 bootstrap 命令
-
-新增明确 SessionCommand，例如：
-
-```text
-initialize-secret-realm
-```
-
-职责只有：
-
-- 为当前 V2 adult 人生确定沉脉石室的 R12 黑风山入口承载点；
-- materialize optional runtime；
-- 根据当时已经存在的探索 / 子地点 / 天赋 / 体质 / 真实 flags 判断是否已经满足发现条件；
-- 不推进时间；
-- 进入 debug log / digest / replay / persistence；
-- 只执行一次。
-
-UI 不显示“初始化秘境”按钮。
-
-新版本玩家第一次执行 R13 相关探索时，可由 App 的操作封装先对当前 `PersistentGame` 执行 bootstrap，再基于返回的新 PersistentGame 执行 `explore-region`，最后一次性更新 React view；禁止连续对旧 React state 调两次命令造成 stale state。
-
-旧存档若已经探索黑风山 30+ 天，bootstrap 时可立即按已有事实确认秘境，不要求玩家为了迁移再多点一次探索。
+旧 R13 存档存在 `pendingMaterials` 时，R14 bootstrap 必须尝试一次性迁入正式背包；成功后清空对应 pending claims。
 
 ---
 
-## 二、入口承载点生成
+# 二、物品数据层
 
-### 1. 来源
+新增或扩展 `src/data/items` 等静态目录，定义 canonical `ItemDefinition`。
 
-只能从本世 R12 已生成的黑风山子地点中选择：
+首版 schema 至少支持类别：
 
 ```text
-parentLocationId = blackwind_mountain
-archetype = cave | ruin
+material
+pill
+artifact
+weapon
+armor
+talisman
+special
+storage-bag
 ```
 
-不得额外生成第三个黑风山子地点。
+类别是数据结构能力，不代表 R14 要把所有物品玩法做完。
 
-### 2. 确定性
-
-使用独立 seeded RNG 路径，例如：
+每个定义至少包含：
 
 ```ts
-seedToState(`${runSeed}:r13-sunken-vein-anchor`)
+id
+name
+category
+stackLimit
+slotCost
 ```
 
-再调用现有 RNG 工具。
+需要时可包含：
+
+```ts
+tier
+quality
+capacityBonus
+```
+
+R14 不添加使用效果、装备效果、战斗数值和商店价格计算逻辑。
+
+## 本轮必须登记的真实物品
+
+至少覆盖 R13 已经会产出的 canonical item：
+
+- 青露草；
+- 水灵苔；
+- 玉髓芝；
+- 黑铁；
+- 赤纹铁；
+- 碎灵晶；
+- 岩甲蜥背甲；
+- 岩甲蜥矿性结晶；
+- 小型储物袋。
+
+可以顺带登记 Content Bible 已冻结的其他物品元数据，但不得扩大到使用 / 装备功能。
+
+---
+
+# 三、容量模型
+
+首版使用**整数槽位**，禁止公斤、小数重量和逐克模拟。
+
+冻结本轮实现锚点：
+
+- 基础携带容量：**12 槽**；
+- 同一种可堆叠物品按 `stackLimit` 分栈；
+- 一般材料首版默认每 10 份为 1 栈，除非数据定义另有要求；
+- 普通丹药 / 符箓后续可复用同一 stack 机制；
+- 明显大型物品可以 `slotCost > 1`；
+- 一件小型储物袋本身占 1 槽，并提供 **+12 槽**有效容量。
+
+### 储物袋防递归规则
+
+首版同一时间只允许 **1 个储物袋提供容量加成**。
+
+额外储物袋若未来进入库存，只作为普通货物占位，不叠加容量。
+
+本轮不做：
+
+- 袋中袋；
+- 多层容器 UI；
+- 不同袋子分别存物；
+- 活物装袋；
+- 空间法器嵌套。
+
+`capacityUsed` 必须由 stacks + item definitions 派生，不额外维护一个容易不同步的可变计数真源。
+
+---
+
+# 四、堆叠规则
+
+同一个 canonical `itemId` 必须合并数量，而不是生成十个相同对象。
+
+容量计算：
+
+```text
+需要栈数 = ceil(quantity / stackLimit)
+占用槽位 = 需要栈数 × slotCost
+```
+
+例如：
+
+```text
+青露草 quantity = 14
+stackLimit = 10
+slotCost = 1
+→ 占 2 槽
+```
+
+不做随机品质导致同名材料无法堆叠；首版普通材料只有 canonical item id。
+
+如果未来同物品存在阶 / 品差异，应使用不同 canonical item variant，而不是背包运行时随机词条。
+
+---
+
+# 五、接管 R13 pendingMaterials
+
+R13 当前可能保存：
+
+```text
+green_dew_grass
+water_spirit_moss
+jade_marrow_fungus
+black_iron
+red_pattern_iron
+shattered_spirit_crystal
+rock_lizard_carapace
+rock_lizard_mineral_crystal
+```
+
+R14 bootstrap 必须：
+
+1. 读取所有非零 pending claims；
+2. 验证每个 canonical id 在 item data 中存在；
+3. 计算合并后需要容量；
+4. 容量允许时一次性写入 InventoryState；
+5. 清空已经成功接管的 R13 pending claims；
+6. 不重复迁入；
+7. 不推进世界时间；
+8. 不消耗 RNG。
+
+由于 R13 当前最大全部资源种类仍可放入 12 个基础槽，正常迁移不应需要特殊 overflow 仓库。
+
+如果遇到非法 item id 或异常超容量旧状态，必须明确拒绝并保留原 pending claims，不允许静默丢物。
+
+---
+
+# 六、获得物品的底层接口
+
+建立纯 engine helper，例如：
+
+```ts
+canAddItem(state, itemId, quantity)
+addItem(state, itemId, quantity)
+removeItem(state, itemId, quantity)
+getInventoryUsage(state)
+```
 
 要求：
 
-- 不使用 `Math.random()`；
-- anchor 同一人生永远一致；
-- 刷新 / replay 一致；
-- anchor 生成本身不必消耗主 `rngState`，避免无意义改变其他未来事件序列。
+- 非法 id 拒绝；
+- quantity 必须为正整数；
+- 超容量 `addItem` 拒绝且 state 不变；
+- remove 超过现有数量拒绝；
+- 数量归零时移除 stack；
+- 不推进时间；
+- 不调用 RNG；
+- helper 不直接写 localStorage。
 
-如果 R12 runtime 尚不存在，bootstrap 必须拒绝，不能自己偷偷再实现一遍 R12 生成器。
-
----
-
-## 三、发现条件
-
-只有满足 Content Bible 第 34.2 节才可 `discovered = true`。
-
-基础条件全部必须满足：
-
-1. `blackwind_mountain` fixed location 已 discovered；
-2. 本世选中的 anchor sublocation 已 discovered；
-3. 黑风山累计探索至少 15 天。
-
-### 15～29 天
-
-必须额外满足至少一项**真实存在于当前状态**的条件：
-
-- 孟家旧矿图相关正式 flag / knowledge；
-- 天赋「察微知著」对应 canonical talent id；
-- 体质「空明灵台」对应 canonical physique id；
-- 玩家真实拥有并可使用「寻灵盘」。
-
-R13 **禁止为了凑条件伪造“孟家旧图已知”或“持有寻灵盘” flag**。
-
-如果当前项目尚未真正实现寻灵盘持有状态，则该路径本轮自然不可用；不要临时造背包。
-
-### 30+ 天
-
-黑风山达到基本探明后，只要 fixed location 与 anchor 都已 discovered，即可确认入口，无需特殊条件。
-
-不新增硬境界门槛。
+本轮不要为了测试方便添加“玩家凭空获得任意物品”的公开按钮。
 
 ---
 
-## 四、秘境节点与导航
+# 七、丢弃
 
-固定节点只能有：
+新增真实玩家命令，例如：
 
 ```text
-裂隙矿廊  fissure-corridor
-渗水药圃  seepage-herb-bed
-引脉侧室  vein-guide-side-room
-锁脉石门  vein-lock-gate
-脉心室    vein-heart-chamber
+inventory-drop(itemId, quantity)
 ```
 
-canonical id 可以按代码风格缩写，但不得增加第六个剧情节点。
+必须经过 SessionCommand → engine → GameState → debug log / replay / save。
 
-### 裂隙矿廊
+规则：
 
-- 进入秘境后的默认节点；
-- 可去药圃、侧室、石门；
-- 可退出到黑风山；
-- 进入 / 退出本身不额外结算世界日，避免重复计算区域内短距离移动。
+- 只能丢自己实际拥有的物品；
+- 数量为正整数；
+- 丢弃后容量立即释放；
+- 不返还灵石；
+- 不触发商店；
+- 不写“确认丢弃将影响命运”类文案；
+- 小型储物袋若当前正在提供容量，只有在移除后剩余物品仍能放入基础容量时才允许丢弃，否则拒绝并说明“取下后背包容量不足”。
 
-### 外围移动
-
-- 药圃 / 侧室完成后回到裂隙矿廊；
-- 外围未进入核心前始终允许退出；
-- 不调用 R10 fixed-world travel；
-- `world.currentLocationId` 仍保持 `blackwind_mountain`，秘境当前位置只存在于 secret-realm runtime。
-
-因此秘境不能污染 11 个 fixed-world node 命名空间，也不能写进 `knowledge.locations`。
+本轮无需二次确认弹窗；按钮必须明确写物品与数量即可。
 
 ---
 
-## 五、外围节点时间、风险与一次性领取
+# 八、小型储物袋
 
-### 1. 渗水药圃
+首版只验证 Content Bible 已冻结的：
 
-操作：检查并采集。
+> **小型储物袋**
 
-- 耗时：1 天；
-- 先通过现有 `ADVANCE_TIME / worldDay` 推进；
-- 若寿元在这 1 天内耗尽，死亡优先，不得标记领取完成；
-- 成功完成后本世只可领取一次。
+R14 不实现商店购买，因此测试 / 已有状态可以通过 engine fixture 验证其扩容规则，但 UI 不提供凭空领取按钮。
 
-奖励在 runtime 中固定并一次性记录：
+真实进入玩家库存后：
 
-- 青露草 2～4；
-- 水灵苔 1～3；
-- 玉髓芝 0～1，是否存在由本世 seeded RNG 一次决定。
+- `storageBagItemId` 或等价状态指向该袋；
+- 有效容量从 12 提升到 24；
+- 袋本身仍作为 1 个真实物品存在；
+- 只有一个袋提供加成；
+- 移除 / 丢弃前重新校验剩余容量。
 
-「辨药 / 百草灵体」只改善玩家可见判断文案，不增加数量。
-
-本轮不实现毒伤系统；错误采集风险只作为已知世界风险和后续系统接口，不得为了它提前造状态系统。
-
-### 2. 引脉侧室
-
-操作：检查旧阵与可取材料。
-
-- 耗时：1 天；
-- 寿终边界同上；
-- 本世只领取一次。
-
-奖励：
-
-- 黑铁 1～3；
-- 赤纹铁 0～1；
-- 碎灵晶 1～2。
-
-完成后获得 realm-scoped knowledge：
-
-```text
-旧阵泄压顺序
-```
-
-不得把它伪装成新功法、技能或炼器配方。
-
-### 3. 奖励生成规则
-
-数量使用独立、可重放的 seeded 规则，在 secret-realm runtime 初始化时一次固定，或第一次对应节点生成时确定后持久化；不能每次点按钮重抽。
+R15 是否把储物袋视为辅助法器槽位或独立携带状态，再由 R15 决定；R14 不提前做装备槽。
 
 ---
 
-## 六、R14 前的材料暂存边界
+# 九、UI
 
-R14 才是正式背包 / 物品系统。
+新增一个简单 `InventoryPanel` 或等价区域，要求玩家能看到：
 
-因此 R13：
+- 当前容量：例如 `7 / 12 槽`；
+- 若有储物袋：`7 / 24 槽`；
+- 按类别或至少稳定顺序列出实际物品；
+- 名称；
+- 数量；
+- 占用槽位；
+- 当前真实可丢弃操作。
 
-- **不新增通用 InventoryState；**
-- 下品灵石可直接进入现有 `resources.spiritStones`；
-- 青露草、水灵苔、玉髓芝、黑铁、赤纹铁、碎灵晶、岩甲蜥材料只记录在 secret-realm runtime 的结构化 `materialClaims / pendingLoot` 中；
-- UI 可以明确显示“已收取”，但这些材料在 R14 前不能出售、使用、炼丹或炼器；
-- R14 后必须由背包迁移 / 接管这些已领取事实；
-- 无论 R14 是否已经完成，R13 领取 flag 都必须阻止重复刷取。
+不展示：
 
-不要使用临时字符串数组冒充最终背包；至少使用 canonical material id + count 的结构化记录。
+- 白蓝紫橙稀有度；
+- 战力评分；
+- 未实现的装备按钮；
+- 未实现的“使用丹药”；
+- 未实现的出售价格；
+- 未拥有物品图鉴；
+- 空的“强化 / 分解 / 合成”页签。
 
----
-
-## 七、锁脉石门
-
-石门页必须显示 C13 已冻结的可见危险：
-
-- 门内外灵压不同；
-- 大型爬行妖兽痕迹；
-- 进入后旧阵可能重新闭锁。
-
-### 可实现操作
-
-1. **退回外围**：始终允许。
-2. **按旧阵泄压顺序开启**：仅 `knowledge.ventSequence = true` 时出现；耗时 1 天。
-3. **使用破灵锥**：只有项目存在真实“持有破灵锥”状态时才出现；R14 前若没有真实物品持有机制，本轮不显示，不伪造。
-4. **强行开启**：始终允许；耗时 1 天；玩家必须看到风险较高。
-
-R13 暂不实现完整禁制伤害 / 经脉伤系统，因此“泄压顺序”和“强开”的区别首先体现在：
-
-- 可见风险描述不同；
-- 核心危险遭遇的临时风险修正可以不同。
-
-不得为了做出差异提前增加复杂伤势系统。
-
-如果开门的 1 天内寿终，死亡优先，不能进入核心。
+如果背包为空，直接显示“当前没有随身物品”，不要放假物品填 UI。
 
 ---
 
-## 八、不可回头确认
+# 十、保存与 replay
 
-真正进入脉心室必须是独立明确确认动作，不能把“开门”和“进入核心”合成一个无提示按钮。
+必须深拷贝并保存：
 
-确认页必须完整或等价表达：
+- inventory stacks；
+- storage bag active id / 等价状态；
+- R13 pendingMaterials 清空结果。
 
-> 石门后的灵压明显比外侧紊乱。现存阵纹显示，开门后旧阵会重新闭合，未找到内侧泄压口前无法原路返回。门内还有大型爬行妖兽活动痕迹。继续进入，可能受重伤，甚至死在里面。
+旧 R05～R13 状态没有 `inventory` 仍然合法。
 
-确认后：
-
-- `coreLockedBehindPlayer = true`；
-- 当前节点进入脉心室；
-- 外围退出按钮消失；
-- 在核心危险解决前不能返回药圃 / 侧室 / 矿廊。
-
-玩家可以在确认前取消并继续外围活动。
+`initialize-inventory` 与 `inventory-drop` 必须可 replay；相同命令序列得到相同 digest。
 
 ---
 
-## 九、成年岩甲蜥最小危险遭遇
+# 十一、本轮禁止
 
-这是 R20 前的**专用临时遭遇解析器**，目的只验证秘境的生死状态流，不是正式战斗系统。
-
-### 禁止提前实现
-
-- 不新增 HP / 灵力战斗条；
-- 不新增技能栏；
-- 不新增武器切换；
-- 不新增中毒 / 束缚 / 暴露等正式状态；
-- 不实现岩甲蜥完整 AI；
-- 不制作通用 CombatEngine；
-- 不把这套临时规则扩给其他妖兽。
-
-### 冻结的临时结果规则
-
-首次在脉心室面对成年岩甲蜥时，使用当前境界 / 炼气层数与**主 `rngState` 的正式 seeded 随机判定**，只产生：
-
-```text
-victory | death
-```
-
-临时成功率：
-
-| 当前修为 | 击退 / 击杀成功率 |
-|---|---:|
-| 凡人 | 0% |
-| 炼气 1～2 层 | 20% |
-| 炼气 3～5 层 | 60% |
-| 炼气 6～9 层 | 90% |
-| 筑基及以上 | 100% |
-
-如果石门使用「旧阵泄压顺序」安全开启，则炼气角色成功率额外 +10 个百分点，上限 100%；它表示核心灵压更稳定，不是给角色永久战斗 buff。
-
-UI **不显示具体百分比**，只显示自然语言危险判断。
-
-失败即在脉心室死亡，使用标准 `GameState.status = dead / endReason` 路径；不得伪造“受伤后自动逃出”，因为 C13 已冻结进入核心后的不可回头规则，而正式伤势与逃跑系统尚未实现。
-
-这一表只服务 R13 测试闭环；R20 接入正式战斗后必须替换该 resolver，但不改变秘境节点、奖励和世界后果。
+- 不做 R15 装备栏；
+- 不装备武器 / 护甲 / 护心镜；
+- 不使用丹药、符箓、雷火珠；
+- 不做商店购买 / 出售；
+- 不做拾取 UI 动画；
+- 不做怪物通用掉落；
+- 不让区域探索开始无限产材料；
+- 不做仓库 / 家族仓储；
+- 不做物品耐久；
+- 不做随机词条；
+- 不做强化 +1/+2；
+- 不做重量小数模拟；
+- 不做物品制作；
+- 不做第二种储物袋；
+- 不补 8～12 个正式随机子地点；
+- 不开始 R15；
+- 不接 LLM API。
 
 ---
 
-## 十、核心成功、奖励与退出
+# 十二、验收标准
 
-### 成功遭遇后
+必须测试：
 
-- 岩甲蜥危险标记为 resolved；
-- 玩家可以完成泄压；
-- 写入历史知识：`沉脉石室古修引脉设施` / 等价 canonical fact；
-- 写入 E01「黑风矿变遗痕」可读取的 evidence flag；
-- 打开侧面断层出口。
-
-### 核心一次性奖励
-
-本世 seeded 固定：
-
-- 碎灵晶 2～4；
-- 赤纹铁 1～2；
-- 下品灵石 8～15；
-- 岩甲蜥材料类别先记录为结构化 pending material claims，数量只按本轮最小需要确定，不发随机装备。
-
-灵石直接进入现有 `resources.spiritStones`；材料遵守“R14 前暂存边界”。
-
-### 退出
-
-完成泄压后：
-
-- `cleared = true`；
-- `active = false`；
-- `currentNodeId = null`；
-- `coreLockedBehindPlayer = false`；
-- `world.currentLocationId` 仍是 `blackwind_mountain`；
-- 对应 anchor sublocation 写入 realm runtime / sublocation 允许的“已深入确认”事实，不改变其 R12 archetype；
-- 所有已领取资源永久保持 claimed；
-- 再进入只显示已泄压遗迹状态，不得重复领取核心或外围资源。
-
-发现与首次 clear 可以各写一条 major Chronicle；普通节点移动、反复进出外围不得刷 Chronicle。
+1. R05～R13 初始 / 旧状态没有 inventory 仍合法；
+2. `initialize-inventory` 只执行一次；
+3. bootstrap 不推进 worldDay、不改 rngState；
+4. R13 pending materials 全量迁入且不重复；
+5. 迁移成功后 pending claims 被清空；
+6. 非法 pending id 不静默丢失；
+7. 同物品正确堆叠；
+8. 超过 stackLimit 正确增加槽位；
+9. 容量满时 add 拒绝且 state 不变；
+10. remove / drop 数量正确；
+11. 丢到 0 后 stack 删除；
+12. 基础容量为 12；
+13. 小型储物袋有效容量为 24；
+14. 多个袋不叠加容量；
+15. 容量不足时不能丢掉正在提供容量的袋；
+16. 大型 item `slotCost > 1` 计算正确；
+17. save / reload 保留 InventoryState；
+18. initialize / drop 可以 replay；
+19. UI 不出现使用 / 装备 / 强化假按钮；
+20. `npm run typecheck`；
+21. `npm test`；
+22. `npm run build`。
 
 ---
 
-## 十一、Session / replay / persistence
+# 十三、允许修改
 
-以下玩家可见动作都必须走 SessionCommand / resolver：
+- `src/types/*` 中 inventory / command / GameState 必要扩展；
+- `src/data/items/*` 或等价静态物品定义；
+- 新增 `inventoryEngine.ts` 与测试；
+- Session / persistence 最小接线；
+- R13 pendingMaterials 最小接管；
+- `InventoryPanel` 与必要样式；
+- `HANDOFF.md`（完成时）；
+- `CURRENT_TASK.md`（完成后切 R15）。
 
-- initialize secret realm；
-- enter realm；
-- visit / inspect outer node；
-- return / exit outer；
-- operate gate；
-- confirm core entry；
-- resolve core encounter；
-- vent and exit core。
-
-允许把多个低层动作合并成少量语义清晰的 SessionCommand，但禁止 React 直接 mutate runtime。
-
-每个命令必须：
-
-- 进入 debug log；
-- state digest 可重放；
-- V3 save / reload 后保持当前秘境节点、claim、knowledge、core lock 与 cleared；
-- 不依赖浏览器随机数；
-- 不修改无关 fixed-location knowledge、关系、修为或其他区域探索状态。
-
-保存 / normalize / clone 路径需要深拷贝已有 secret-realm runtime；没有该字段的旧存档保持没有该字段。
+不要借机重构 R05～R13 已稳定模块。
 
 ---
 
-## 十二、UI 原则
+# 十四、完成纪律
 
-### 黑风山区域页
+本轮完成后：
 
-秘境未 discovered：完全不显示。
-
-秘境 discovered 后：
-
-- 在黑风山已确认内容下显示「沉脉石室」；
-- 说明它是已确认的地下遗迹；
-- 提供真实「进入」动作；
-- 不把它画成顶层世界节点。
-
-### 秘境内
-
-使用当前 story-card / node panel 风格即可：
-
-- 当前节点名；
-- 50～150 字以内环境描述；
-- 实际可做动作；
-- 时间与明显风险；
-- 已经领取的节点显示“已检查 / 已取”，不能再点领取。
-
-不做迷宫小游戏、3D 地图、粒子特效或大型 RPG 场景。
-
-### 核心门
-
-不可回头警告视觉上必须明显，但文案保持克制，不用“命运”“抉择”“最后机会”等 AI / 手游话术。
-
----
-
-## 十三、必须测试
-
-至少覆盖：
-
-1. secret-realm runtime 不在旧初始 GameState 中自动出现；
-2. R05～R12 没有该字段的旧状态仍合法；
-3. bootstrap 只执行一次且不推进 worldDay；
-4. anchor 只来自本世黑风山 `cave / ruin` 子地点；
-5. 同 seed anchor 一致，不同 seed 有变化；
-6. anchor 生成不污染 fixed `knowledge.locations`；
-7. 15～29 天只有真实提前识别条件才发现；
-8. 30+ 天在 anchor 已 discovered 时能发现；
-9. anchor 未 discovered 时不泄露沉脉石室；
-10. discovered 前 UI / view model 不暴露名字、节点、奖励；
-11. 进入后 `world.currentLocationId` 仍是 blackwind_mountain；
-12. 药圃和侧室各推进 1 天；
-13. 寿终发生在节点检查途中时，不领取资源、不获得知识；
-14. 外围资源只领取一次；
-15. 玉髓芝 0/1、其他数量 deterministic；
-16. 侧室完成后获得旧阵泄压顺序；
-17. 不存在真实破灵锥持有状态时 UI 不显示破灵锥选项；
-18. 石门安全开启 / 强开均推进 1 天；
-19. 进入核心前必须经过明确 confirm；
-20. confirm 后外围退出 / 返回被禁止；
-21. 岩甲蜥临时 resolver 使用 seeded rng，可 replay；
-22. 凡人核心遭遇必死；筑基以上必胜；炼气各档按冻结表工作；
-23. 安全泄压开门只对炼气临时成功率 +10pp，不写永久 buff；
-24. 核心失败走标准死亡，不伪造 clear / reward；
-25. 核心胜利后灵石只增加一次；
-26. 核心材料只进入 realm pending claims，不建立通用背包；
-27. clear 后可从侧断层退出回黑风山；
-28. clear 后再次进入不刷新任何资源 / 岩甲蜥；
-29. 历史 evidence 永久保存，可供未来 E01 读取；
-30. V3 save / reload 保持秘境当前节点、claims、knowledge、core lock、cleared；
-31. 所有 R13 命令可 replay；
-32. R05～R12 既有测试全部仍通过；
-33. Archive / legacy replay 不回归。
-
----
-
-## 十四、本轮禁止
-
-- 不实现第二秘境；
-- 不补 8～12 个随机子地点正式模板；
-- 不做 R14 通用背包；
-- 不做商店、卖材料、使用材料；
-- 不做 R20 正式战斗系统；
-- 不做通用 CombatEngine；
-- 不做完整伤势 / 中毒系统；
-- 不做完整禁制系统；
-- 不新增妖兽；
-- 不新增功法 / 法器 / 丹药；
-- 不新增矿变最终真相；
-- 不做孟家 / 青云宗后续报告任务；
-- 不做大型阵营后果；
-- 不做世界事件推进；
-- 不接 LLM API；
-- 不回到 legacy `ActionPanel`。
-
----
-
-## 十五、验收标准
-
-1. 玩家能在真实条件满足后发现沉脉石室；
-2. 未发现前完全不泄露；
-3. 五节点结构与 Content Bible 一致；
-4. 外围可以自由探索和退出；
-5. 两个外围分支有真实时间与一次性收益；
-6. 核心门有真实开门差异与明确不可回头警告；
-7. 玩家主动确认后才进入核心；
-8. 成年岩甲蜥拥有可死亡、可重放的最小危险遭遇；
-9. 成功后核心泄压、历史证据与资源永久写入本世；
-10. 失败死亡不伪造完成；
-11. 所有奖励不可重复刷；
-12. 不提前建立 R14 / R20 系统；
-13. 旧 V2 replay digest 不被 R13 bootstrap 被动改变；
-14. `npm run typecheck` 通过；
-15. `npm test` 通过；
-16. `npm run build` 通过；
-17. 更新 `HANDOFF.md`；
-18. 成功后把 `CURRENT_TASK.md` 切到 **R14｜背包与物品基础**。
-
-完成后立即停下，不得自行进入 R14。
+1. 确认 typecheck / test / build 全通过；
+2. 更新 `HANDOFF.md`；
+3. 把 `CURRENT_TASK.md` 切换到 **R15｜装备栏与品阶**；
+4. 立即停下，不顺手实现 R15。
