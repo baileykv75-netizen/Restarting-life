@@ -10,6 +10,7 @@ import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { GameStatusBar } from './components/GameStatusBar'
 import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
+import { SecretRealmPanel } from './components/SecretRealmPanel'
 import { WorldMapPanel } from './components/WorldMapPanel'
 import { getAvailableActions } from './core/actionEngine'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
@@ -24,6 +25,7 @@ import './birth-selection.css'
 import './childhood.css'
 import './adult-entry.css'
 import './world-map.css'
+import './secret-realm.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -43,11 +45,17 @@ function App() {
   function persistExplore(days: ExplorationDuration) {
     try {
       let working = game
-      const currentState = working.currentSession?.state
+      let currentState = working.currentSession?.state
       if (currentState && !currentState.sublocations) {
         const initialized = commandAndSave(window.localStorage, working, { type: 'game-action', action: { type: 'INITIALIZE_SUBLOCATIONS' } })
         if (!initialized.applied) { setNotice(initialized.reason ?? '本世子地点无法初始化'); return }
         working = initialized.persistent
+        currentState = working.currentSession?.state
+      }
+      if (currentState && !currentState.secretRealm) {
+        const initializedRealm = commandAndSave(window.localStorage, working, { type: 'initialize-secret-realm' })
+        if (!initializedRealm.applied) { setNotice(initializedRealm.reason ?? '本世秘境状态无法初始化'); return }
+        working = initializedRealm.persistent
       }
       const result = commandAndSave(window.localStorage, working, { type: 'explore-region', days })
       if (!result.applied) { setNotice(result.reason ?? '当前无法探索'); return }
@@ -75,8 +83,10 @@ function App() {
     stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
+  } else if (state.secretRealm?.sunkenVeinChamber.active) {
+    stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} />
+    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
