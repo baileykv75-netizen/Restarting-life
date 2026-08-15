@@ -1,0 +1,196 @@
+.foundation-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.injury-section + .foundation-breakthrough-section {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.foundation-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.foundation-heading-row h2 {
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+}
+
+.foundation-heading-row > span,
+.foundation-context,
+.foundation-footnote,
+.injury-row span,
+.foundation-prep small,
+.foundation-risk {
+  color: var(--text-muted, #9ca3af);
+}
+
+.foundation-rate {
+  min-width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.foundation-rate strong {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.foundation-rate span {
+  margin-top: 5px;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.78rem;
+}
+
+.foundation-context {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  font-size: 0.84rem;
+}
+
+.foundation-modifiers,
+.foundation-stones,
+.foundation-risk {
+  margin-top: 18px;
+}
+
+.foundation-modifier-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.foundation-modifier-list > div,
+.injury-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.foundation-modifier-list .positive strong {
+  color: var(--positive, #b9d7bd);
+}
+
+.foundation-modifier-list .negative strong {
+  color: var(--negative, #e1b1ad);
+}
+
+.foundation-preparation-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.foundation-prep {
+  padding: 11px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.foundation-prep.unavailable {
+  opacity: 0.52;
+  cursor: default;
+}
+
+.foundation-prep span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.foundation-prep small {
+  font-size: 0.78rem;
+}
+
+.foundation-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.foundation-inline-actions .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.foundation-inline-actions .secondary-button span {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.76rem;
+}
+
+.foundation-inline-actions .secondary-button.selected {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.foundation-risk p {
+  margin: 6px 0 0;
+  line-height: 1.6;
+  font-size: 0.86rem;
+}
+
+.foundation-block {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(160, 75, 66, 0.12);
+  color: var(--negative, #e1b1ad);
+  line-height: 1.6;
+}
+
+.foundation-attempt {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.foundation-footnote {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.injury-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.injury-section .foundation-inline-actions {
+  margin-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .foundation-heading-row {
+    flex-direction: column;
+  }
+
+  .foundation-rate {
+    align-items: flex-start;
+  }
+
+  .foundation-modifier-list,
+  .foundation-preparation-grid {
+    grid-template-columns: 1fr;
+  }
+}
