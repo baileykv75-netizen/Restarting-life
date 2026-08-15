@@ -13,6 +13,8 @@ export type SessionCommand =
   | { type: 'initialize-location-knowledge' }
   | { type: 'initialize-secret-realm' }
   | { type: 'secret-realm'; action: SecretRealmAction }
+  | { type: 'initialize-inventory' }
+  | { type: 'inventory-drop'; itemId: string; quantity: number }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
   | { type: 'explore-region'; days: ExplorationDuration }
