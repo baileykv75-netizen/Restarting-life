@@ -145,7 +145,11 @@ export function calculateFoundationBreakthroughPreview(
   if (hasActiveInjury(state, 'light')) addModifier(modifiers, 'light-injury', '当前轻伤', -8)
 
   const effectiveDensity = location.id === 'qingyun_sect' && !isQingyunCoreAuthorized(state) ? 'medium' : location.qiDensity
-  addModifier(modifiers, 'environment', location.id === 'qingyun_sect' && !isQingyunCoreAuthorized(state) ? '青云宗外围环境' : `${location.name}灵气环境`, QI_DENSITY_MODIFIER[effectiveDensity])
+  modifiers.push({
+    id: 'environment',
+    label: location.id === 'qingyun_sect' && !isQingyunCoreAuthorized(state) ? '青云宗外围环境' : `${location.name}灵气环境`,
+    percent: QI_DENSITY_MODIFIER[effectiveDensity],
+  })
   if (location.id === 'blackwind_mountain') addModifier(modifiers, 'blackwind-instability', '黑风山灵气紊乱', -5)
 
   if (options.usePozhangDan) addModifier(modifiers, 'pozhang-dan', '破障丹', 12)
