@@ -19,6 +19,9 @@ export type SessionCommand =
   | { type: 'initialize-equipment' }
   | { type: 'equip-item'; itemId: string }
   | { type: 'unequip-slot'; slot: EquipmentSlot }
+  | { type: 'initialize-cultivation' }
+  | { type: 'select-main-technique'; techniqueId: string }
+  | { type: 'cultivate-days'; days: 1 | 3 | 10 | 30 }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
   | { type: 'explore-region'; days: ExplorationDuration }
