@@ -11,6 +11,7 @@ import type { StateChange } from '../types/chronicle'
 import type { GameState, Realm } from '../types/game'
 import type { ResolvedOutcome } from '../types/persistence'
 import type { QiDensity } from '../types/world'
+import { hasActiveLightInjury, hasBlockingCultivationInjury } from './injuryEngine'
 import {
   addTechniqueProficiency,
   calculateTechniqueProficiencyGain,
@@ -274,7 +275,9 @@ export function calculateCultivationPreview(state: GameState, techniqueId: strin
   if (!technique || !root || !environment) return null
   const affinityMultiplier = getAffinityMultiplier(state, technique)
   const traits = getTraitMultiplier(state, technique, days)
-  const gain = Math.floor(days * BASE_CULTIVATION_POINTS_PER_DAY * root.cultivationMultiplier * technique.baseEfficiency * affinityMultiplier * environment.multiplier * traits.multiplier)
+  const injuryMultiplier = hasActiveLightInjury(state) ? 0.9 : 1
+  const injuryFactors: CultivationFactor[] = injuryMultiplier < 1 ? [{ label: '轻伤影响', multiplier: injuryMultiplier }] : []
+  const gain = Math.floor(days * BASE_CULTIVATION_POINTS_PER_DAY * root.cultivationMultiplier * technique.baseEfficiency * affinityMultiplier * environment.multiplier * traits.multiplier * injuryMultiplier)
   return {
     days,
     gain,
@@ -286,6 +289,7 @@ export function calculateCultivationPreview(state: GameState, techniqueId: strin
       { label: technique.universal ? '通用功法' : affinityMultiplier > 1 ? '灵根契合' : '灵根不契合', multiplier: affinityMultiplier },
       { label: environment.label, multiplier: environment.multiplier },
       ...traits.factors,
+      ...injuryFactors,
     ],
   }
 }
@@ -383,6 +387,7 @@ export function resolveCultivateDays(state: GameState, days: number): R16Cultiva
   if (state.identity.spiritRootId === 'none') return r16Rejected(state, 'NO_SPIRIT_ROOT')
   if (state.secretRealm?.sunkenVeinChamber.active) return r16Rejected(state, 'SECRET_REALM_ACTIVE')
   if (state.events.currentEventId !== null) return r16Rejected(state, 'EVENT_PENDING')
+  if (hasBlockingCultivationInjury(state)) return r16Rejected(state, 'INJURY_BLOCKS_CULTIVATION')
   if (state.cultivation.realm === 'foundation' || state.cultivation.realm === 'golden_core') return r16Rejected(state, 'R16_REALM_UNSUPPORTED')
   if (isQiNineComplete(state)) return r16Rejected(state, 'QI_NINE_COMPLETE')
 
