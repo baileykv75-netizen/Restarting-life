@@ -102,11 +102,12 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const secretRealm = session.state.secretRealm
   const inventory = session.state.inventory
   const equipment = session.state.equipment
+  const injuries = session.state.injuries
   const knownTechniqueIds = session.state.cultivation.knownTechniqueIds
   const auxiliaryTechniqueIds = session.state.cultivation.auxiliaryTechniqueIds
   const techniquePractice = session.state.cultivation.techniquePractice
   const hasCultivationRuntime = Boolean(knownTechniqueIds || auxiliaryTechniqueIds || techniquePractice)
-  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !hasCultivationRuntime) return persistent
+  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !injuries && !hasCultivationRuntime) return persistent
 
   return {
     ...persistent,
@@ -161,6 +162,9 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
             }
           : {}),
         ...(equipment ? { equipment: { ...equipment } } : {}),
+        ...(injuries
+          ? { injuries: { conditions: injuries.conditions.map((condition) => ({ ...condition })) } }
+          : {}),
         ...(hasCultivationRuntime
           ? {
               cultivation: {
