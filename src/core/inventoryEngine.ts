@@ -95,6 +95,37 @@ function removeFromInventory(inventory: InventoryState, itemId: string, quantity
   return { inventory: next }
 }
 
+function migratePendingMaterials(
+  state: GameState,
+  startingInventory: InventoryState,
+): { inventory?: InventoryState; reason?: string } {
+  let inventory = cloneInventory(startingInventory)
+  const pending = state.secretRealm?.sunkenVeinChamber.pendingMaterials ?? {}
+  for (const [itemId, rawQuantity] of Object.entries(pending)) {
+    if (rawQuantity === undefined || rawQuantity === 0) continue
+    if (!getItemDefinition(itemId)) return { reason: 'INVENTORY_PENDING_UNKNOWN_ITEM' }
+    if (!isPositiveInteger(rawQuantity)) return { reason: 'INVENTORY_PENDING_INVALID_QUANTITY' }
+    const result = addToInventory(inventory, itemId, rawQuantity)
+    if (!result.inventory) return { reason: result.reason ?? 'INVENTORY_PENDING_MIGRATION_FAILED' }
+    inventory = result.inventory
+  }
+  return { inventory }
+}
+
+function clearPendingMaterials(state: GameState, inventory: InventoryState): GameState {
+  if (!state.secretRealm) return { ...state, inventory }
+  return {
+    ...state,
+    inventory,
+    secretRealm: {
+      sunkenVeinChamber: {
+        ...state.secretRealm.sunkenVeinChamber,
+        pendingMaterials: {},
+      },
+    },
+  }
+}
+
 export function getInventoryUsage(state: GameState): InventoryUsage {
   return state.inventory
     ? getUsageFromInventory(state.inventory)
@@ -128,36 +159,26 @@ export function resolveInventoryInitialization(state: GameState): InventoryMutat
   if (state.status !== 'playing') return { state, applied: false, reason: 'GAME_ENDED' }
   if (state.inventory) return { state, applied: false, reason: 'INVENTORY_ALREADY_INITIALIZED' }
 
-  let inventory: InventoryState = {
+  const emptyInventory: InventoryState = {
     stacks: {},
     baseCapacitySlots: BASE_INVENTORY_CAPACITY,
     storageBagItemId: null,
   }
+  const migration = migratePendingMaterials(state, emptyInventory)
+  if (!migration.inventory) return { state, applied: false, reason: migration.reason }
+  return { state: clearPendingMaterials(state, migration.inventory), applied: true }
+}
 
-  const pending = state.secretRealm?.sunkenVeinChamber.pendingMaterials ?? {}
-  for (const [itemId, rawQuantity] of Object.entries(pending)) {
-    if (rawQuantity === undefined || rawQuantity === 0) continue
-    if (!getItemDefinition(itemId)) return { state, applied: false, reason: 'INVENTORY_PENDING_UNKNOWN_ITEM' }
-    if (!isPositiveInteger(rawQuantity)) return { state, applied: false, reason: 'INVENTORY_PENDING_INVALID_QUANTITY' }
-    const result = addToInventory(inventory, itemId, rawQuantity)
-    if (!result.inventory) return { state, applied: false, reason: result.reason ?? 'INVENTORY_PENDING_MIGRATION_FAILED' }
-    inventory = result.inventory
-  }
-
-  let nextState: GameState = { ...state, inventory }
-  if (state.secretRealm) {
-    nextState = {
-      ...nextState,
-      secretRealm: {
-        sunkenVeinChamber: {
-          ...state.secretRealm.sunkenVeinChamber,
-          pendingMaterials: {},
-        },
-      },
-    }
-  }
-
-  return { state: nextState, applied: true }
+/**
+ * R13 compatibility bridge: once formal inventory exists, any newly resolved
+ * secret-realm materials are atomically moved out of the legacy pending field.
+ * A failed transfer leaves the caller free to reject the originating command.
+ */
+export function resolvePendingMaterialsTransfer(state: GameState): InventoryMutationResult {
+  if (!state.inventory) return { state, applied: false, reason: 'INVENTORY_NOT_INITIALIZED' }
+  const migration = migratePendingMaterials(state, state.inventory)
+  if (!migration.inventory) return { state, applied: false, reason: migration.reason }
+  return { state: clearPendingMaterials(state, migration.inventory), applied: true }
 }
 
 export function resolveInventoryDrop(state: GameState, itemId: string, quantity: number): InventoryMutationResult {
