@@ -52,7 +52,7 @@ export function InventoryPanel({ state, onDrop }: InventoryPanelProps) {
               <small>数量 {stack.quantity} · 占 {slots} 槽</small>
               {!dropCheck.applied && dropCheck.reason === '取下后背包容量不足' && <em>取下后背包容量不足</em>}
             </div>
-            <button className="inventory-drop-button" disabled={!dropCheck.applied} onClick={() => onDrop(stack.itemId, 1)} type="button">丢弃 1</button>
+            <button className="inventory-drop-button" disabled={!dropCheck.applied} onClick={() => onDrop(stack.itemId, 1)} type="button">丢弃 1 份{item.name}</button>
           </div>
         })}</div>}
   </section>
