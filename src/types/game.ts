@@ -1,6 +1,7 @@
 import type { AdultEntryProgress } from './adultEntry'
 import type { ChildhoodProgress } from './childhood'
 import type { ChronicleEntry } from './chronicle'
+import type { ExplorationState } from './exploration'
 
 export type GameStatus = 'playing' | 'dead' | 'won'
 export type Realm = 'mortal' | 'qi' | 'foundation' | 'golden_core'
@@ -20,6 +21,8 @@ export interface GameState {
   childhood?: ChildhoodProgress | null
   /** Optional only for schema-3 saves written before R07; all new completed childhoods initialize it. */
   adultEntry?: AdultEntryProgress | null
+  /** Optional for R05-R10 compatibility; first materialized only after a completed R11 region exploration. */
+  exploration?: ExplorationState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
