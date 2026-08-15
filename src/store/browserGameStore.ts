@@ -1,6 +1,6 @@
 import type { SessionCommand } from '../types/command'
 import type { PersistentGame } from '../types/persistence'
-import { applyPersistentCommand, createEmptyPersistentGame, startNewRun } from '../core/persistentGameEngine'
+import { applyPersistentCommand, beginBirthSelection, chooseBirthCandidate, createEmptyPersistentGame } from '../core/persistentGameEngine'
 import { deletePersistentGame, loadPersistentGame, savePersistentGame, type StorageLike } from './saveRepository'
 
 export function loadGame(storage: StorageLike): PersistentGame {
@@ -8,9 +8,15 @@ export function loadGame(storage: StorageLike): PersistentGame {
 }
 
 export function startAndSaveRun(storage: StorageLike, persistent: PersistentGame, now: number): PersistentGame {
-  const next = startNewRun(persistent, {
+  const next = beginBirthSelection(persistent, {
     runSeed: `life-${persistent.meta.totalRuns + 1}-${now.toString(36)}`,
   })
+  savePersistentGame(storage, next)
+  return next
+}
+
+export function chooseBirthAndSave(storage: StorageLike, persistent: PersistentGame, candidateId: string): PersistentGame {
+  const next = chooseBirthCandidate(persistent, candidateId)
   savePersistentGame(storage, next)
   return next
 }

@@ -1,51 +1,33 @@
-import { BACKGROUNDS } from '../data/backgrounds'
-import { SPIRIT_ROOTS } from '../data/spiritRoots'
-import { TALENTS } from '../data/talents'
+import { BACKGROUNDS, getBackgroundById } from '../data/backgrounds'
+import { PHYSIQUES, getPhysiqueById } from '../data/physiques'
+import { getSpiritRootById } from '../data/spiritRoots'
+import { TALENTS, getTalentById } from '../data/talents'
 import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
 import { getCharacterDisplayName } from '../core/nameEngine'
 import type { StatModifiers } from '../types/content'
 import type { GameState } from '../types/game'
 import { formatAge, formatFaction, formatRealm, formatRemainingLifespan } from '../ui/formatters'
 
-interface CharacterPanelProps {
-  state: GameState
-}
+interface CharacterPanelProps { state: GameState }
 
-const STAT_LABELS: Record<keyof GameState['stats'], string> = {
-  constitution: '根骨',
-  comprehension: '悟性',
-  spiritSense: '神识',
-  mentality: '心性',
-  luck: '气运',
-}
-
-function findName<T extends { id: string; name: string }>(items: readonly T[], id: string): string {
-  return items.find((item) => item.id === id)?.name ?? id
+const STAT_LABELS: Partial<Record<keyof GameState['stats'], string>> = {
+  constitution: '根骨', comprehension: '悟性', spiritSense: '神识', mentality: '心性',
 }
 
 function effectLabels(statModifiers: StatModifiers, spiritStones: number): string[] {
   const labels = Object.entries(statModifiers)
-    .filter(([, value]) => value !== undefined && value !== 0)
-    .map(([key, value]) => {
-      const amount = value ?? 0
-      return `${STAT_LABELS[key as keyof GameState['stats']]} ${amount > 0 ? '+' : ''}${amount}`
-    })
-
-  if (spiritStones !== 0) {
-    labels.push(`下品灵石 ${spiritStones > 0 ? '+' : ''}${spiritStones}`)
-  }
-
+    .filter(([key, value]) => key !== 'luck' && value !== undefined && value !== 0)
+    .map(([key, value]) => `${STAT_LABELS[key as keyof GameState['stats']] ?? key} ${(value ?? 0) > 0 ? '+' : ''}${value ?? 0}`)
+  if (spiritStones !== 0) labels.push(`下品灵石 ${spiritStones > 0 ? '+' : ''}${spiritStones}`)
   return labels
 }
 
 export function CharacterPanel({ state }: CharacterPanelProps) {
-  const background = BACKGROUNDS.find((item) => item.id === state.identity.backgroundId)
-  const talents = state.identity.talentIds
-    .map((id) => TALENTS.find((item) => item.id === id))
-    .filter((item): item is NonNullable<typeof item> => item !== undefined)
-  const rootName = state.tags.includes('spirit_root:reformed')
-    ? '后天杂灵根'
-    : findName(SPIRIT_ROOTS, state.identity.spiritRootId)
+  const background = getBackgroundById(state.identity.backgroundId)
+  const activeBackground = BACKGROUNDS.find((item) => item.id === state.identity.backgroundId)
+  const talents = state.identity.talentIds.map(getTalentById).filter((item): item is NonNullable<typeof item> => item !== undefined)
+  const rootName = state.tags.includes('spirit_root:reformed') ? '后天杂灵根' : (getSpiritRootById(state.identity.spiritRootId)?.name ?? state.identity.spiritRootId)
+  const physique = state.identity.physiqueIds.length > 0 ? getPhysiqueById(state.identity.physiqueIds[0]) : PHYSIQUES[0]
   const spiritBonus = getRealmStatBonus(state, 'spiritSense')
   const effectiveSpiritSense = getEffectiveStat(state, 'spiritSense')
   const displayName = getCharacterDisplayName(state.identity.name, state.runSeed)
@@ -72,31 +54,33 @@ export function CharacterPanel({ state }: CharacterPanelProps) {
           <div className="trait-card trait-card-origin">
             <strong>{background.name}</strong>
             <p>{background.description}</p>
-            <div className="trait-effects">
-              {effectLabels(background.statModifiers, background.spiritStones).map((effect) => (
-                <span key={effect}>{effect}</span>
-              ))}
-            </div>
+            {activeBackground ? (
+              <div className="trait-effects"><span>{activeBackground.origin}</span><span>{activeBackground.socialClass}</span></div>
+            ) : (
+              <div className="trait-effects">{effectLabels(background.statModifiers, background.spiritStones).map((effect) => <span key={effect}>{effect}</span>)}</div>
+            )}
           </div>
-        ) : (
-          <p className="muted">{state.identity.backgroundId}</p>
-        )}
+        ) : <p className="muted">{state.identity.backgroundId}</p>}
+      </div>
+
+      <div className="subsection">
+        <p className="subsection-title">体质</p>
+        <div className="trait-card"><strong>{physique?.name ?? '无特殊体质'}</strong><p>{physique?.description ?? '没有记录到特殊体质。'}</p></div>
       </div>
 
       <div className="subsection">
         <p className="subsection-title">天赋</p>
         <div className="trait-stack">
-          {talents.map((talent) => (
-            <div className="trait-card" key={talent.id}>
-              <strong>{talent.name}</strong>
-              <p>{talent.description}</p>
-              <div className="trait-effects">
-                {effectLabels(talent.statModifiers, talent.spiritStones).map((effect) => (
-                  <span key={effect}>{effect}</span>
-                ))}
+          {talents.map((talent) => {
+            const active = TALENTS.find((item) => item.id === talent.id)
+            return (
+              <div className="trait-card" key={talent.id}>
+                <strong>{talent.name}</strong>
+                <p>{active?.mechanics ?? talent.description}</p>
+                {!active && <div className="trait-effects">{effectLabels(talent.statModifiers, talent.spiritStones).map((effect) => <span key={effect}>{effect}</span>)}</div>}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -107,7 +91,6 @@ export function CharacterPanel({ state }: CharacterPanelProps) {
           <div><span>悟性</span><strong>{state.stats.comprehension}</strong></div>
           <div className="stat-emphasis"><span>神识</span><strong>{effectiveSpiritSense}</strong>{spiritBonus > 0 && <small>先天 {state.stats.spiritSense} · 境界 +{spiritBonus}</small>}</div>
           <div><span>心性</span><strong>{state.stats.mentality}</strong></div>
-          <div><span>气运</span><strong>{state.stats.luck}</strong></div>
         </div>
       </div>
     </aside>

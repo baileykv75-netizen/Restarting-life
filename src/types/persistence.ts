@@ -1,3 +1,4 @@
+import type { PendingBirthSelection } from './birth'
 import type { ChronicleEntry, StateChange } from './chronicle'
 import type { PlayerAction, SessionCommand } from './command'
 import type { StatKey } from './content'
@@ -87,15 +88,10 @@ export interface PersistentGame {
   schemaVersion: 3
   phase: PersistentPhase
   currentSession: GameSession | null
+  pendingBirthSelection?: PendingBirthSelection | null
   archives: LifeRecord[]
-  meta: {
-    totalRuns: number
-  }
+  meta: { totalRuns: number }
 }
-
-// ---------------------------------------------------------------------------
-// Legacy V1/V1.1 shapes. Read-only migration inputs.
-// ---------------------------------------------------------------------------
 
 export interface LegacyGameStateV1 {
   schemaVersion: 1
@@ -104,36 +100,14 @@ export interface LegacyGameStateV1 {
   rngState: number
   status: 'playing' | 'dead' | 'won'
   timeMonths: number
-  identity: {
-    name: string
-    backgroundId: string
-    spiritRootId: string
-    talentIds: string[]
-    faction: Faction
-  }
-  stats: {
-    constitution: number
-    comprehension: number
-    spiritSense: number
-    mentality: number
-    luck: number
-  }
-  resources: {
-    spiritStones: number
-    cultivation: number
-  }
-  cultivation: {
-    realm: Realm
-    stage: number
-  }
+  identity: { name: string; backgroundId: string; spiritRootId: string; talentIds: string[]; faction: Faction }
+  stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
+  resources: { spiritStones: number; cultivation: number }
+  cultivation: { realm: Realm; stage: number }
   tags: string[]
   flags: Record<string, boolean | number | string>
   relationships: Record<string, number>
-  events: {
-    currentEventId: string | null
-    queue: string[]
-    history: string[]
-  }
+  events: { currentEventId: string | null; queue: string[]; history: string[] }
   endReason: string | null
 }
 
@@ -167,10 +141,7 @@ export interface LegacyGameSessionV1 {
   state: LegacyGameStateV1
   debugLog: LegacyDebugLogEntryV1[]
   pendingResult: ResolvedOutcome | null
-  pendingAction: {
-    action: PlayerAction
-    snapshot: LegacyOutcomeSnapshotV1
-  } | null
+  pendingAction: { action: PlayerAction; snapshot: LegacyOutcomeSnapshotV1 } | null
 }
 
 export interface LegacyLifeRecordV1 {
@@ -183,16 +154,7 @@ export interface LegacyLifeRecordV1 {
   resources: LegacyGameStateV1['resources']
   cultivation: LegacyGameStateV1['cultivation']
   eventHistory: string[]
-  summary: {
-    title: string
-    finalRealm: Realm
-    ageYears: number
-    ageMonths: number
-    outcome: 'dead' | 'won' | 'migrated'
-    endReason: string
-    largestOpportunity: string
-    regret: string
-  }
+  summary: { title: string; finalRealm: Realm; ageYears: number; ageMonths: number; outcome: 'dead' | 'won' | 'migrated'; endReason: string; largestOpportunity: string; regret: string }
   debugLog: LegacyDebugLogEntryV1[]
   legacy?: LegacyLifeMetadata
 }
@@ -201,15 +163,8 @@ export interface LegacyPersistentGameV1 {
   schemaVersion: 1
   currentSession: LegacyGameSessionV1 | null
   archives: LegacyLifeRecordV1[]
-  meta: {
-    totalRuns: number
-  }
+  meta: { totalRuns: number }
 }
-
-// ---------------------------------------------------------------------------
-// Legacy V2 shapes. These preserve the exact pre-R01 GameState contract so
-// V2 slots and R00.3's transitional V3 slot can be upgraded safely.
-// ---------------------------------------------------------------------------
 
 export interface LegacyGameStateV2 {
   schemaVersion: 2
@@ -218,25 +173,14 @@ export interface LegacyGameStateV2 {
   rngState: number
   status: 'playing' | 'dead' | 'won'
   worldDay: number
-  identity: {
-    name: string
-    birthDay: number
-    backgroundId: string
-    spiritRootId: string
-    talentIds: string[]
-    faction: Faction
-  }
+  identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; talentIds: string[]; faction: Faction }
   stats: GameState['stats']
   resources: GameState['resources']
   cultivation: GameState['cultivation']
   tags: string[]
   flags: Record<string, boolean | number | string>
   relationships: Record<string, number>
-  events: {
-    currentEventId: string | null
-    queue: string[]
-    history: string[]
-  }
+  events: { currentEventId: string | null; queue: string[]; history: string[] }
   chronicle: ChronicleEntry[]
   endReason: string | null
 }
@@ -264,32 +208,25 @@ export interface LegacyLifeRecordV2 {
   legacy?: LegacyLifeMetadata
 }
 
-/** V2 envelope may still contain even older month-clock V1 entries. */
 export interface TransitionalPersistentGameV2 {
   schemaVersion: 2
   currentSession: LegacyGameSessionV1 | LegacyGameSessionV2 | null
   archives: Array<LegacyLifeRecordV1 | LegacyLifeRecordV2>
-  meta: {
-    totalRuns: number
-  }
+  meta: { totalRuns: number }
 }
 
 export interface NormalizedPersistentGameV2 {
   schemaVersion: 2
   currentSession: LegacyGameSessionV2 | null
   archives: LegacyLifeRecordV2[]
-  meta: {
-    totalRuns: number
-  }
+  meta: { totalRuns: number }
 }
 
-/** R00.3 briefly wrote V3 envelopes whose inner session/archives were V2. */
 export interface TransitionalPersistentGameV3 {
   schemaVersion: 3
   phase: PersistentPhase
   currentSession: LegacyGameSessionV2 | GameSession | null
+  pendingBirthSelection?: PendingBirthSelection | null
   archives: Array<LegacyLifeRecordV2 | LifeRecord>
-  meta: {
-    totalRuns: number
-  }
+  meta: { totalRuns: number }
 }

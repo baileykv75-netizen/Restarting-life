@@ -1,4 +1,5 @@
 import { digestText, stableStringify } from '../core/stateDigest'
+import type { BirthCandidate, PendingBirthSelection } from '../types/birth'
 import type {
   LegacyPersistentGameV1,
   NormalizedPersistentGameV2,
@@ -24,104 +25,91 @@ export interface StorageLike {
   removeItem(key: string): void
 }
 
-interface SaveEnvelopeV3 {
-  schemaVersion: 3
-  checksum: string
-  payload: TransitionalPersistentGameV3
-}
-
-interface SaveEnvelopeV2 {
-  schemaVersion: 2
-  checksum: string
-  payload: TransitionalPersistentGameV2
-}
-
-interface SaveEnvelopeV1 {
-  schemaVersion: 1
-  checksum: string
-  payload: LegacyPersistentGameV1
-}
+interface SaveEnvelopeV3 { schemaVersion: 3; checksum: string; payload: TransitionalPersistentGameV3 }
+interface SaveEnvelopeV2 { schemaVersion: 2; checksum: string; payload: TransitionalPersistentGameV2 }
+interface SaveEnvelopeV1 { schemaVersion: 1; checksum: string; payload: LegacyPersistentGameV1 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object'
 }
 
 function hasValidMeta(value: unknown): value is { totalRuns: number } {
-  if (!isRecord(value)) return false
-  return Number.isSafeInteger(value.totalRuns) && (value.totalRuns as number) >= 0
+  return isRecord(value) && Number.isSafeInteger(value.totalRuns) && (value.totalRuns as number) >= 0
 }
 
 function isPersistentPhase(value: unknown): value is PersistentPhase {
   return value === 'birth-selection' || value === 'life' || value === 'ended'
 }
 
+function isFiniteStatBlock(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  return ['constitution', 'comprehension', 'spiritSense', 'mentality', 'luck'].every((key) => typeof value[key] === 'number' && Number.isFinite(value[key]))
+}
+
+function isBirthCandidate(value: unknown): value is BirthCandidate {
+  if (!isRecord(value)) return false
+  return typeof value.id === 'string' && Number.isInteger(value.index) && typeof value.name === 'string' &&
+    typeof value.backgroundId === 'string' && typeof value.spiritRootId === 'string' && typeof value.physiqueId === 'string' &&
+    Array.isArray(value.talentIds) && value.talentIds.every((id) => typeof id === 'string') && isFiniteStatBlock(value.stats) &&
+    Number.isSafeInteger(value.spiritStones) && (value.spiritStones as number) >= 0
+}
+
+function isPendingBirthSelection(value: unknown): value is PendingBirthSelection {
+  if (!isRecord(value)) return false
+  return typeof value.runSeed === 'string' && value.runSeed.trim().length > 0 && typeof value.runId === 'string' &&
+    Array.isArray(value.candidates) && value.candidates.length === 3 && value.candidates.every(isBirthCandidate) &&
+    Number.isSafeInteger(value.nextRngState) && (value.nextRngState as number) >= 0
+}
+
 function isPersistentGameV3(value: unknown): value is TransitionalPersistentGameV3 {
   if (!isRecord(value)) return false
-  return (
-    value.schemaVersion === 3 &&
-    isPersistentPhase(value.phase) &&
+  const pending = value.pendingBirthSelection
+  return value.schemaVersion === 3 && isPersistentPhase(value.phase) &&
     (value.currentSession === null || isRecord(value.currentSession)) &&
-    Array.isArray(value.archives) &&
-    hasValidMeta(value.meta)
-  )
+    (pending === undefined || pending === null || isPendingBirthSelection(pending)) &&
+    Array.isArray(value.archives) && hasValidMeta(value.meta)
 }
 
 function isPersistentGameV2EnvelopePayload(value: unknown): value is TransitionalPersistentGameV2 {
-  if (!isRecord(value)) return false
-  return (
-    value.schemaVersion === 2 &&
-    (value.currentSession === null || isRecord(value.currentSession)) &&
-    Array.isArray(value.archives) &&
-    hasValidMeta(value.meta)
-  )
+  return isRecord(value) && value.schemaVersion === 2 && (value.currentSession === null || isRecord(value.currentSession)) && Array.isArray(value.archives) && hasValidMeta(value.meta)
 }
 
 function isPersistentGameV1(value: unknown): value is LegacyPersistentGameV1 {
-  if (!isRecord(value)) return false
-  return (
-    value.schemaVersion === 1 &&
-    (value.currentSession === null || isRecord(value.currentSession)) &&
-    Array.isArray(value.archives) &&
-    hasValidMeta(value.meta)
-  )
+  return isRecord(value) && value.schemaVersion === 1 && (value.currentSession === null || isRecord(value.currentSession)) && Array.isArray(value.archives) && hasValidMeta(value.meta)
 }
 
 function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    throw new Error('Save data is not valid JSON')
-  }
+  try { return JSON.parse(raw) } catch { throw new Error('Save data is not valid JSON') }
 }
 
 function verifyChecksum(payload: unknown, checksum: unknown): void {
-  if (typeof checksum !== 'string' || checksum !== digestText(stableStringify(payload))) {
-    throw new Error('Save checksum mismatch')
+  if (typeof checksum !== 'string' || checksum !== digestText(stableStringify(payload))) throw new Error('Save checksum mismatch')
+}
+
+function clonePendingBirthSelection(pending: PendingBirthSelection | null): PendingBirthSelection | null {
+  if (pending === null) return null
+  return {
+    ...pending,
+    candidates: pending.candidates.map((candidate) => ({ ...candidate, talentIds: [...candidate.talentIds], stats: { ...candidate.stats } })),
   }
 }
 
 function parseV3Save(raw: string): PersistentGame {
   const parsed = parseJson(raw)
   if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
-
   const envelope = parsed as Partial<SaveEnvelopeV3>
-  if (envelope.schemaVersion !== 3 || !isPersistentGameV3(envelope.payload)) {
-    throw new Error('Unsupported or invalid save schema')
-  }
-
+  if (envelope.schemaVersion !== 3 || !isPersistentGameV3(envelope.payload)) throw new Error('Unsupported or invalid save schema')
   verifyChecksum(envelope.payload, envelope.checksum)
-  return normalizePersistentGameV3(envelope.payload)
+  const normalized = normalizePersistentGameV3(envelope.payload)
+  if (envelope.payload.pendingBirthSelection === undefined) return normalized
+  return { ...normalized, pendingBirthSelection: clonePendingBirthSelection(envelope.payload.pendingBirthSelection) }
 }
 
 function parseV2Save(raw: string): NormalizedPersistentGameV2 {
   const parsed = parseJson(raw)
   if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
-
   const envelope = parsed as Partial<SaveEnvelopeV2>
-  if (envelope.schemaVersion !== 2 || !isPersistentGameV2EnvelopePayload(envelope.payload)) {
-    throw new Error('Unsupported or invalid V2 save schema')
-  }
-
+  if (envelope.schemaVersion !== 2 || !isPersistentGameV2EnvelopePayload(envelope.payload)) throw new Error('Unsupported or invalid V2 save schema')
   verifyChecksum(envelope.payload, envelope.checksum)
   return normalizePersistentGameV2(envelope.payload)
 }
@@ -129,49 +117,33 @@ function parseV2Save(raw: string): NormalizedPersistentGameV2 {
 function parseV1Save(raw: string): LegacyPersistentGameV1 {
   const parsed = parseJson(raw)
   if (!isRecord(parsed)) throw new Error('Save envelope is invalid')
-
   const envelope = parsed as Partial<SaveEnvelopeV1>
-  if (envelope.schemaVersion !== 1 || !isPersistentGameV1(envelope.payload)) {
-    throw new Error('Unsupported or invalid legacy save schema')
-  }
-
+  if (envelope.schemaVersion !== 1 || !isPersistentGameV1(envelope.payload)) throw new Error('Unsupported or invalid legacy save schema')
   verifyChecksum(envelope.payload, envelope.checksum)
   return envelope.payload
 }
 
 export function savePersistentGame(storage: StorageLike, persistent: PersistentGame): void {
-  if (persistent.schemaVersion !== 3) {
-    throw new Error('Only schemaVersion 3 can be written to the V3 save slot')
-  }
-
-  const envelope = {
-    schemaVersion: 3 as const,
-    checksum: digestText(stableStringify(persistent)),
-    payload: persistent,
-  }
+  if (persistent.schemaVersion !== 3) throw new Error('Only schemaVersion 3 can be written to the V3 save slot')
+  const envelope = { schemaVersion: 3 as const, checksum: digestText(stableStringify(persistent)), payload: persistent }
   storage.setItem(SAVE_KEY, JSON.stringify(envelope))
 }
 
 export function loadPersistentGame(storage: StorageLike): PersistentGame | null {
   const currentRaw = storage.getItem(SAVE_KEY)
   if (currentRaw !== null) {
-    // A corrupt V3 save is an error. Do not silently fall back to older data.
-    // R01 also normalizes R00.3's transitional V3 inner state once in place.
     const normalized = parseV3Save(currentRaw)
     savePersistentGame(storage, normalized)
     return normalized
   }
-
   const v2Raw = storage.getItem(V2_SAVE_KEY)
   if (v2Raw !== null) {
     const migrated = migratePersistentGameV2ToV3(parseV2Save(v2Raw))
     savePersistentGame(storage, migrated)
     return migrated
   }
-
   const legacyRaw = storage.getItem(LEGACY_SAVE_KEY)
   if (legacyRaw === null) return null
-
   const migratedV2 = migratePersistentGameV1ToV2(parseV1Save(legacyRaw))
   const migratedV3 = migratePersistentGameV2ToV3(migratedV2)
   savePersistentGame(storage, migratedV3)

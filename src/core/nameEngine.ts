@@ -16,10 +16,10 @@ function stableHash(text: string): number {
   return hash >>> 0
 }
 
-export function deriveCharacterName(runSeed: string): string {
+export function deriveCharacterName(runSeed: string, surnameOverride?: string): string {
   const first = stableHash(`surname:${runSeed}`) % SURNAMES.length
   const second = stableHash(`given:${runSeed}`) % GIVEN_NAMES.length
-  return `${SURNAMES[first]}${GIVEN_NAMES[second]}`
+  return `${surnameOverride ?? SURNAMES[first]}${GIVEN_NAMES[second]}`
 }
 
 export function getCharacterDisplayName(name: string, runSeed: string): string {
