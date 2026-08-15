@@ -1,12 +1,14 @@
-# 当前任务：V2 R08 - 固定世界骨架
+# 当前任务：V2 R09 - 地点知识状态
 
 ## 本轮唯一目标
 
-把 `V2_CONTENT_BIBLE.md` 已冻结的 **青霞地界** 做成首版固定节点世界：
+把 R08 已建立的固定世界与现有 `GameState.knowledge.locations` 真正接起来：
 
-> **静态地点数据 → 明确邻接关系 → R07 成年起点 seed 物化为正式当前地点 → 最小地图 / 地点骨架可视化 → 停在 R09 地点知识状态之前。**
+> **出生 / 成年已有地点 seed → 玩家初始地点认知 → Unknown / Rumored / Discovered 单向状态规则 → 地图只展示角色实际知道的信息 → 为 R10 旅行与 R11 探索留下稳定接口。**
 
-本轮不是探索系统，也不是旅行系统。先把“世界到底有哪些地方、彼此怎么连、角色现在站在哪里”做成唯一可信结构。
+本轮不是旅行系统，也不是探索收益系统。重点是区分：
+
+> **世界里真实存在什么** 和 **角色现在知道什么**。
 
 ## 内容来源约束
 
@@ -19,157 +21,139 @@
 5. `V2_GITHUB_ROADMAP.md`
 6. `HANDOFF.md`
 
-不得临时发明新的大区域、秘境或随机地点。
+继续使用 R08 的 11 个固定 `WorldLocationDefinition`。不得增加随机洞府、秘境或新的大区域。
 
-## 首版固定世界
+## 状态语义冻结
 
-优先使用 Content Bible 已冻结的青霞地界结构，不照搬旧 roadmap 的临时占位：
+现有类型只保存：
 
-```text
-                     万兽岭
-                        │
-       黑风山 ─── 青云宗 ─── 灵溪谷
-          │             │
-          │          青霞坊市
-          │             │
-       白石村 ───── 青石镇
-                        │
-                     临河县
+```ts
+knowledge.locations: Record<string, 'rumored' | 'discovered'>
 ```
 
-同时保留 R07 已经真实使用的固定生活锚点：
+R09 正式规定：
 
-- `blackwind_foothill`：黑风山山脚，属于黑风山外围固定入口；
-- `lu_estate`：陆家庄，属于灵溪谷 / 陆家固定生活节点；
-- `qingyun_family_quarters`：青云宗外围家属区域，属于青云宗固定生活节点。
+- **Unknown**：该 id 不存在于 `knowledge.locations`；
+- **Rumored**：`knowledge.locations[id] === 'rumored'`；
+- **Discovered**：`knowledge.locations[id] === 'discovered'`。
 
-这些可以做成独立可定位节点，也可以做成固定子节点；但必须有唯一 canonical id，并能映射到上面的世界骨架。不得把它们当随机子地点。
+状态只能：
+
+```text
+Unknown → Rumored → Discovered
+Unknown → Discovered
+```
+
+禁止：
+
+```text
+Discovered → Rumored
+Rumored / Discovered → Unknown
+```
+
+除非未来存在明确遗忘系统；首版没有。
+
+## 初始知识来源
+
+R05 已把出生地点认知写成：
+
+- `location_seed:known:<locationId>`；
+- `location_seed:rumored:<locationId>`。
+
+R09 将其正式物化：
+
+- `known` → `discovered`；
+- `rumored` → `rumored`；
+- R08 已确认的 `world.currentLocationId` 必须至少为 `discovered`。
+
+R07 成年路线产生的起始地点不应被重复推导为另一套状态；只以当前已确认 `currentLocationId` 为准。
+
+如果出生 seed 引用的地点不存在于 R08 fixed world，必须明确报开发错误，不得静默忽略。
 
 ## 必须实现
 
-1. 新增正式静态地点定义层，例如 `src/data/worldLocations.ts`；React 中不得硬编码整张地图。
-2. 每个固定地点至少包含：
-   - `id`；
-   - 名称；
-   - 类型（凡俗聚落 / 修仙聚落 / 宗门 / 家族据点 / 野外区域 / 固定入口等）；
-   - 简短描述；
-   - 客观危险等级；
-   - `qiDensity` 或等价灵气环境等级；
-   - 邻接地点 id；
-   - 当前阶段可声明的 `activityTags` / allowed-action seeds；
-   - 所属父区域 / 锚点（如适用）。
-3. 地点 id 必须复用已经在 R05 / R07 出现的 canonical seed，至少覆盖：
-   - `baishi_village`；
-   - `qingstone_town`；
-   - `linhe_county`；
-   - `qingxia_market`；
-   - `qingyun_sect`；
-   - `blackwind_mountain`；
-   - `blackwind_foothill`；
-   - `lingxi_valley`；
-   - `lu_estate`；
-   - `beast_ridge`（对应万兽岭）；
-   - `qingyun_family_quarters`。
-4. 邻接关系必须与 Content Bible 的世界关系一致，并进行数据完整性测试：
-   - 所有邻接 id 存在；
-   - 需要双向的连接不得只写一边；
-   - 不允许孤立的正式起始节点；
-   - 不允许重复 id。
-5. 新增最小 world initializer / resolver，将 R07 已完成的：
-   - `adultEntry.startingLocationSeed`；或
-   - 兼容旧 R07 状态的 `flags.adult_starting_location_seed`
-   物化为唯一 `world.currentLocationId`。
-6. 上述物化必须通过统一 SessionCommand / GameAction / resolver 边界完成并进入 debug log / digest / replay / persistence；不得让 React 首次渲染时直接修改 GameState。
-7. R08 只物化 **当前地点**。不要在本轮大规模把 `location_seed:*` 转成 `knowledge.locations`；完整 `unknown → rumored → discovered` 由 R09 实现。
-8. 若成年起点是固定子节点（如 `blackwind_foothill / lu_estate / qingyun_family_quarters`），必须能明确知道其父区域，但不要偷偷把父区域全部标记为 discovered。
-9. 新增最小地图 / 世界骨架 UI：
-   - 能看出固定地点和主要连接关系；
-   - 明确标出“你在这里”；
-   - 当前阶段只作为世界结构视图，不做点击旅行；
-   - 不显示“前往”按钮；
-   - 不把未实现的探索、商店、宗门任务做成可点击假入口。
-10. 地图可以使用纯 React / CSS / SVG；不引入大型地图库。
-11. 地点详情最小显示：名称、类型、简述、客观危险、灵气环境；只展示静态世界事实。
-12. 当前地点没有合法定义时必须安全失败 / 显示明确开发错误，不得静默回落到青霞坊或旧版主循环。
-13. R07 “成年起点已确定”安全页在 world 初始化前仍应可恢复；初始化成功后进入 R08 世界骨架页。
-14. 保持 R05 / R06 / R07 / Archive / legacy replay 兼容。
-15. 新增测试至少覆盖：
-   - 固定地点 id 唯一；
-   - 邻接引用合法且预期双向；
-   - 11 个首版固定节点全部存在；
-   - 8 个出身在完成 R07 后都能把 starting location seed 映射到合法地点；
-   - R07 子节点起点有合法父区域；
-   - world initializer 只能结算一次 / 幂等；
-   - currentLocationId 刷新恢复；
-   - world 初始化 command 可 replay；
-   - 初始化不会提前污染 `knowledge.locations`；
-   - legacy adult 不会被强行套入新地点。
-16. 更新 `HANDOFF.md`；本轮成功后把 `CURRENT_TASK.md` 切换到 R09。
-
-## 建议的数据结构
-
-可以使用等价结构，不强制命名：
-
-```ts
-interface WorldLocationDefinition {
-  id: string
-  name: string
-  type: 'mortal-settlement' | 'cultivation-market' | 'sect' | 'clan-estate' | 'wilderness' | 'fixed-entry'
-  description: string
-  danger: 'safe' | 'low' | 'moderate' | 'high' | 'extreme'
-  qiDensity: 'none' | 'thin' | 'low' | 'medium' | 'high'
-  adjacentLocationIds: string[]
-  activityTags: string[]
-  parentLocationId?: string
-}
-```
-
-本轮不要新增第二套运行时世界状态。静态地点定义属于 data；角色当前在哪里仍写进现有 `GameState.world.currentLocationId`。
+1. 新增最小地点知识 initializer / resolver；不得在 React 首次渲染时直接修改 GameState。
+2. initializer 必须通过统一 SessionCommand / GameAction / resolver 边界，将 R05 的 `location_seed:*` 与 R08 当前地点物化到 `knowledge.locations`。
+3. 初始化必须只执行一次 / 幂等。可以使用一个明确 flag，例如 `location_knowledge_initialized = true`，但不得创建第二套知识 store。
+4. 继续复用现有 `SET_LOCATION_KNOWLEDGE` GameAction；不要新造重复 reducer。
+5. `SET_LOCATION_KNOWLEDGE` 的升级规则必须保持：
+   - unknown → rumored：允许；
+   - unknown → discovered：允许；
+   - rumored → discovered：允许；
+   - discovered → rumored：拒绝；
+   - 同状态重复写入：拒绝 / no-op。
+6. 对任何知识写入先验证该 `locationId` 存在于 R08 fixed world；不能让拼错 id 污染 `knowledge.locations`。
+7. 为未来系统提供一个很薄的正式接口，使后续事件 / 探索能安全调用“获得地点传闻”或“确认地点”，但 R09 本轮不要制造测试按钮、随机传闻事件或探索小游戏。
+8. R09 不需要为了表现 Unknown 而把所有 11 个 id 写进 state；unknown 必须继续通过“缺少 key”表达。
+9. 地图 UI 接入知识状态：
+   - Discovered：显示地点正式名称、类型、完整静态简介、客观危险、灵气环境与已知连接；
+   - Rumored：地图上可以显示为传闻节点，但信息必须明显更模糊；不得直接暴露完整危险、灵气环境、资源与全部详情；
+   - Unknown：地图上不显示具体地点卡片 / 正式名称 / 完整详情。
+10. 当前地点永远按 Discovered 处理；如果存档出现 `currentLocationId` 合法但知识缺失，initializer 必须修正，而不是让玩家“站在一个自己不知道的地方”。
+11. 连接线也要遵守玩家认知：不能通过隐藏节点的完整连线结构反向泄露整个世界骨架。至少只有两端均可见时才画正式连接。
+12. Rumored 节点需要短而模糊的展示文本。可以在 R08 static data 上新增 `rumorText` / 等价字段，但只能描述角色可能听到的大致印象，不新增新的剧情或资源结论。
+13. R09 页面仍然没有“前往”按钮；地点是否可访问与 travelDays 属于 R10。
+14. 不在 R09 实现“探索几天后发现地点”的玩家流程。R09 只把状态机、初始化、UI 和未来调用接口做好；R11 正式探索时再调用 `rumored → discovered`。
+15. 保持 R05 / R06 / R07 / R08 / Archive / legacy replay 兼容。
+16. 新增测试至少覆盖：
+    - unknown 由缺 key 表示；
+    - `location_seed:known:*` 正确物化为 discovered；
+    - `location_seed:rumored:*` 正确物化为 rumored；
+    - 当前地点一定 discovered；
+    - 初始化幂等且不会覆盖更高知识状态；
+    - rumored 可升级 discovered；
+    - discovered 无法降级 rumored；
+    - 非法 fixed-world id 无法进入知识状态；
+    - 刷新保存后知识状态保持；
+    - 初始化 command 可 replay；
+    - legacy adult 不被强行初始化新地点知识；
+    - 地图过滤逻辑不会把 unknown 节点或隐藏连接泄露出来。
+17. 更新 `HANDOFF.md`；本轮成功后把 `CURRENT_TASK.md` 切换到 R10。
 
 ## UI 原则
 
-1. 地图首先回答：**世界有哪些固定地方、它们怎么连、我现在在哪。**
-2. 不需要做成自由拖拽开放世界地图。
-3. 与游戏现有低饱和、克制界面保持一致。
-4. 连接线比花哨背景更重要。
-5. 当前位置需要明显但不刺眼。
-6. 不展示“推荐等级”。
-7. 可以展示客观危险词，例如：安全 / 较低 / 一般 / 较高 / 危险。
-8. 本轮不要计算“对当前角色风险”；该逻辑留给后续区域与探索系统。
+1. **地图显示的是角色认知，不是开发者全知地图。**
+2. Discovered 与 Rumored 必须有视觉差异，但不要使用手游式稀有度颜色。
+3. Rumored 应类似“听说那里有一个地方”，不是半透明展示所有正式数据。
+4. Unknown 不要写成一排 `???` 节点把世界规模全部暴露出来；真正未知就不显示。
+5. 当前地点继续明确显示“你在这里”。
+6. 不显示推荐等级。
+7. 不计算“对当前角色的危险”；仍只保留 discovered 地点的客观危险。
+8. 不增加地图拖拽、缩放或第三方地图库。
 
 ## 本轮禁止
 
-- 不实现 R09 的完整地点知识状态流转；
-- 不实现传闻获取 / 搜索确认；
-- 不实现 R10 旅行；
+- 不实现 R10 节点旅行；
 - 不推进 travelDays；
 - 不做快速旅行；
 - 不做旅行事件；
-- 不实现 R11 探索阶段；
-- 不做随机洞府、药谷、巢穴、遗迹；
+- 不实现 R11 的探索时长与探索阶段；
+- 不通过假按钮模拟探索发现；
+- 不做随机子地点；
 - 不做秘境；
 - 不做资源刷新；
 - 不做战斗；
 - 不做商店交易；
-- 不做宗门贡献 / 任务；
+- 不做宗门任务；
 - 不做正式修炼；
 - 不接 LLM API；
 - 不回到 legacy `ActionPanel`。
 
 ## 验收标准
 
-1. 青霞地界固定世界骨架成为正式 data，而不是 UI 文案。
-2. 11 个固定节点与连接关系完整、无非法引用。
-3. R07 的成年起始地点可进入 `world.currentLocationId`。
-4. 页面能看到固定世界结构和当前位置。
-5. 地图没有可点击旅行假功能。
-6. `knowledge.locations` 未被 R08 偷偷做成完整知识系统。
-7. 刷新保持当前地点。
-8. replay 可重建 world 初始化。
-9. legacy 四按钮不会重新出现。
-10. `npm run typecheck` 通过。
-11. `npm test` 通过。
-12. `npm run build` 通过。
-13. `HANDOFF.md` 已更新。
+1. `knowledge.locations` 成为玩家地点认知的唯一运行时真源。
+2. 世界真相与玩家知识在 UI 和状态上真正分离。
+3. 同一出生 / 成年结果刷新后拥有同样的已知 / 传闻地点。
+4. Unknown / Rumored / Discovered 单向状态规则有测试保护。
+5. 地图不再全知展示 11 个固定地点。
+6. Rumored 不泄露完整静态详情，Unknown 不泄露节点和完整连线。
+7. 当前地点始终 discovered。
+8. 没有提前实现旅行或探索。
+9. replay 与 V3 单档保存保持正常。
+10. legacy 四按钮不会重新出现。
+11. `npm run typecheck` 通过。
+12. `npm test` 通过。
+13. `npm run build` 通过。
+14. `HANDOFF.md` 已更新。
 
-完成后立即停下，不得自行进入 R09。
+完成后立即停下，不得自行进入 R10。
