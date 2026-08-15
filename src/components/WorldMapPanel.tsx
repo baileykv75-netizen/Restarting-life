@@ -1,6 +1,8 @@
 import { getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
 import { getLocationKnowledgeStatus, getVisibleWorldConnections, getVisibleWorldLocations } from '../core/locationKnowledgeEngine'
+import { EXPLORATION_DURATIONS, getCurrentRegionRisk, getExplorationStage, getExplorationStageLabel, getRegionExploredDays, getRegionRiskLabel } from '../core/regionExplorationEngine'
 import { getDirectTravelOptions, getFastTravelOptions } from '../core/travelEngine'
+import type { ExplorationDuration } from '../types/exploration'
 import type { GameState } from '../types/game'
 import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
 
@@ -14,9 +16,10 @@ interface WorldMapPanelProps {
   state: GameState
   onTravel: (destinationId: string) => void
   onFastTravel: (destinationId: string) => void
+  onExplore: (days: ExplorationDuration) => void
 }
 
-export function WorldMapPanel({ state, onTravel, onFastTravel }: WorldMapPanelProps) {
+export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   if (!current) {
@@ -34,6 +37,9 @@ export function WorldMapPanel({ state, onTravel, onFastTravel }: WorldMapPanelPr
     .filter((entry) => entry.location && entry.status !== 'unknown')
   const directTravel = getDirectTravelOptions(state)
   const fastTravel = getFastTravelOptions(state).filter((option) => option.routeIds.length > 1)
+  const exploredDays = current.type === 'wilderness' ? getRegionExploredDays(state, current.id) : 0
+  const explorationStage = getExplorationStage(exploredDays)
+  const currentRisk = current.type === 'wilderness' ? getCurrentRegionRisk(state, current.danger) : null
 
   return <section className="story-card world-map-card">
     <div className="world-map-heading"><div><p className="story-kicker">青霞地界 · 你的见闻</p><h2>{current.name}</h2></div><span>你在这里</span></div>
@@ -50,13 +56,21 @@ export function WorldMapPanel({ state, onTravel, onFastTravel }: WorldMapPanelPr
       {parent && getLocationKnowledgeStatus(state, parent.id) !== 'unknown' && <p className="world-location-parent">所属区域 · <strong>{getLocationKnowledgeStatus(state, parent.id) === 'rumored' ? `传闻中的${parent.name}` : parent.name}</strong></p>}
       <p className="world-location-adjacent">已知相邻 · {adjacent.length > 0 ? adjacent.map(({ location, status }) => status === 'rumored' ? `传闻中的${location!.name}` : location!.name).join('、') : '暂无'}</p>
 
+      {current.type === 'wilderness' && currentRisk && <div className="region-exploration-section">
+        <div className="region-exploration-heading"><div><p className="subsection-title">区域探索</p><strong>{getExplorationStageLabel(explorationStage)}</strong></div><span>累计 {exploredDays} 天</span></div>
+        <div className="region-risk-grid"><div><span>客观危险</span><strong>{DANGER_LABELS[current.danger]}</strong></div><div><span>以你当前状态</span><strong>{getRegionRiskLabel(currentRisk)}</strong></div></div>
+        <p className="muted">探索只会推进时间并增加你对这片固定区域的熟悉程度；本阶段不会凭空生成资源、妖兽或隐藏地点。</p>
+        <div className="exploration-options">{EXPLORATION_DURATIONS.map((days) => <button className="exploration-option" key={days} onClick={() => onExplore(days)} type="button">探索 {days} 天</button>)}</div>
+        {explorationStage === 'surveyed' && <p className="region-surveyed-note">这片固定区域已经基本探明。继续探索仍会消耗时间，但不会出现第五个熟悉阶段。</p>}
+      </div>}
+
       <div className="travel-section">
         <p className="subsection-title">从这里出发</p>
         {directTravel.length > 0 ? <div className="travel-options">{directTravel.map((option) => <button className="travel-option" key={option.route.id} onClick={() => onTravel(option.destination.id)} type="button"><strong>前往{option.destination.name} · {option.travelDays}天</strong><span>{option.route.description}</span></button>)}</div> : <p className="muted">目前没有已经确认、并且与这里直接相邻的可前往地点。</p>}
       </div>
 
       {fastTravel.length > 0 && <div className="travel-section fast-travel-section"><p className="subsection-title">沿走熟的路线前往</p><div className="travel-options">{fastTravel.map((option) => <button className="travel-option secondary-travel" key={option.destination.id} onClick={() => onFastTravel(option.destination.id)} type="button"><strong>快速前往{option.destination.name} · {option.travelDays}天</strong><span>沿 {option.routeIds.length} 段已走过的稳定路线一次赶到，中途不停靠。</span></button>)}</div></div>}
-      <p className="muted world-map-stop">传闻地点仍不能直接导航；未知地点不会出现。旅行只推进时间和位置，本轮没有路途随机事件。</p>
+      <p className="muted world-map-stop">传闻地点仍不能直接导航；未知地点不会出现。旅行和区域探索都只结算本轮已经实现的确定状态。</p>
     </div>
   </section>
 }
