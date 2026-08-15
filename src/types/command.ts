@@ -20,7 +20,11 @@ export type SessionCommand =
   | { type: 'equip-item'; itemId: string }
   | { type: 'unequip-slot'; slot: EquipmentSlot }
   | { type: 'initialize-cultivation' }
+  | { type: 'initialize-technique-system' }
   | { type: 'select-main-technique'; techniqueId: string }
+  | { type: 'change-main-technique'; techniqueId: string }
+  | { type: 'set-auxiliary-technique'; techniqueId: string; enabled: boolean }
+  | { type: 'practice-technique-days'; techniqueId: string; days: 1 | 3 | 10 | 30 }
   | { type: 'cultivate-days'; days: 1 | 3 | 10 | 30 }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
