@@ -9,5 +9,7 @@ export type SessionCommand =
   | { type: 'adult-entry-choice'; optionId: string }
   | { type: 'initialize-world' }
   | { type: 'initialize-location-knowledge' }
+  | { type: 'travel'; destinationId: string }
+  | { type: 'fast-travel'; destinationId: string }
   | { type: 'continue' }
   | { type: 'game-action'; action: GameAction }
