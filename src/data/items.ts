@@ -10,6 +10,8 @@ export const ITEM_DEFINITIONS = [
   { id: 'rock_lizard_carapace', name: '岩甲蜥背甲', category: 'material', stackLimit: 1, slotCost: 2 },
   { id: 'rock_lizard_mineral_crystal', name: '岩甲蜥矿性结晶', category: 'material', stackLimit: 10, slotCost: 1 },
   { id: 'small_storage_bag', name: '小型储物袋', category: 'storage-bag', stackLimit: 1, slotCost: 1, capacityBonus: 12 },
+  { id: 'pozhang_dan', name: '破障丹', category: 'pill', stackLimit: 10, slotCost: 1, description: '用于大境界突破准备的丹药，每次正式筑基至多使用一枚。', ruleTags: ['breakthrough:foundation-modifier'] },
+  { id: 'ningji_dan', name: '凝基丹', category: 'pill', stackLimit: 10, slotCost: 1, tier: 2, quality: 'low', description: '二阶下品筑基丹药，用于稳定丹田与经脉，不保证突破成功。', ruleTags: ['breakthrough:foundation-modifier', 'breakthrough:stabilize-foundation'] },
   { id: 'qingfeng_sword', name: '青锋剑', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '标准、稳定、通用的基准兵器。', ruleTags: ['weapon:sword', 'combat:standard-baseline'] },
   { id: 'black_iron_greatsword', name: '黑铁重剑', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '节拍较慢、伤害较高，并具有天然护甲穿透倾向。', ruleTags: ['weapon:greatsword', 'combat:slow', 'combat:high-damage', 'combat:armor-penetration'] },
   { id: 'red_pattern_blade', name: '赤纹刀', category: 'weapon', stackLimit: 1, slotCost: 1, equipmentSlot: 'main-weapon', description: '火属性灵力驱动强招时更容易发挥爆发。', ruleTags: ['weapon:blade', 'element:fire', 'combat:fire-burst-hook'] },
