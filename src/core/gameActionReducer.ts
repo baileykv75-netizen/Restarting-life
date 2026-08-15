@@ -1,6 +1,7 @@
 import { getWorldLocationById } from '../data/worldLocations'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/game'
 import type { GameAction, GameFlagValue } from '../types/gameAction'
+import { resolveSublocationInitialization } from './sublocationEngine'
 import { advanceWorldTime } from './worldEngine'
 
 export interface GameActionResult {
@@ -44,6 +45,9 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
       if (action.locationId !== null && !isNonEmptyId(action.locationId)) return rejected(state, 'INVALID_LOCATION')
       if (state.world.currentLocationId === action.locationId) return rejected(state, 'NO_CHANGE')
       return { state: { ...state, world: { ...state.world, currentLocationId: action.locationId } }, applied: true }
+    }
+    case 'INITIALIZE_SUBLOCATIONS': {
+      return resolveSublocationInitialization(state)
     }
     case 'SET_LOCATION_KNOWLEDGE': {
       if (!isNonEmptyId(action.locationId) || !isLocationKnowledgeStatus(action.status)) return rejected(state, 'INVALID_LOCATION_KNOWLEDGE')
