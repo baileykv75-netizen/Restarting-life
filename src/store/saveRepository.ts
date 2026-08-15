@@ -94,21 +94,37 @@ function clonePendingBirthSelection(pending: PendingBirthSelection | null): Pend
   }
 }
 
-function cloneLoadedExploration(persistent: PersistentGame): PersistentGame {
+function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const session = persistent.currentSession
-  const exploration = session?.state.exploration
-  if (!session || !exploration) return persistent
+  if (!session) return persistent
+  const exploration = session.state.exploration
+  const sublocations = session.state.sublocations
+  if (!exploration && !sublocations) return persistent
+
   return {
     ...persistent,
     currentSession: {
       ...session,
       state: {
         ...session.state,
-        exploration: {
-          locations: Object.fromEntries(
-            Object.entries(exploration.locations).map(([id, progress]) => [id, { ...progress }]),
-          ),
-        },
+        ...(exploration
+          ? {
+              exploration: {
+                locations: Object.fromEntries(
+                  Object.entries(exploration.locations).map(([id, progress]) => [id, { ...progress }]),
+                ),
+              },
+            }
+          : {}),
+        ...(sublocations
+          ? {
+              sublocations: {
+                generated: Object.fromEntries(
+                  Object.entries(sublocations.generated).map(([id, runtime]) => [id, { ...runtime }]),
+                ),
+              },
+            }
+          : {}),
       },
     },
   }
@@ -120,7 +136,7 @@ function parseV3Save(raw: string): PersistentGame {
   const envelope = parsed as Partial<SaveEnvelopeV3>
   if (envelope.schemaVersion !== 3 || !isPersistentGameV3(envelope.payload)) throw new Error('Unsupported or invalid save schema')
   verifyChecksum(envelope.payload, envelope.checksum)
-  const normalized = cloneLoadedExploration(normalizePersistentGameV3(envelope.payload))
+  const normalized = cloneLoadedRuntimeState(normalizePersistentGameV3(envelope.payload))
   if (envelope.payload.pendingBirthSelection === undefined) return normalized
   return { ...normalized, pendingBirthSelection: clonePendingBirthSelection(envelope.payload.pendingBirthSelection) }
 }
