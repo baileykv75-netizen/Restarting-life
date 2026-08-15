@@ -1,4 +1,4 @@
-import { getTechniqueById } from '../data/techniques'
+import { getCultivationTechniqueById, getTechniqueById, type TechniqueDefinition } from '../data/techniques'
 import { getWorldLocationById } from '../data/worldLocations'
 import {
   CULTIVATION_DURATIONS,
@@ -8,23 +8,52 @@ import {
   isQiNineComplete,
   type CultivationDuration,
 } from '../core/cultivationEngine'
+import {
+  TECHNIQUE_PRACTICE_DURATIONS,
+  getMainTechniqueChangePreview,
+  getProficiencyLabel,
+  getTechniqueProficiencyStage,
+  isTechniqueMoveUnlocked,
+  type TechniquePracticeDuration,
+} from '../core/techniqueEngine'
 import type { GameState } from '../types/game'
 
 interface CultivationPanelProps {
   state: GameState
   onSelectTechnique: (techniqueId: string) => void
+  onChangeMainTechnique: (techniqueId: string) => void
+  onSetAuxiliaryTechnique: (techniqueId: string, enabled: boolean) => void
+  onPracticeTechnique: (techniqueId: string, days: TechniquePracticeDuration) => void
   onCultivate: (days: CultivationDuration) => void
 }
 
-export function CultivationPanel({ state, onSelectTechnique, onCultivate }: CultivationPanelProps) {
+const CATEGORY_LABEL: Readonly<Record<TechniqueDefinition['category'], string>> = {
+  main: '主修',
+  combat: '战斗术法',
+  movement: '身法',
+  body: '炼体',
+  secret: '秘术',
+}
+
+export function CultivationPanel({
+  state,
+  onSelectTechnique,
+  onChangeMainTechnique,
+  onSetAuxiliaryTechnique,
+  onPracticeTechnique,
+  onCultivate,
+}: CultivationPanelProps) {
   if (!state.cultivation.practiceInitialized) return null
 
   const known = (state.cultivation.knownTechniqueIds ?? [])
     .map((id) => getTechniqueById(id))
-    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-  const main = state.cultivation.mainTechniqueId ? getTechniqueById(state.cultivation.mainTechniqueId) : undefined
+    .filter((entry): entry is TechniqueDefinition => Boolean(entry))
+  const mainTechniques = known.filter((entry) => entry.category === 'main')
+  const auxiliaryTechniques = known.filter((entry) => entry.category !== 'main')
+  const main = state.cultivation.mainTechniqueId ? getCultivationTechniqueById(state.cultivation.mainTechniqueId) : undefined
   const location = state.world.currentLocationId ? getWorldLocationById(state.world.currentLocationId) : undefined
   const oneDayPreview = main ? calculateCultivationPreview(state, main.id, 1) : null
+  const techniqueSystemReady = state.cultivation.techniqueSystemInitialized === true
 
   return (
     <section className="cultivation-panel" aria-label="修炼">
@@ -43,19 +72,31 @@ export function CultivationPanel({ state, onSelectTechnique, onCultivate }: Cult
       ) : (
         <>
           <div className="cultivation-techniques">
-            <p className="subsection-title">已掌握主修</p>
-            {known.map((technique) => {
-              const selected = main?.id === technique.id
+            <p className="subsection-title">主修功法</p>
+            {mainTechniques.map((technique) => {
+              const selected = state.cultivation.mainTechniqueId === technique.id
+              const proficiency = techniqueSystemReady ? getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id)) : null
+              const changePreview = techniqueSystemReady && state.cultivation.mainTechniqueId && !selected
+                ? getMainTechniqueChangePreview(state, technique.id)
+                : null
+              const cultivationReady = Boolean(getCultivationTechniqueById(technique.id))
               return (
-                <button
-                  className={`cultivation-technique ${selected ? 'selected' : ''}`}
-                  key={technique.id}
-                  onClick={() => !selected && onSelectTechnique(technique.id)}
-                  type="button"
-                >
-                  <strong>{technique.name}</strong>
-                  <span>{selected ? '当前主修' : '设为主修'}</span>
-                </button>
+                <div className={`cultivation-technique-card ${selected ? 'selected' : ''}`} key={technique.id}>
+                  <div className="cultivation-technique-line">
+                    <div><strong>{technique.name}</strong><span>{proficiency ? `熟练度：${proficiency}` : '已掌握'}</span></div>
+                    {selected ? (
+                      <span className="technique-status">当前主修</span>
+                    ) : !state.cultivation.mainTechniqueId && cultivationReady ? (
+                      <button className="text-button" onClick={() => onSelectTechnique(technique.id)} type="button">设为主修</button>
+                    ) : changePreview ? (
+                      <button className="text-button" onClick={() => onChangeMainTechnique(technique.id)} type="button">改修</button>
+                    ) : null}
+                  </div>
+                  {changePreview && (
+                    <p className="technique-cost">改修需 {changePreview.adaptationDays} 日；当前小阶段修为预计损失 {(changePreview.cultivationLossRatio * 100).toFixed(0)}%（{changePreview.cultivationLossPoints} 点）。</p>
+                  )}
+                  {!cultivationReady && <p className="technique-cost">你掌握的这一部分还不足以作为当前可执行主修运转。</p>}
+                </div>
               )
             })}
           </div>
@@ -84,8 +125,42 @@ export function CultivationPanel({ state, onSelectTechnique, onCultivate }: Cult
                 })}
               </div>
             </>
-          ) : (
+          ) : mainTechniques.length > 0 ? (
             <p className="cultivation-note">先从已掌握功法中选择一门作为当前主修。</p>
+          ) : (
+            <p className="cultivation-note">你掌握的内容里还没有可以承担吐纳周天的主修功法。</p>
+          )}
+
+          {techniqueSystemReady && auxiliaryTechniques.length > 0 && (
+            <div className="technique-auxiliary-section">
+              <p className="subsection-title">辅修与术法</p>
+              {auxiliaryTechniques.map((technique) => {
+                const enabled = (state.cultivation.auxiliaryTechniqueIds ?? []).includes(technique.id)
+                const proficiency = getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id))
+                return (
+                  <article className="technique-auxiliary-card" key={technique.id}>
+                    <div className="cultivation-technique-line">
+                      <div><strong>{technique.name}</strong><span>{CATEGORY_LABEL[technique.category]} · {proficiency}</span></div>
+                      <button className="text-button" onClick={() => onSetAuxiliaryTechnique(technique.id, !enabled)} type="button">{enabled ? '取消辅修' : '列为辅修'}</button>
+                    </div>
+                    <p>{technique.description}</p>
+                    {technique.moves && technique.moves.length > 0 && (
+                      <div className="technique-moves">
+                        {technique.moves.map((move) => {
+                          const unlocked = isTechniqueMoveUnlocked(state, technique.id, move)
+                          return <span key={move.id}>{move.name} · {unlocked ? '已掌握' : `${getProficiencyLabel(move.requiredProficiency ?? 'entry')}后掌握`}</span>
+                        })}
+                      </div>
+                    )}
+                    <div className="technique-practice-actions">
+                      {TECHNIQUE_PRACTICE_DURATIONS.map((days) => (
+                        <button className="secondary-button" key={days} onClick={() => onPracticeTechnique(technique.id, days)} type="button">练 {days} 日</button>
+                      ))}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
           )}
         </>
       )}
