@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 当前开发主线：**R13「沉脉石室」秘境最小闭环已完成，下一轮进入 R14「背包与储物袋」。**
+- 当前开发主线：**R14「背包与储物袋」已完成，下一轮进入 R15「装备栏与品阶」。**
 - R00.1～R00.3：迁移、存档 V3 与开发规则完成。
 - R01：唯一 `GameState` 完成。
 - R02：统一 `GameAction / SessionCommand / reducer / replay` 边界完成。
@@ -21,6 +21,7 @@
 - R12：每世有限随机子地点、确定性生成、探索门槛发现、隐藏信息隔离与保存 / replay 完成。
 - C13：首版第一秘境 **黑风山「沉脉石室」** 内容冻结完成。
 - R13：沉脉石室发现、五节点导航、外围一次性资源、核心不可回头、成年岩甲蜥临时生死解析、核心泄压、永久清空、保存 / replay 完成。
+- R14：正式 `InventoryState`、R13 材料接管、12 槽容量、堆叠、大型物品占位、丢弃、小型储物袋 24 槽扩容、保存 / replay 完成。
 - legacy Action/Event/Result/End 只为旧档、旧测试与迁移兼容保留，不得继续扩张。
 
 ## 内容真源与仍待后续补齐的缺口
@@ -172,7 +173,7 @@ seedToState(`${runSeed}:r13-sunken-vein-anchor`)
 - `observant`（察微知著）；
 - `empty_mind_platform`（空明灵台）。
 
-孟家旧图与寻灵盘路径没有伪造；等真实状态 / 背包系统存在后再接入。30+ 天无需特殊条件。
+孟家旧图与寻灵盘路径没有伪造；寻灵盘已经在 Content Bible 中冻结，待后续真实获得 / 装备状态存在后再把它接入发现条件。30+ 天无需特殊条件。
 
 发现写一条重大 Chronicle，但不改 fixed-world `knowledge.locations`。
 
@@ -190,19 +191,22 @@ seedToState(`${runSeed}:r13-sunken-vein-anchor`)
 
 若任何 1 天操作中寿元耗尽，现有 `ADVANCE_TIME` 死亡优先，本次资源 / knowledge claim 不会伪造完成。
 
-## 5. R14 前资源边界
+## 5. 资源交接边界
 
-本轮没有提前新增通用 InventoryState。
-
-药圃与侧室、岩甲蜥材料统一使用 canonical material id + count 写入：
+R13 原先把药圃、侧室和岩甲蜥材料写入：
 
 ```text
 secretRealm.sunkenVeinChamber.pendingMaterials
 ```
 
-R14 必须接管这些 pending claims 后再形成正式库存。
+这是为了在 R14 前不提前造通用背包。R14 已正式接管：
 
-本世 seeded 固定资源：
+- 旧 R13 存档在 `initialize-inventory` 时一次性原子迁入正式背包并清空 pending；
+- R14 以后如果正式背包已经存在，新的秘境材料在同一 SessionCommand 内立即转入背包，不长期停留在 pending；
+- 容量不足时整次领取动作回滚，时间和领取 flag 都不变化；
+- 没有 inventory 字段的旧 R13 replay 仍保留旧 pending 语义，从而不改历史 digest。
+
+本世 seeded 固定资源仍为：
 
 - 药圃：青露草 2～4、水灵苔 1～3、玉髓芝 0～1；
 - 侧室：黑铁 1～3、赤纹铁 0～1、碎灵晶 1～2；
@@ -227,7 +231,7 @@ seedToState(`${runSeed}:r13-sunken-vein-rewards`)
 - 已知 `ventSequence` 时按旧阵泄压顺序开启；
 - 强行开启。
 
-R14 前没有真实破灵锥持有状态，因此不显示“使用破灵锥”假按钮。
+R14 没有新增破灵锥获取来源，因此不显示“使用破灵锥”假按钮。
 
 开门与进入核心是两个独立操作；进入核心前有明确死亡与不可回头警告。确认后 `coreLockedBehindPlayer = true`，外围导航消失。
 
@@ -280,46 +284,156 @@ victory | death
 
 ## 10. 保存与 replay
 
-`saveRepository` 对 secret realm runtime 做独立深拷贝，覆盖：
+`saveRepository` 对 secret realm runtime 做独立深拷贝，覆盖 nodeClaims、knowledge、pendingMaterials 与 rewards 三组 material maps。
 
-- nodeClaims；
-- knowledge；
-- pendingMaterials；
-- rewards 三组 material maps。
+所有 R13 操作均通过 SessionCommand → resolver → GameState → debug log / digest / replay → PersistentGame → auto-save。
 
-所有 R13 操作均通过：
+## 11. R13 CI
 
-```text
-SessionCommand
-→ resolver
-→ GameState
-→ debug log / digest / replay
-→ PersistentGame
-→ auto-save
+最终 R13 代码 CI：run `31881013892`，verify job `95003459087`：typecheck / test / build 全通过。
+
+---
+
+# R14｜背包与储物袋
+
+## 1. 唯一正式库存
+
+新增 optional `GameState.inventory`：
+
+```ts
+interface InventoryStack {
+  itemId: string
+  quantity: number
+}
+
+interface InventoryState {
+  stacks: Record<string, InventoryStack>
+  baseCapacitySlots: number
+  storageBagItemId: string | null
+}
 ```
 
-专项测试验证真实 selected-birth Session 可以从 bootstrap → 30 天探索发现 → 进入 → 侧室检查后 `verifySessionReplay = true`。
+`createInitialGameState()` 不写空 inventory；旧 R05～R13 状态保持合法。正式背包只通过 `initialize-inventory` SessionCommand materialize，不存在 React 第二套库存。
 
-## 11. R13 主要提交与 CI
+## 2. 首版物品数据与容量
 
-主要提交：
+`src/data/items.ts` 已登记 R13 八类真实材料与小型储物袋，并建立 `ItemDefinition` 类别能力：material / pill / artifact / weapon / armor / talisman / special / storage-bag。
 
-- runtime types：`09423d17f6b9cb23e813a8de022322ccb5313d15`
-- secret realm engine：`63a9dc6bdaf46ee61933fb0ae08827d9cfd8ae2c`
-- optional GameState：`96f49f34a8acadb79cb27a767bc811d70b731e18`
-- sublocation deep-confirmed fact：`7a74eb7f3cb8cf2bee3b34a2fd91e990de0fb51c`
-- Session commands：`c2825a48afd175d24f8b145812d9d7572685e1b5`
-- Session routing：`476f0924b4a13fbd7ae0cca4cb455263c3aff03d`
-- save/reload：`10a44a311fed1904795b78ebd843f3c986ef4c06`
-- realm UI：`b4315d544f186c573abce5a91ee95360f0136875`
-- map entry：`2a7b04d8a23b6f9d386788d43847ae3223aa677d`
-- App integration：`706fafa2a8bd235bc8f861222c59e98552fa28e7`
-- strict engine FIX：`b44b383bc2bc1b0a3feafa26b24dfbbfeec1d3c1`
-- lifecycle tests：`707cb026c86a5b860fc8664c5a1954e91cf69ea2`
-- test import FIX：`d18eaf9dc24d8ce3cd609b921182195b459175bd`
-- legacy R12 auto-bootstrap：`8df2d6ba50be3405cfff1a81acfd694a2007aa88`
+当前实际登记：
 
-最终 R13 代码 CI：run `31881013892`，verify job `95003459087`：
+- 青露草；
+- 水灵苔；
+- 玉髓芝；
+- 黑铁；
+- 赤纹铁；
+- 碎灵晶；
+- 岩甲蜥背甲；
+- 岩甲蜥矿性结晶；
+- 小型储物袋。
+
+没有因为 R14 新增未冻结丹药、装备或材料。
+
+容量规则：
+
+- 基础 12 槽；
+- 普通材料 10 份 / 栈；
+- `usedSlots = ceil(quantity / stackLimit) × slotCost`；
+- 岩甲蜥背甲作为明显大型材料，`stackLimit = 1`、`slotCost = 2`；
+- 小型储物袋自身占 1 槽，唯一激活袋提供 +12 槽，因此有效容量 24；
+- 多个储物袋不叠加容量；
+- `usedSlots` 始终由 stacks 派生，不存第二个可漂移计数器。
+
+## 3. Engine
+
+`inventoryEngine.ts` 提供纯函数：
+
+- `canAddItem`；
+- `addItem`；
+- `removeItem`；
+- `getInventoryUsage`；
+- `getInventoryQuantity`；
+- `resolveInventoryInitialization`；
+- `resolvePendingMaterialsTransfer`；
+- `resolveInventoryDrop`。
+
+非法 item id、非正整数数量、超容量、超量删除都会拒绝且不修改原状态。
+
+移除 active 小型储物袋后如果剩余物品无法塞回基础 12 槽，拒绝并返回：
+
+> 取下后背包容量不足
+
+R14 不实现背包嵌套、自动整理小游戏、重量小数点模拟或多个储物袋叠加。
+
+## 4. R13 材料原子接管
+
+旧 R13 `pendingMaterials` 在 bootstrap 中完整模拟迁入；只有所有材料都能进入正式背包时才同时：
+
+1. 写入 inventory；
+2. 清空 pending。
+
+未知 id、非法数量或容量异常都会整体拒绝，原 pending 保持不动。
+
+对 R14 后的新秘境领取，Session 在 R13 resolver 成功后、debug log 落盘前立即执行同一原子转移。容量不够时整条 secret-realm command 被拒绝，连同 1 天时间、nodeClaim 和 pending 变化一起回滚，因此不存在长期第二库存。
+
+## 5. 丢弃
+
+正式玩家动作：
+
+```text
+inventory-drop(itemId, quantity)
+```
+
+完整走 SessionCommand → inventory engine → GameState → debug log / digest / replay → save。
+
+当前 UI 只暴露真实“丢弃 1 份{物品名}”；没有“装备 / 使用 / 出售 / 强化”等 R15 或后续假按钮。
+
+丢弃不推进时间、不改灵石、不触发随机。
+
+## 6. UI
+
+`InventoryPanel` 显示：
+
+- 当前 `usedSlots / capacitySlots`；
+- 储物袋 +12 槽说明；
+- 真实拥有物品；
+- 类别；
+- 数量；
+- 占用槽位；
+- 可执行的丢弃动作。
+
+空背包显示：
+
+> 当前没有随身物品。
+
+面板放在主经历区域下方，没有增加第四个主布局列。
+
+## 7. App bootstrap
+
+R13 secret-realm bootstrap 与 R14 inventory bootstrap 已合并为同一个顺序流程，避免两个 effect 同时从旧 React state 写入。
+
+自动初始化在存在 `pendingResult / pendingAction / activeEvent` 时停止，因此不会为了 bootstrap 静默吞掉结果卡或事件。
+
+## 8. 保存与 replay
+
+`saveRepository` 深拷贝 inventory 与 stacks。初始化和丢弃命令进入 debug log / digest；专项测试还从相同 Session snapshot 重放 `initialize-inventory → inventory-drop`，最终 digest 一致且 worldDay / rngState 不变化。
+
+## 9. R14 主要提交与 CI
+
+关键提交：
+
+- inventory types：`1247a9e0f8369ccaeb529c5ed50b72c6d141adc1`
+- canonical item data：`a7e98ecff16bd243c2ae29757b20eb2fe681fff9`
+- optional GameState：`d8d7733f2c9d8289985ec564744fd95301387f36`
+- Session commands：`b352cd60c7ba245d46e6db9c67d3cb8c2cc1610d`
+- inventory engine：`6631b47c846405c9ac093ecfa9258238519c253e`
+- save / reload：`88d20f6a0bf8a54997bcfbf18e2122d66e9ae4d0`
+- InventoryPanel：`bf7457e22a40f27e29f0ace5271e50296d653ed8`
+- App integration：`3086a0a986ecb183b247a0b9d8ade1a2b2e2cbd6`
+- lifecycle tests：`c0d200126339daba5c833a2534499df4039557a9`
+- second-stock FIX：`03dbed1e3c6b2d9da5d2b7a1c6e92b9aae2f3188` / `f5cdf5c28afe65d84e1242e4f2275122f3eb0fab`
+- live realm transfer tests：`ee9d8723658f62956591d312147bec74c3a3c579`
+
+最终 R14 功能 CI：run `31881973031`，verify job `95005729147`：
 
 - typecheck：通过；
 - test：通过；
@@ -354,7 +468,7 @@ UI / feature
 → 随机子地点 ✅
 → C13 沉脉石室内容冻结 ✅
 → R13 沉脉石室秘境最小闭环 ✅
-→ R14 背包与储物袋
+→ R14 背包与储物袋 ✅
 → R15 装备栏与品阶
 → 后续修炼 / 战斗 / 宗门 / 职业 / 世界事件
 ```
@@ -363,8 +477,8 @@ UI / feature
 
 执行：
 
-> **R14｜背包与储物袋**
+> **R15｜装备栏与品阶**
 
-R14 必须先接管 R13 的 `pendingMaterials`，建立唯一正式物品库存与携带容量，再允许后续地点、战斗和职业系统真正产出物品。
+R15 只在 R14 正式库存之上建立主武器 / 护甲 / 护身法器 / 辅助法器的最小装备状态与“阶 + 品”展示，不得顺手实现强化、耐久、商店、正式战斗或功法系统。
 
 具体范围以 `CURRENT_TASK.md` 为准。
