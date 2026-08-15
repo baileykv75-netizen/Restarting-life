@@ -15,6 +15,7 @@ import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './e
 import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
 import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
+import { getExplorationStageLabel, resolveRegionExploration, type RegionExplorationResult } from './regionExplorationEngine'
 import { getGameStateDigest } from './stateDigest'
 import { formatDuration } from './timeEngine'
 import { resolveFastTravel, resolveTravel, type TravelResult } from './travelEngine'
@@ -50,8 +51,23 @@ function travelOutcome(before: GameSession['state'], result: TravelResult, fast:
     consequence: null,
   }
 }
+function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
+  const location = result.locationId ? getWorldLocationById(result.locationId) : undefined
+  const beforeStage = getExplorationStageLabel(result.stageBefore)
+  const afterStage = getExplorationStageLabel(result.stageAfter)
+  return {
+    title: `${location?.name ?? '区域'}探索结束`,
+    narrative: `你在${location?.name ?? '当前区域'}进行了${formatDuration(result.days)}的系统探索。当前累计探索${result.exploredDays}天。`,
+    changes: [
+      { label: '时间', value: `+${formatDuration(result.days)}`, tone: 'neutral' },
+      { label: '累计探索', value: `${result.previousExploredDays}天 → ${result.exploredDays}天`, tone: 'neutral' },
+      { label: '探索阶段', value: beforeStage === afterStage ? afterStage : `${beforeStage} → ${afterStage}`, tone: 'neutral' },
+    ],
+    consequence: null,
+  }
+}
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
@@ -86,6 +102,12 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied) pendingResult = travelOutcome(before, result, command.type === 'fast-travel')
     effectTypes = command.type === 'travel' ? ['world:travel'] : ['world:fast-travel']
+  } else if (command.type === 'explore-region') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveRegionExploration(before, command.days)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && result.completed) pendingResult = explorationOutcome(result)
+    effectTypes = ['world:explore-region']
   } else if (command.type === 'action') {
     const snapshot = captureOutcomeSnapshot(before); const result = performPlayerAction(before, command.action, FORMAL_EVENTS, FORMAL_EVENT_CATALOG); nextState = result.state; applied = result.applied; reason = result.reason
     if (applied) { if (nextState.events.currentEventId !== null) pendingAction = { action: command.action, snapshot }; else { pendingAction = null; pendingResult = buildOutcome(snapshot, nextState, actionTitle(command.action), actionNarrative(command.action)); nextState = appendChronicleEntry(nextState, createActionChronicleEntry(command.action, pendingResult, snapshot, nextState.worldDay, nextState.chronicle.length + 1)) } }
