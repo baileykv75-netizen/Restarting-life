@@ -99,7 +99,8 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   if (!session) return persistent
   const exploration = session.state.exploration
   const sublocations = session.state.sublocations
-  if (!exploration && !sublocations) return persistent
+  const secretRealm = session.state.secretRealm
+  if (!exploration && !sublocations && !secretRealm) return persistent
 
   return {
     ...persistent,
@@ -122,6 +123,24 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
                 generated: Object.fromEntries(
                   Object.entries(sublocations.generated).map(([id, runtime]) => [id, { ...runtime }]),
                 ),
+              },
+            }
+          : {}),
+        ...(secretRealm
+          ? {
+              secretRealm: {
+                sunkenVeinChamber: {
+                  ...secretRealm.sunkenVeinChamber,
+                  nodeClaims: { ...secretRealm.sunkenVeinChamber.nodeClaims },
+                  knowledge: { ...secretRealm.sunkenVeinChamber.knowledge },
+                  pendingMaterials: { ...secretRealm.sunkenVeinChamber.pendingMaterials },
+                  rewards: {
+                    ...secretRealm.sunkenVeinChamber.rewards,
+                    herbBed: { ...secretRealm.sunkenVeinChamber.rewards.herbBed },
+                    sideRoom: { ...secretRealm.sunkenVeinChamber.rewards.sideRoom },
+                    core: { ...secretRealm.sunkenVeinChamber.rewards.core },
+                  },
+                },
               },
             }
           : {}),
