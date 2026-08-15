@@ -1,6 +1,6 @@
 import type { WorldLocationDefinition } from '../types/world'
 
-export const WORLD_LOCATIONS = [
+export const WORLD_LOCATIONS: readonly WorldLocationDefinition[] = [
   {
     id: 'baishi_village',
     name: '白石村',
@@ -125,7 +125,7 @@ export const WORLD_LOCATIONS = [
     parentLocationId: 'qingyun_sect',
     mapPosition: { x: 61, y: 38 },
   },
-] as const satisfies readonly WorldLocationDefinition[]
+]
 
 const WORLD_LOCATION_MAP = new Map<string, WorldLocationDefinition>(
   WORLD_LOCATIONS.map((location) => [location.id, location] as [string, WorldLocationDefinition]),
