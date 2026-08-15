@@ -13,6 +13,10 @@ export type Faction = 'mortal' | 'qingyun' | 'loose'
 export type LifeStage = 'legacy-adult' | 'childhood' | 'adult'
 export type LocationKnowledgeStatus = 'rumored' | 'discovered'
 
+export interface TechniquePracticeState {
+  proficiencyPoints: number
+}
+
 export interface GameState {
   schemaVersion: 3
   runId: string
@@ -45,6 +49,10 @@ export interface GameState {
     practiceInitialized?: true
     knownTechniqueIds?: string[]
     mainTechniqueId?: string | null
+    /** R17 is activated by an explicit SessionCommand so old R16 replay semantics stay stable. */
+    techniqueSystemInitialized?: true
+    auxiliaryTechniqueIds?: string[]
+    techniquePractice?: Record<string, TechniquePracticeState>
   }
   world: { currentLocationId: string | null }
   knowledge: { locations: Record<string, LocationKnowledgeStatus> }
