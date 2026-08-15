@@ -8,7 +8,6 @@ import {
 import type { StateChange } from '../types/chronicle'
 import type { GameState } from '../types/game'
 import type { ResolvedOutcome } from '../types/persistence'
-import { formatCultivationProgress } from './cultivationEngine'
 import { formatDuration } from './timeEngine'
 import { advanceWorldTime } from './worldEngine'
 
@@ -60,6 +59,10 @@ function rejected(state: GameState, reason: string): TechniqueSystemResult {
 
 function isPracticeDuration(days: number): days is TechniquePracticeDuration {
   return TECHNIQUE_PRACTICE_DURATIONS.includes(days as TechniquePracticeDuration)
+}
+
+function formatCultivationPoints(points: number): string {
+  return `${(Math.max(0, Math.min(1000, points)) / 10).toFixed(1)}%`
 }
 
 export function getTechniqueProficiencyPoints(state: GameState, techniqueId: string): number {
@@ -253,7 +256,7 @@ function changeMainOutcome(before: GameState, after: GameState, preview: Techniq
     narrative: `你用了${formatDuration(preview.adaptationDays)}调整行气次序与经脉适应，随后将${preview.technique.name}定为新的主修。`,
     changes: [
       { label: '时间', value: `+${formatDuration(preview.adaptationDays)}`, tone: 'neutral' },
-      { label: '当前修为', value: `${formatCultivationProgress(before.resources.cultivation)} → ${formatCultivationProgress(after.resources.cultivation)}`, tone: preview.cultivationLossPoints > 0 ? 'negative' : 'neutral' },
+      { label: '当前修为', value: `${formatCultivationPoints(before.resources.cultivation)} → ${formatCultivationPoints(after.resources.cultivation)}`, tone: preview.cultivationLossPoints > 0 ? 'negative' : 'neutral' },
     ],
     consequence: null,
   }
