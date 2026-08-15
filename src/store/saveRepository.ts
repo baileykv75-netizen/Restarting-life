@@ -100,7 +100,8 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const exploration = session.state.exploration
   const sublocations = session.state.sublocations
   const secretRealm = session.state.secretRealm
-  if (!exploration && !sublocations && !secretRealm) return persistent
+  const inventory = session.state.inventory
+  if (!exploration && !sublocations && !secretRealm && !inventory) return persistent
 
   return {
     ...persistent,
@@ -141,6 +142,16 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
                     core: { ...secretRealm.sunkenVeinChamber.rewards.core },
                   },
                 },
+              },
+            }
+          : {}),
+        ...(inventory
+          ? {
+              inventory: {
+                ...inventory,
+                stacks: Object.fromEntries(
+                  Object.entries(inventory.stacks).map(([id, stack]) => [id, { ...stack }]),
+                ),
               },
             }
           : {}),
