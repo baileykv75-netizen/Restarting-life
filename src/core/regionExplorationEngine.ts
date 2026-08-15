@@ -1,9 +1,11 @@
 import { getWorldLocationById } from '../data/worldLocations'
 import type { ExplorationDuration, ExplorationStage, RegionRisk } from '../types/exploration'
 import type { GameState } from '../types/game'
+import type { SublocationRuntime } from '../types/sublocation'
 import type { WorldDanger } from '../types/world'
 import { applyGameAction } from './gameActionReducer'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
+import { discoverEligibleSublocations } from './sublocationEngine'
 
 export const EXPLORATION_DURATIONS: readonly ExplorationDuration[] = [1, 3, 10]
 
@@ -39,6 +41,7 @@ export interface RegionExplorationResult {
   exploredDays: number
   stageBefore: ExplorationStage | null
   stageAfter: ExplorationStage | null
+  discoveredSublocations: SublocationRuntime[]
   reason?: string
 }
 
@@ -103,6 +106,7 @@ function rejected(state: GameState, days: number, reason: string): RegionExplora
     exploredDays: previousExploredDays,
     stageBefore: stage,
     stageAfter: stage,
+    discoveredSublocations: [],
     reason,
   }
 }
@@ -138,11 +142,12 @@ export function resolveRegionExploration(state: GameState, days: number): Region
       exploredDays: previousExploredDays,
       stageBefore,
       stageAfter: stageBefore,
+      discoveredSublocations: [],
     }
   }
 
   const exploredDays = previousExploredDays + days
-  const nextState: GameState = {
+  const progressedState: GameState = {
     ...advanced.state,
     exploration: {
       locations: {
@@ -151,9 +156,10 @@ export function resolveRegionExploration(state: GameState, days: number): Region
       },
     },
   }
+  const discovery = discoverEligibleSublocations(progressedState, current.id, exploredDays)
 
   return {
-    state: nextState,
+    state: discovery.state,
     applied: true,
     completed: true,
     locationId: current.id,
@@ -162,5 +168,6 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     exploredDays,
     stageBefore,
     stageAfter: getExplorationStage(exploredDays),
+    discoveredSublocations: discovery.discovered,
   }
 }
