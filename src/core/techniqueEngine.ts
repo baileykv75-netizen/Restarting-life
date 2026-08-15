@@ -92,8 +92,10 @@ export function isTechniqueMoveUnlocked(state: GameState, techniqueId: string, m
 
 export function calculateTechniqueProficiencyGain(state: GameState, days: number): number {
   if (!isPracticeDuration(days)) return 0
-  const multiplier = state.identity.talentIds.includes('quick_study') ? 1.15 : 1
-  return Math.floor(days * 20 * multiplier)
+  const baseGain = days * 20
+  return state.identity.talentIds.includes('quick_study')
+    ? Math.floor((baseGain * 115) / 100)
+    : baseGain
 }
 
 export function addTechniqueProficiency(state: GameState, techniqueId: string, gain: number): GameState {
