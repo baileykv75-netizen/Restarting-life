@@ -27,3 +27,12 @@ export interface WorldLocationDefinition {
   parentLocationId?: string
   mapPosition: WorldMapPosition
 }
+
+export interface WorldRouteDefinition {
+  id: string
+  from: string
+  to: string
+  travelDays: number
+  stableFastTravel: boolean
+  description: string
+}
