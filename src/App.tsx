@@ -28,6 +28,7 @@ import './adult-entry.css'
 import './world-map.css'
 import './secret-realm.css'
 import './inventory.css'
+import './equipment.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -71,6 +72,18 @@ function App() {
           return
         }
         working = initializedInventory.persistent
+        workingState = working.currentSession?.state
+        changed = true
+      }
+
+      if (workingState?.inventory && !workingState.equipment) {
+        const initializedEquipment = commandAndSave(window.localStorage, working, { type: 'initialize-equipment' })
+        if (!initializedEquipment.applied) {
+          if (changed) setGame(working)
+          setNotice(initializedEquipment.reason ?? '本世装备状态无法初始化')
+          return
+        }
+        working = initializedEquipment.persistent
         changed = true
       }
 
@@ -147,6 +160,6 @@ function App() {
     stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
   }
 
-  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
+  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
 }
 export default App

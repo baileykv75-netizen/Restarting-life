@@ -1,14 +1,21 @@
 import { BACKGROUNDS, getBackgroundById } from '../data/backgrounds'
+import { getItemDefinition } from '../data/items'
 import { PHYSIQUES, getPhysiqueById } from '../data/physiques'
 import { getSpiritRootById } from '../data/spiritRoots'
 import { TALENTS, getTalentById } from '../data/talents'
 import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
+import { getEquippedItemId, EQUIPMENT_SLOTS } from '../core/equipmentEngine'
 import { getCharacterDisplayName } from '../core/nameEngine'
 import type { StatModifiers } from '../types/content'
+import type { EquipmentSlot } from '../types/equipment'
 import type { GameState } from '../types/game'
 import { formatAge, formatFaction, formatRealm, formatRemainingLifespan } from '../ui/formatters'
+import { formatEquipmentSlot, formatItemGrade } from '../ui/itemFormatters'
 
-interface CharacterPanelProps { state: GameState }
+interface CharacterPanelProps {
+  state: GameState
+  onUnequip: (slot: EquipmentSlot) => void
+}
 
 const STAT_LABELS: Partial<Record<keyof GameState['stats'], string>> = {
   constitution: '根骨', comprehension: '悟性', spiritSense: '神识', mentality: '心性',
@@ -22,7 +29,7 @@ function effectLabels(statModifiers: StatModifiers, spiritStones: number): strin
   return labels
 }
 
-export function CharacterPanel({ state }: CharacterPanelProps) {
+export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
   const background = getBackgroundById(state.identity.backgroundId)
   const activeBackground = BACKGROUNDS.find((item) => item.id === state.identity.backgroundId)
   const talents = state.identity.talentIds.map(getTalentById).filter((item): item is NonNullable<typeof item> => item !== undefined)
@@ -47,6 +54,18 @@ export function CharacterPanel({ state }: CharacterPanelProps) {
         <div><dt>下品灵石</dt><dd>{state.resources.spiritStones} 枚</dd></div>
         <div><dt>修为</dt><dd>{state.resources.cultivation}</dd></div>
       </dl>
+
+      {state.equipment && <div className="subsection equipment-subsection">
+        <p className="subsection-title">装备</p>
+        <div className="equipment-slot-list">{EQUIPMENT_SLOTS.map((slot) => {
+          const itemId = getEquippedItemId(state, slot)
+          const item = itemId ? getItemDefinition(itemId) : undefined
+          return <div className="equipment-slot-row" key={slot}>
+            <div><span>{formatEquipmentSlot(slot)}</span><strong>{item?.name ?? '未装备'}</strong>{item && <small>{formatItemGrade(item)}</small>}</div>
+            {itemId && <button className="equipment-unequip-button" onClick={() => onUnequip(slot)} type="button">卸下</button>}
+          </div>
+        })}</div>
+      </div>}
 
       <div className="subsection">
         <p className="subsection-title">出身</p>

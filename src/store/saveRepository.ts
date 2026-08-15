@@ -101,7 +101,8 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const sublocations = session.state.sublocations
   const secretRealm = session.state.secretRealm
   const inventory = session.state.inventory
-  if (!exploration && !sublocations && !secretRealm && !inventory) return persistent
+  const equipment = session.state.equipment
+  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment) return persistent
 
   return {
     ...persistent,
@@ -155,6 +156,7 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
               },
             }
           : {}),
+        ...(equipment ? { equipment: { ...equipment } } : {}),
       },
     },
   }

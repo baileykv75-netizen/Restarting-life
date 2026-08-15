@@ -1,7 +1,9 @@
 import { getItemDefinition } from '../data/items'
-import { getInventoryUsage, removeItem } from '../core/inventoryEngine'
+import { isItemEquipped } from '../core/equipmentEngine'
+import { getInventoryUsage, resolveInventoryDrop } from '../core/inventoryEngine'
 import type { GameState } from '../types/game'
 import type { ItemCategory } from '../types/inventory'
+import { formatEquipmentSlot, formatItemGrade } from '../ui/itemFormatters'
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   material: '材料',
@@ -19,9 +21,10 @@ const CATEGORY_ORDER: ItemCategory[] = ['storage-bag', 'material', 'pill', 'tali
 interface InventoryPanelProps {
   state: GameState
   onDrop: (itemId: string, quantity: number) => void
+  onEquip: (itemId: string) => void
 }
 
-export function InventoryPanel({ state, onDrop }: InventoryPanelProps) {
+export function InventoryPanel({ state, onDrop, onEquip }: InventoryPanelProps) {
   const inventory = state.inventory
   if (!inventory) return null
 
@@ -45,14 +48,21 @@ export function InventoryPanel({ state, onDrop }: InventoryPanelProps) {
       : <div className="inventory-list">{entries.map(({ stack, definition }) => {
           const item = definition!
           const slots = Math.ceil(stack.quantity / item.stackLimit) * item.slotCost
-          const dropCheck = removeItem(state, stack.itemId, 1)
+          const dropCheck = resolveInventoryDrop(state, stack.itemId, 1)
+          const equipped = isItemEquipped(state, stack.itemId)
           return <div className="inventory-row" key={stack.itemId}>
             <div className="inventory-item-copy">
               <div><strong>{item.name}</strong><span>{CATEGORY_LABELS[item.category]}</span></div>
-              <small>数量 {stack.quantity} · 占 {slots} 槽</small>
-              {!dropCheck.applied && dropCheck.reason === '取下后背包容量不足' && <em>取下后背包容量不足</em>}
+              <small>数量 {stack.quantity} · 占 {slots} 槽{item.equipmentSlot ? ` · ${formatEquipmentSlot(item.equipmentSlot)} · ${formatItemGrade(item)}` : ''}</small>
+              {item.description && <p>{item.description}</p>}
+              {!dropCheck.applied && (dropCheck.reason === '取下后背包容量不足' || dropCheck.reason === '请先卸下正在装备的物品') && <em>{dropCheck.reason}</em>}
             </div>
-            <button className="inventory-drop-button" disabled={!dropCheck.applied} onClick={() => onDrop(stack.itemId, 1)} type="button">丢弃 1 份{item.name}</button>
+            <div className="inventory-actions">
+              {item.equipmentSlot && state.equipment && (equipped
+                ? <span className="inventory-equipped-label">已装备</span>
+                : <button className="inventory-equip-button" onClick={() => onEquip(stack.itemId)} type="button">装备</button>)}
+              <button className="inventory-drop-button" disabled={!dropCheck.applied} onClick={() => onDrop(stack.itemId, 1)} type="button">丢弃 1 份{item.name}</button>
+            </div>
           </div>
         })}</div>}
   </section>

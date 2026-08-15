@@ -1,0 +1,68 @@
+.equipment-subsection {
+  margin-top: 16px;
+}
+
+.equipment-slot-list {
+  display: grid;
+  gap: 7px;
+}
+
+.equipment-slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.equipment-slot-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.equipment-slot-row span,
+.equipment-slot-row small {
+  color: #7f8a83;
+  font-size: 0.67rem;
+}
+
+.equipment-slot-row strong {
+  color: #d8d2c5;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.equipment-unequip-button,
+.inventory-equip-button {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid rgba(177, 196, 183, 0.17);
+  border-radius: 8px;
+  color: #cbd4ce;
+  background: rgba(102, 130, 113, 0.08);
+  cursor: pointer;
+}
+
+.inventory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.inventory-equipped-label {
+  color: #aebdb3;
+  font-size: 0.72rem;
+}
+
+.inventory-item-copy p {
+  margin: 5px 0 0;
+  color: #8f9690;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
