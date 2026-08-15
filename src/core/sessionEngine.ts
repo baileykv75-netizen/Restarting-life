@@ -21,6 +21,12 @@ import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngin
 import { getExplorationStageLabel, resolveRegionExploration, type RegionExplorationResult } from './regionExplorationEngine'
 import { refreshSunkenVeinDiscovery, resolveSecretRealmAction, resolveSecretRealmInitialization } from './secretRealmEngine'
 import { getGameStateDigest } from './stateDigest'
+import {
+  resolveChangeMainTechnique,
+  resolveSetAuxiliaryTechnique,
+  resolveTechniquePracticeDays,
+  resolveTechniqueSystemInitialization,
+} from './techniqueEngine'
 import { formatDuration } from './timeEngine'
 import { resolveFastTravel, resolveTravel, type TravelResult } from './travelEngine'
 import { resolveWorldInitialization } from './worldLocationEngine'
@@ -71,12 +77,12 @@ function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
   }
 }
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'initialize-equipment') return ['equipment:initialize']; if (command.type === 'equip-item') return ['equipment:equip']; if (command.type === 'unequip-slot') return ['equipment:unequip']; if (command.type === 'initialize-cultivation') return ['cultivation:initialize']; if (command.type === 'select-main-technique') return ['cultivation:select-main']; if (command.type === 'cultivate-days') return ['cultivation:practice']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'initialize-equipment') return ['equipment:initialize']; if (command.type === 'equip-item') return ['equipment:equip']; if (command.type === 'unequip-slot') return ['equipment:unequip']; if (command.type === 'initialize-cultivation') return ['cultivation:initialize']; if (command.type === 'initialize-technique-system') return ['technique:initialize']; if (command.type === 'select-main-technique') return ['cultivation:select-main']; if (command.type === 'change-main-technique') return ['technique:change-main']; if (command.type === 'set-auxiliary-technique') return ['technique:set-auxiliary']; if (command.type === 'practice-technique-days') return ['technique:practice']; if (command.type === 'cultivate-days') return ['cultivation:practice']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
-  const isR16CultivationCommand = command.type === 'initialize-cultivation' || command.type === 'select-main-technique' || command.type === 'cultivate-days'
-  if (isR16CultivationCommand && session.pendingResult) return { session, applied: false, reason: 'RESULT_PENDING' }
+  const isCultivationSystemCommand = command.type === 'initialize-cultivation' || command.type === 'initialize-technique-system' || command.type === 'select-main-technique' || command.type === 'change-main-technique' || command.type === 'set-auxiliary-technique' || command.type === 'practice-technique-days' || command.type === 'cultivate-days'
+  if (isCultivationSystemCommand && session.pendingResult) return { session, applied: false, reason: 'RESULT_PENDING' }
   const workingSession: GameSession = session.pendingResult ? { ...session, pendingResult: null } : session
   const before = workingSession.state
   let effectTypes = getEffectTypes(workingSession, command)
@@ -141,10 +147,30 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveCultivationInitialization(before)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:initialize']
+  } else if (command.type === 'initialize-technique-system') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveTechniqueSystemInitialization(before)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:initialize']
   } else if (command.type === 'select-main-technique') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveMainTechniqueSelection(before, command.techniqueId)
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:select-main']
+  } else if (command.type === 'change-main-technique') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveChangeMainTechnique(before, command.techniqueId)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
+    effectTypes = ['technique:change-main']
+  } else if (command.type === 'set-auxiliary-technique') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveSetAuxiliaryTechnique(before, command.techniqueId, command.enabled)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:set-auxiliary']
+  } else if (command.type === 'practice-technique-days') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveTechniquePracticeDays(before, command.techniqueId, command.days)
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
+    effectTypes = ['technique:practice']
   } else if (command.type === 'cultivate-days') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
     const result = resolveCultivateDays(before, command.days)
