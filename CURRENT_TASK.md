@@ -1,22 +1,21 @@
-# 当前任务：V2 R14 - 背包与储物袋
+# 当前任务：V2 R15 - 装备栏与品阶
 
 ## 本轮唯一目标
 
-在 R13 已经产生真实材料的基础上，建立首版**唯一正式物品库存与携带容量**，并把沉脉石室的 `pendingMaterials` 安全接管进背包：
+在 R14 已建立的唯一正式背包上，实现首版最小装备状态：
 
 ```text
-R13 结构化待接管材料
-→ R14 InventoryState
-→ 同类物品堆叠
-→ 容量 / 大型物品占位
-→ 丢弃
-→ 小型储物袋扩容
+背包中的可装备物
+→ 主武器 / 护甲 / 护身法器 / 辅助法器
+→ 装备 / 卸下
+→ 被替换物仍留在背包
+→ 阶 + 品数据结构与克制展示
 → save / replay 保持
 ```
 
-本轮只解决“物品在哪里、能不能继续拿、占多少携带空间”。
+本轮只解决“角色当前穿 / 带着什么”和“物品的品阶如何结构化展示”。
 
-**不实现 R15 装备、不实现丹药使用、不实现商店、不实现掉落系统扩张。**
+**不实现强化、耐久、随机词条、商店、正式战斗、武器技能、丹药使用或装备掉落扩张。**
 
 ---
 
@@ -24,376 +23,350 @@ R13 结构化待接管材料
 
 1. `AGENTS.md`
 2. `V2_GAME_DESIGN.md`
-3. `V2_CONTENT_BIBLE.md`，重点第 12～15 节
-4. `HANDOFF.md` 的 R13
-5. `V2_GITHUB_ROADMAP.md` 的 R14
+3. `V2_CONTENT_BIBLE.md` 第 12.4、15 节
+4. `HANDOFF.md` 的 R14
+5. `V2_GITHUB_ROADMAP.md` 的 R15
 
-具体物品名称、世界来源与品阶只能来自 Content Bible；不得因为做背包自行增加新丹药、新法器或新材料。
+具体装备名称与机制只能来自 Content Bible。
+
+### 已知内容缺口
+
+Content Bible 已冻结统一品阶规则：
+
+> 阶 + 品
+
+但当前**没有逐件冻结**青锋剑、黑铁重剑、赤纹刀、青竹灵弓、黑铁护甲、青狼软甲、护心镜、镇灵玉、流云靴、寻灵盘的具体“下品 / 中品 / 上品”。
+
+因此 R15：
+
+- 必须实现正式 `tier / quality` 数据结构、formatter 与 UI 展示能力；
+- 对 Content Bible 已明确品阶的物品才允许写具体值；
+- **不得自行给上述十件装备编造具体品阶；**
+- 未冻结的具体品阶保持 `undefined / 未标定`，并把缺口继续留在 HANDOFF；
+- 不使用颜色稀有度、SSR、战力评分代替品阶。
+
+这不是理由去新增 C15 内容或顺手改 Content Bible；本轮仍只实现 R15 系统能力。
 
 ---
 
 # 一、兼容与唯一状态原则
 
-R14 必须继续保护 R05～R13 已有 replay digest。
+R15 必须继续保护 R05～R14 已有 replay digest。
 
-## 1. InventoryState 必须 optional
+## 1. EquipmentState 必须 optional
 
 允许新增等价结构：
 
 ```ts
-interface InventoryStack {
-  itemId: string
-  quantity: number
+interface EquipmentState {
+  mainWeaponItemId: string | null
+  armorItemId: string | null
+  protectiveArtifactItemId: string | null
+  supportArtifactItemId: string | null
 }
-
-interface InventoryState {
-  stacks: Record<string, InventoryStack>
-  baseCapacitySlots: number
-  storageBagItemId: string | null
-}
-```
-
-字段名可按代码风格调整，但要求：
-
-- `GameState.inventory` 必须 optional；
-- `createInitialGameState()` 不得给所有旧人生补空背包；
-- 通过显式 `initialize-inventory` SessionCommand 第一次 materialize；
-- bootstrap 进入 debug log / digest / replay / persistence；
-- UI 不显示“初始化背包”按钮；
-- 不创建第二套 React inventory store；
-- 不把 R13 `pendingMaterials` 留成长期第二库存。
-
-旧 R13 存档存在 `pendingMaterials` 时，R14 bootstrap 必须尝试一次性迁入正式背包；成功后清空对应 pending claims。
-
----
-
-# 二、物品数据层
-
-新增或扩展 `src/data/items` 等静态目录，定义 canonical `ItemDefinition`。
-
-首版 schema 至少支持类别：
-
-```text
-material
-pill
-artifact
-weapon
-armor
-talisman
-special
-storage-bag
-```
-
-类别是数据结构能力，不代表 R14 要把所有物品玩法做完。
-
-每个定义至少包含：
-
-```ts
-id
-name
-category
-stackLimit
-slotCost
-```
-
-需要时可包含：
-
-```ts
-tier
-quality
-capacityBonus
-```
-
-R14 不添加使用效果、装备效果、战斗数值和商店价格计算逻辑。
-
-## 本轮必须登记的真实物品
-
-至少覆盖 R13 已经会产出的 canonical item：
-
-- 青露草；
-- 水灵苔；
-- 玉髓芝；
-- 黑铁；
-- 赤纹铁；
-- 碎灵晶；
-- 岩甲蜥背甲；
-- 岩甲蜥矿性结晶；
-- 小型储物袋。
-
-可以顺带登记 Content Bible 已冻结的其他物品元数据，但不得扩大到使用 / 装备功能。
-
----
-
-# 三、容量模型
-
-首版使用**整数槽位**，禁止公斤、小数重量和逐克模拟。
-
-冻结本轮实现锚点：
-
-- 基础携带容量：**12 槽**；
-- 同一种可堆叠物品按 `stackLimit` 分栈；
-- 一般材料首版默认每 10 份为 1 栈，除非数据定义另有要求；
-- 普通丹药 / 符箓后续可复用同一 stack 机制；
-- 明显大型物品可以 `slotCost > 1`；
-- 一件小型储物袋本身占 1 槽，并提供 **+12 槽**有效容量。
-
-### 储物袋防递归规则
-
-首版同一时间只允许 **1 个储物袋提供容量加成**。
-
-额外储物袋若未来进入库存，只作为普通货物占位，不叠加容量。
-
-本轮不做：
-
-- 袋中袋；
-- 多层容器 UI；
-- 不同袋子分别存物；
-- 活物装袋；
-- 空间法器嵌套。
-
-`capacityUsed` 必须由 stacks + item definitions 派生，不额外维护一个容易不同步的可变计数真源。
-
----
-
-# 四、堆叠规则
-
-同一个 canonical `itemId` 必须合并数量，而不是生成十个相同对象。
-
-容量计算：
-
-```text
-需要栈数 = ceil(quantity / stackLimit)
-占用槽位 = 需要栈数 × slotCost
-```
-
-例如：
-
-```text
-青露草 quantity = 14
-stackLimit = 10
-slotCost = 1
-→ 占 2 槽
-```
-
-不做随机品质导致同名材料无法堆叠；首版普通材料只有 canonical item id。
-
-如果未来同物品存在阶 / 品差异，应使用不同 canonical item variant，而不是背包运行时随机词条。
-
----
-
-# 五、接管 R13 pendingMaterials
-
-R13 当前可能保存：
-
-```text
-green_dew_grass
-water_spirit_moss
-jade_marrow_fungus
-black_iron
-red_pattern_iron
-shattered_spirit_crystal
-rock_lizard_carapace
-rock_lizard_mineral_crystal
-```
-
-R14 bootstrap 必须：
-
-1. 读取所有非零 pending claims；
-2. 验证每个 canonical id 在 item data 中存在；
-3. 计算合并后需要容量；
-4. 容量允许时一次性写入 InventoryState；
-5. 清空已经成功接管的 R13 pending claims；
-6. 不重复迁入；
-7. 不推进世界时间；
-8. 不消耗 RNG。
-
-由于 R13 当前最大全部资源种类仍可放入 12 个基础槽，正常迁移不应需要特殊 overflow 仓库。
-
-如果遇到非法 item id 或异常超容量旧状态，必须明确拒绝并保留原 pending claims，不允许静默丢物。
-
----
-
-# 六、获得物品的底层接口
-
-建立纯 engine helper，例如：
-
-```ts
-canAddItem(state, itemId, quantity)
-addItem(state, itemId, quantity)
-removeItem(state, itemId, quantity)
-getInventoryUsage(state)
 ```
 
 要求：
 
-- 非法 id 拒绝；
-- quantity 必须为正整数；
-- 超容量 `addItem` 拒绝且 state 不变；
-- remove 超过现有数量拒绝；
-- 数量归零时移除 stack；
-- 不推进时间；
-- 不调用 RNG；
-- helper 不直接写 localStorage。
+- `GameState.equipment` 必须 optional；
+- `createInitialGameState()` 不给旧人生补空装备对象；
+- 通过显式 `initialize-equipment` SessionCommand 第一次 materialize；
+- bootstrap 不推进 `worldDay`、不消耗 RNG；
+- 进入 debug log / digest / replay / persistence；
+- UI 不显示“初始化装备”按钮；
+- 不创建 React 第二套装备真源。
 
-本轮不要为了测试方便添加“玩家凭空获得任意物品”的公开按钮。
+R14 inventory 仍是唯一物品所有权真源。
 
 ---
 
-# 七、丢弃
+# 二、正式装备槽
 
-新增真实玩家命令，例如：
+首版只允许四槽：
 
 ```text
-inventory-drop(itemId, quantity)
+主武器
+护甲
+护身法器
+辅助法器
 ```
 
-必须经过 SessionCommand → engine → GameState → debug log / replay / save。
+与 Content Bible 15.1 完全一致。
 
-规则：
+禁止增加：
 
-- 只能丢自己实际拥有的物品；
-- 数量为正整数；
-- 丢弃后容量立即释放；
-- 不返还灵石；
-- 不触发商店；
-- 不写“确认丢弃将影响命运”类文案；
-- 小型储物袋若当前正在提供容量，只有在移除后剩余物品仍能放入基础容量时才允许丢弃，否则拒绝并说明“取下后背包容量不足”。
+- 头盔；
+- 手套；
+- 项链；
+- 戒指；
+- 鞋子独立槽；
+- 双武器副手；
+- 宝石槽；
+- 套装槽。
 
-本轮无需二次确认弹窗；按钮必须明确写物品与数量即可。
+`流云靴` 在首版按“辅助法器”进入 support slot，不建立独立鞋槽。
 
----
-
-# 八、小型储物袋
-
-首版只验证 Content Bible 已冻结的：
-
-> **小型储物袋**
-
-R14 不实现商店购买，因此测试 / 已有状态可以通过 engine fixture 验证其扩容规则，但 UI 不提供凭空领取按钮。
-
-真实进入玩家库存后：
-
-- `storageBagItemId` 或等价状态指向该袋；
-- 有效容量从 12 提升到 24；
-- 袋本身仍作为 1 个真实物品存在；
-- 只有一个袋提供加成；
-- 移除 / 丢弃前重新校验剩余容量。
-
-R15 是否把储物袋视为辅助法器槽位或独立携带状态，再由 R15 决定；R14 不提前做装备槽。
+`小型储物袋` 继续由 R14 `inventory.storageBagItemId` 管理容量，**不同时占辅助法器槽**，避免一个物品存在两套激活状态。
 
 ---
 
-# 九、UI
+# 三、ItemDefinition 扩展
 
-新增一个简单 `InventoryPanel` 或等价区域，要求玩家能看到：
+在 R14 `ItemDefinition` 上最小扩展：
 
-- 当前容量：例如 `7 / 12 槽`；
-- 若有储物袋：`7 / 24 槽`；
-- 按类别或至少稳定顺序列出实际物品；
+```ts
+type EquipmentSlot = 'main-weapon' | 'armor' | 'protective-artifact' | 'support-artifact'
+type ItemQuality = 'low' | 'mid' | 'high'
+
+interface ItemDefinition {
+  ...
+  equipmentSlot?: EquipmentSlot
+  tier?: number
+  quality?: ItemQuality
+}
+```
+
+要求：
+
+- `equipmentSlot` 决定能进哪个槽；
+- `tier + quality` 只表示世界品阶，不等于强化等级；
+- 不新增 rarity/color/score/affix/durability/enhanceLevel；
+- formatter 使用中文：`一阶下品 / 一阶中品 / 一阶上品 / 二阶下品`；
+- 具体品阶未冻结时 UI 显示“品阶未标定”或等价克制文案，不猜值。
+
+---
+
+# 四、首版可装备物数据
+
+只能登记 Content Bible 15 节已经存在的十件可装备物：
+
+## 主武器
+
+1. `青锋剑`
+2. `黑铁重剑`
+3. `赤纹刀`
+4. `青竹灵弓`
+
+## 护甲
+
+5. `黑铁护甲`
+6. `青狼软甲`
+
+## 护身法器
+
+7. `护心镜`
+8. `镇灵玉`
+
+## 辅助法器
+
+9. `流云靴`
+10. `寻灵盘`
+
+### 明确后续
+
+- `柳叶双刃` 不进入 R15；
+- `破灵锥 / 雷火珠 / 困兽索` 是一次性器物，不进入四槽；
+- 小型储物袋只继续承担 R14 容量功能。
+
+R15 可以把上述十件加入 item definitions，但**不新增获取来源**。没有商店、掉落或出生来源的物品不会凭空出现在玩家背包。
+
+---
+
+# 五、装备 / 卸下语义
+
+新增正式 SessionCommand，例如：
+
+```text
+equip-item(itemId)
+unequip-slot(slot)
+```
+
+## equip-item
+
+必须检查：
+
+1. inventory 已初始化；
+2. equipment 已初始化；
+3. item definition 存在；
+4. item 实际在背包中，quantity ≥ 1；
+5. item 有合法 equipmentSlot。
+
+成功后：
+
+- 对应 equipment slot 写入 itemId；
+- **物品仍保留在 inventory stack 中**，装备状态是对已拥有物品的引用，不是第二库存；
+- 同槽已有装备时直接替换引用，旧物仍在背包；
+- 不推进时间；
+- 不消耗 RNG。
+
+## unequip-slot
+
+- 只把对应槽清空；
+- 物品本来就仍在 inventory，不需要“返还一份”；
+- 空槽再次卸下应拒绝或 no-op，不产生重复物品。
+
+---
+
+# 六、与 R14 丢弃的冲突保护
+
+R14 当前允许从 inventory 丢弃物品。R15 后必须新增保护：
+
+- 如果某 itemId 当前正被任意装备槽引用，不能把该 item 的 quantity 丢到 0；
+- 如果 quantity > 1，可丢弃多余份，只要最终至少保留 1 份供当前装备引用；
+- 禁止出现 equipment 引用一个 inventory 中已经不存在的 itemId；
+- 被装备物不能因为普通丢弃留下悬空引用。
+
+不得通过“自动卸下再丢弃”偷偷替玩家做决定；应明确拒绝并提示先卸下。
+
+小型储物袋继续沿用 R14 自己的 active-bag 容量检查，不混入 EquipmentState。
+
+---
+
+# 七、装备机制在 R15 的实现边界
+
+Content Bible 已冻结装备的未来实际机制：
+
+- 黑铁重剑：慢、伤害高、天然护甲穿透；
+- 赤纹刀：火灵力驱动强招更好；
+- 青竹灵弓：正常开战有一次远程先手，近身后效率下降；
+- 黑铁护甲：防御高、影响身法 / 逃跑；
+- 青狼软甲：防御略低但不明显影响移动；
+- 护心镜：重伤级攻击减伤，触发后暂时失效；
+- 镇灵玉：防神识 / 心神干扰；
+- 流云靴：移动 / 逃跑 / 山野赶路；
+- 寻灵盘：探测附近明显灵气异常。
+
+**R15 只允许把这些机制写成结构化 ruleTags / description / future hook，不执行正式战斗数值。**
+
+尤其禁止：
+
+- 为黑铁重剑提前建立攻击速度系统；
+- 为青竹灵弓提前建立战斗先手机制；
+- 为护心镜提前建立 HP / 伤势状态；
+- 为寻灵盘现在就回填沉脉石室发现路径；
+- 为装备计算综合战力。
+
+这些分别等后续旅行 / 探索 / R20 战斗相关轮次再接真实 resolver。
+
+---
+
+# 八、UI
+
+InventoryPanel 在真实背包物品上显示：
+
 - 名称；
+- 类别；
 - 数量；
-- 占用槽位；
-- 当前真实可丢弃操作。
+- 占槽；
+- 已冻结时显示“阶 + 品”；
+- 未冻结具体值显示“品阶未标定”；
+- 对可装备且当前未装备物显示真实“装备”动作；
+- 当前已装备物显示“已装备”。
 
-不展示：
+新增或扩展角色装备面板显示：
 
-- 白蓝紫橙稀有度；
-- 战力评分；
-- 未实现的装备按钮；
-- 未实现的“使用丹药”；
-- 未实现的出售价格；
-- 未拥有物品图鉴；
-- 空的“强化 / 分解 / 合成”页签。
+```text
+主武器 · 未装备 / 物品名
+护甲 · 未装备 / 物品名
+护身法器 · 未装备 / 物品名
+辅助法器 · 未装备 / 物品名
+```
 
-如果背包为空，直接显示“当前没有随身物品”，不要放假物品填 UI。
+每个已装备槽提供真实“卸下”动作。
+
+禁止显示：
+
+- 战力；
+- DPS；
+- 强化；
+- 升星；
+- 洗词条；
+- 耐久；
+- “推荐装备”；
+- 不存在的比较箭头。
 
 ---
 
-# 十、保存与 replay
+# 九、保存 / replay
 
-必须深拷贝并保存：
+- save / normalize / clone 深拷贝 optional EquipmentState；
+- 没有 equipment 的旧存档继续保持没有；
+- initialize / equip / unequip 进入 debug log；
+- 同 command sequence 从同 snapshot 得到同 digest；
+- 不改变无关 worldDay / rngState / cultivation / relations / location knowledge。
 
-- inventory stacks；
-- storage bag active id / 等价状态；
-- R13 pendingMaterials 清空结果。
+---
 
-旧 R05～R13 状态没有 `inventory` 仍然合法。
+# 十、必须测试
 
-`initialize-inventory` 与 `inventory-drop` 必须可 replay；相同命令序列得到相同 digest。
+至少覆盖：
+
+1. R05～R14 旧状态没有 equipment 仍合法；
+2. equipment bootstrap 只执行一次；
+3. bootstrap 不推进时间、不改 RNG；
+4. 四槽固定，不出现第五槽；
+5. 非装备物不能 equip；
+6. 不在 inventory 的物品不能 equip；
+7. 主武器只能进 main weapon；
+8. 护甲只能进 armor；
+9. 护心镜 / 镇灵玉只能进 protective；
+10. 流云靴 / 寻灵盘只能进 support；
+11. 同槽替换不会复制 / 删除 inventory 物品；
+12. unequip 不会新增 inventory 数量；
+13. 正在装备的最后一份物品不能丢弃；
+14. 装备两份同 id 时可以丢掉多余一份但至少保留 1；
+15. 小型储物袋不进入 EquipmentState；
+16. 柳叶双刃不进入首版 item definitions；
+17. grade formatter 正确输出阶 + 品；
+18. 未冻结装备具体品阶不会被自动猜值；
+19. save / reload 保持四槽；
+20. initialize / equip / unequip 可 replay；
+21. R05～R14 既有测试继续通过；
+22. UI 不出现强化 / 耐久 / 战力 / 推荐装备；
+23. `npm run typecheck` 通过；
+24. `npm test` 通过；
+25. `npm run build` 通过。
 
 ---
 
 # 十一、本轮禁止
 
-- 不做 R15 装备栏；
-- 不装备武器 / 护甲 / 护心镜；
-- 不使用丹药、符箓、雷火珠；
-- 不做商店购买 / 出售；
-- 不做拾取 UI 动画；
-- 不做怪物通用掉落；
-- 不让区域探索开始无限产材料；
-- 不做仓库 / 家族仓储；
-- 不做物品耐久；
+- 不做 R16 修炼系统；
+- 不做 R20 战斗系统；
+- 不执行装备战斗数值；
+- 不做装备强化；
+- 不做耐久；
 - 不做随机词条；
-- 不做强化 +1/+2；
-- 不做重量小数模拟；
-- 不做物品制作；
-- 不做第二种储物袋；
-- 不补 8～12 个正式随机子地点；
-- 不开始 R15；
-- 不接 LLM API。
+- 不做套装；
+- 不做锻造 / 重铸；
+- 不做商店；
+- 不新增掉落；
+- 不新增获取来源；
+- 不做丹药 / 符箓使用；
+- 不做武器技能；
+- 不做柳叶双刃；
+- 不给十件装备擅自编具体品阶；
+- 不接 LLM API；
+- 不回到 legacy `ActionPanel` 扩功能。
 
 ---
 
 # 十二、验收标准
 
-必须测试：
+1. 正式四槽 equipment 状态可保存 / replay；
+2. 玩家只能装备真实拥有的可装备物；
+3. 装备只是 inventory 引用，不形成第二库存；
+4. 替换 / 卸下不会复制物品；
+5. 丢弃不会制造悬空装备引用；
+6. 小型储物袋继续独立承担容量；
+7. “阶 + 品”结构和 formatter 正式存在；
+8. 没有冻结的具体装备品阶不被臆造；
+9. UI 能真实装备 / 卸下，不出现假功能；
+10. R14 背包与 R13 秘境不回归；
+11. `npm run typecheck` 通过；
+12. `npm test` 通过；
+13. `npm run build` 通过；
+14. 更新 `HANDOFF.md`；
+15. 完成后再把 `CURRENT_TASK.md` 切到下一轮。
 
-1. R05～R13 初始 / 旧状态没有 inventory 仍合法；
-2. `initialize-inventory` 只执行一次；
-3. bootstrap 不推进 worldDay、不改 rngState；
-4. R13 pending materials 全量迁入且不重复；
-5. 迁移成功后 pending claims 被清空；
-6. 非法 pending id 不静默丢失；
-7. 同物品正确堆叠；
-8. 超过 stackLimit 正确增加槽位；
-9. 容量满时 add 拒绝且 state 不变；
-10. remove / drop 数量正确；
-11. 丢到 0 后 stack 删除；
-12. 基础容量为 12；
-13. 小型储物袋有效容量为 24；
-14. 多个袋不叠加容量；
-15. 容量不足时不能丢掉正在提供容量的袋；
-16. 大型 item `slotCost > 1` 计算正确；
-17. save / reload 保留 InventoryState；
-18. initialize / drop 可以 replay；
-19. UI 不出现使用 / 装备 / 强化假按钮；
-20. `npm run typecheck`；
-21. `npm test`；
-22. `npm run build`。
-
----
-
-# 十三、允许修改
-
-- `src/types/*` 中 inventory / command / GameState 必要扩展；
-- `src/data/items/*` 或等价静态物品定义；
-- 新增 `inventoryEngine.ts` 与测试；
-- Session / persistence 最小接线；
-- R13 pendingMaterials 最小接管；
-- `InventoryPanel` 与必要样式；
-- `HANDOFF.md`（完成时）；
-- `CURRENT_TASK.md`（完成后切 R15）。
-
-不要借机重构 R05～R13 已稳定模块。
-
----
-
-# 十四、完成纪律
-
-本轮完成后：
-
-1. 确认 typecheck / test / build 全通过；
-2. 更新 `HANDOFF.md`；
-3. 把 `CURRENT_TASK.md` 切换到 **R15｜装备栏与品阶**；
-4. 立即停下，不顺手实现 R15。
+完成后立即停下，不得自行进入 R16。
