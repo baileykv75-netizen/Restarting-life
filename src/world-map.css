@@ -31,6 +31,12 @@
 .exploration-option { padding: 9px 12px; border: 1px solid rgba(181, 201, 188, .24); border-radius: 9px; background: rgba(181, 201, 188, .065); color: #ddd9cf; cursor: pointer; }
 .exploration-option:hover { border-color: rgba(181, 201, 188, .44); background: rgba(181, 201, 188, .1); }
 .region-surveyed-note { margin: 13px 0 0; color: #9da79f; font-size: .78rem; line-height: 1.55; }
+.sublocation-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(181, 201, 188, .1); }
+.sublocation-list { display: grid; gap: 8px; margin-top: 9px; }
+.sublocation-item { padding: 11px 12px; border: 1px solid rgba(181, 201, 188, .14); border-radius: 9px; background: rgba(0, 0, 0, .08); }
+.sublocation-item strong, .sublocation-item span { display: block; }
+.sublocation-item strong { color: #d7d2c7; font-size: .86rem; }
+.sublocation-item span { margin-top: 4px; color: #8e9992; font-size: .74rem; line-height: 1.5; }
 .travel-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(181, 201, 188, .1); }
 .travel-options { display: grid; gap: 9px; margin-top: 10px; }
 .travel-option { width: 100%; padding: 12px 13px; border: 1px solid rgba(181, 201, 188, .22); border-radius: 10px; background: rgba(181, 201, 188, .055); color: #dedad0; text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease; }
