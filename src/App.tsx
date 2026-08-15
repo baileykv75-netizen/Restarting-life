@@ -16,6 +16,7 @@ import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
 import type { PlayerAction, SessionCommand } from './types/command'
+import type { ExplorationDuration } from './types/exploration'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
 import { chooseBirthAndSave, clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
 import './experience-cleanup.css'
@@ -58,7 +59,7 @@ function App() {
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} />
+    stageContent = <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={(days: ExplorationDuration) => persistCommand({ type: 'explore-region', days })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
     stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   } else if (state.lifeStage === 'adult') {
