@@ -38,7 +38,14 @@ export interface GameState {
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
-  cultivation: { realm: Realm; stage: number }
+  cultivation: {
+    realm: Realm
+    stage: number
+    /** R16+ optional practice fields. Older schema-3 saves intentionally omit them. */
+    practiceInitialized?: true
+    knownTechniqueIds?: string[]
+    mainTechniqueId?: string | null
+  }
   world: { currentLocationId: string | null }
   knowledge: { locations: Record<string, LocationKnowledgeStatus> }
   tags: string[]
