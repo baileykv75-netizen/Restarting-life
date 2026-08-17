@@ -40,7 +40,10 @@ function hasGuidance(state: GameState): boolean { return state.flags['breakthrou
 function isInvestment(value: number): value is GoldenCoreSpiritStoneInvestment { return value === 0 || value === 200 || value === 400 }
 function getInvestmentModifier(value: GoldenCoreSpiritStoneInvestment): number { return value === 200 ? 10 : value === 400 ? 18 : 0 }
 function getEnvironment(state: GameState): { modifier: number; label: string; locationId: string; locationName: string } | null {
-  const locationId = state.world.currentLocationId; const location = locationId ? getWorldLocationById(locationId) : undefined; if (!location) return null
+  const locationId = state.world.currentLocationId
+  if (!locationId) return null
+  const location = getWorldLocationById(locationId)
+  if (!location) return null
   let density = location.qiDensity; let label = ENVIRONMENT_LABEL[density]
   if (location.id === 'qingyun_sect' && density === 'high' && state.identity.faction !== 'qingyun') { density = 'medium'; label = '宗门外围 · 灵气普通' }
   const blackwindPenalty = location.id === 'blackwind_mountain' ? -6 : 0
