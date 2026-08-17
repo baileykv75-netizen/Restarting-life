@@ -35,7 +35,7 @@ function adultState(seed = 'r21-health', locationId = 'qingxia_market'): GameSta
     world: { currentLocationId: locationId },
     knowledge: { locations: { [locationId]: 'discovered', qingstone_town: 'discovered', qingxia_market: 'discovered', blackwind_mountain: 'discovered' } },
     flags: { ...base.flags, location_knowledge_initialized: true },
-    identity: { ...base.identity, spiritRootId: 'metal-single', talentIds: [] },
+    identity: { ...base.identity, spiritRootId: 'single_metal', talentIds: [] },
     cultivation: {
       realm: 'qi',
       stage: 5,
@@ -232,18 +232,15 @@ describe('R21 injury, poison, and treatment loop', () => {
     expect(resolveRegionExploration(meridian, 1).applied).toBe(true)
   })
 
-  it('does not award exploration progress after poison kills the character during the action', () => {
-    let state = adultState('r21-explore-death', 'blackwind_mountain')
-    state = {
-      ...state,
-      poison: { conditions: { bishui_venom: { family: 'bishui_venom', severity: 'serious', appliedDay: 0, nextWorsenDay: 3 } } },
-    }
+  it('allows a mild poison exploration to finish exactly as the poison worsens to serious', () => {
+    const state = mildPoison(adultState('r21-explore-worsen', 'blackwind_mountain'))
     const result = resolveRegionExploration(state, 10)
     expect(result.applied).toBe(true)
-    expect(result.completed).toBe(false)
-    expect(result.state.status).toBe('dead')
-    expect(result.state.worldDay).toBe(3)
-    expect(result.state.exploration).toBeUndefined()
+    expect(result.completed).toBe(true)
+    expect(result.state.status).toBe('playing')
+    expect(result.state.worldDay).toBe(10)
+    expect(result.exploredDays).toBe(10)
+    expect(getActivePoison(result.state, 'bishui_venom')?.severity).toBe('serious')
   })
 
   it('allows poisoned travel toward safety but stops before arrival when the poison deadline is reached en route', () => {
