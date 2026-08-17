@@ -3904,3 +3904,354 @@ R20 不得再临时猜以下内容：
 - R13 临时战斗迁移方式。
 
 至此，HANDOFF 中“首版 10 件装备具体阶 + 品尚未冻结”的缺口正式关闭。
+
+---
+
+# 38. 伤势、中毒与治疗执行规则（C21 冻结）
+
+本节正式关闭 R21 开工前的伤势 / poison / treatment 数值缺口。第 14、17、18、35、37 节仍负责世界定位与既有来源；**凡涉及 light / severe / meridian 对行动的影响、poison 分级与 worldDay 恶化、止血散 / 清毒散 / 养脉丹精确效果，以及 R21 Combat penalty，均以本节为实现权威值。**
+
+## 38.1 保留 R18 injury 的唯一时间语义
+
+现有 injury runtime 继续只使用：
+
+```text
+light
+severe
+meridian
+```
+
+每条 injury 的 `startedDay / recoveryDay` 继续是权威恢复时间。C21 不新增第二套“累计静养天数”、永久残血条或伤势等级 1～100。
+
+安全休养只是主动推进 `worldDay`；药物通过缩短对应 injury 的 `recoveryDay` 生效。
+
+已有历史来源不改：
+
+- R20 普通 light：10 日；
+- R20 普通 severe：45 日；
+- 明确极端突破来源可已有 90 日 severe / meridian；
+- 旧 R18～R20 state / replay 不补写历史字段。
+
+## 38.2 light injury
+
+- 正常旅行：允许；
+- wilderness 系统探索：允许；
+- 普通修炼：继续现有 `×0.90`；
+- 大境界突破：不因 light 单独硬锁，但继续进入已有可见负面修正；
+- Combat：不新增 maxHP / maxQi / baseAttack penalty；
+- flee：继续 C20 `-5pp`；
+- 普通活动不会使 light 随机恶化；
+- 普通战斗来源仍以 10 日自然恢复为基准。
+
+light 的职责是“还能做事，但效率和战斗脱身略受影响”，不能变成换名字的 severe。
+
+## 38.3 severe injury
+
+- 正常节点旅行 / 去安全地点寻医：允许；
+- 新开启 wilderness 系统探索：禁止；
+- 新进入秘境 / 明确高风险探索：禁止；
+- 已经处于不可回头地点时，离开、泄压、返回安全处等必要退出动作必须允许，不能用伤势门禁把角色锁死；
+- 普通修炼：禁止；
+- 筑基 / 结丹：禁止；
+- Combat：可以被迫或主动迎战，但开战时 `maxHP ×0.70`，向下取整；baseAttack 不变；
+- flee：继续 C20 `-15pp`；
+- 普通安全旅行 / 休养不随机恶化；
+- 普通 R20 severe 继续 45 日，明确极端来源已有 90 日记录继续 90 日。
+
+若角色在 active severe 状态下再次经历战斗，并且该场战斗结束时再次满足第 37.14 节 severe 判定：
+
+```text
+现有 active severe recoveryDay 延后 15 日
+但从当前 worldDay 计算的剩余 severe 恢复时间最多不超过 90 日
+```
+
+不因此增加 `critical` 第四类伤势。
+
+severe 不会只因为日历流逝就随机暴毙；其危险来自较低 maxHP、行动限制、带伤再战与明确危险事件。
+
+## 38.4 meridian injury
+
+- 普通生活 / 节点旅行：允许；
+- wilderness 探索：meridian 本身不禁止；
+- 普通修炼：禁止；
+- 所有大境界突破：禁止；
+- Combat：开战时 `maxQi ×0.65`，向下取整；主动招式 Qi cost 不变；baseAttack 不变；
+- flee：继续 C20 `-10pp`；
+- 普通走路 / 旅行不会让经脉伤随机恶化；
+- recoveryDay 继续由实际来源决定，已有 45 / 90 日等记录均保持合法。
+
+meridian 的职责是限制“灵力体系”，而 severe 主要限制“肉身承伤与高风险行动”，两者不能只换一个名字。
+
+### 多状态组合
+
+- severe `maxHP ×0.70` 与 serious poison `maxHP ×0.85` 同时存在时，只取更强的 `×0.70`，不相乘成 `×0.595`；
+- meridian `maxQi ×0.65` 可以与 maxHP penalty 同时存在，因为影响不同资源；
+- light 与 mild poison 都给普通修炼 `×0.90` 时，只取最强单项健康修正，不叠成 `×0.81`；
+- 第 37.11 节 flee injury 合计最低仍只计到 `-20pp`，C21 不改 C20 逃跑公式。
+
+## 38.5 poison 最小 runtime
+
+首版只做两个毒性档位：
+
+```text
+mild → serious → death
+```
+
+不增加第三档、毒抗属性、毒性 1～100 或几十种毒药表。
+
+每个 active poison family 至少保存：
+
+```text
+poisonId / family
+severity
+appliedDay
+nextWorsenDay
+```
+
+字段名可按现有代码风格调整，以上语义不可改变。旧状态没有 poison 合法；optional poison runtime 只在真实中毒时 materialize。
+
+### 碧水蛇常见低阶毒
+
+canonical family：
+
+```text
+bishui_venom
+```
+
+首次成功施加：
+
+```text
+severity = mild
+appliedDay = current worldDay
+nextWorsenDay = current worldDay + 10
+```
+
+同 family 再次施加：
+
+- 当前 mild：立即升级为 serious，并把 `nextWorsenDay = current worldDay + 10`；
+- 当前 serious：不产生第三层，也**不刷新 / 延后已有死亡期限**。
+
+同一 poison family 不建立重复 stack。
+
+R21 只实现 generic poison runtime 与测试入口；第 18.4 节碧水蛇真正哪一招、以什么战斗判定施加 `bishui_venom`，在 R22 正式妖兽 combat data 中接入。
+
+## 38.6 poison 的 worldDay 恶化
+
+mild 到期：
+
+```text
+到 nextWorsenDay
+→ severity = serious
+→ nextWorsenDay += 10
+```
+
+serious 到期：
+
+```text
+到 nextWorsenDay
+→ 非战斗死亡
+```
+
+因此一次未经处理的 mild 碧水蛇毒，若没有再次中毒，最长约 20 日后真实死亡；同 family 再次中毒可能让角色提前进入 serious。
+
+所有恶化只由统一 `worldDay` 驱动。长行动一次跨越多个 milestone 时，必须按实际时间顺序结算。例如 mild 中毒后直接进行 30 日动作：
+
+```text
+第10日 mild → serious
+第20日 serious → death
+动作在第20日中止
+第21～30日不再发生，也不能领取对应奖励
+```
+
+死亡时 `worldDay` 应停在真正 poison death milestone，不写成原计划动作结束日。
+
+## 38.7 poison 对行动与 Combat 的影响
+
+### mild
+
+- 正常旅行：允许；
+- wilderness 系统探索：允许；
+- 普通修炼：健康修正 `×0.90`；
+- 筑基 / 结丹：禁止；
+- Combat：显示已中毒状态，不做每 beat DOT，不额外修改 maxHP / maxQi。
+
+### serious
+
+- 正常旅行去寻医：允许，但 worldDay 推进仍可能在途中触发死亡；
+- wilderness 系统探索 / 新秘境进入：禁止；
+- 普通修炼：禁止；
+- 筑基 / 结丹：禁止；
+- Combat：开战时 `maxHP ×0.85`，向下取整；
+- **不做每 beat poison DOT。**
+
+UI 必须明确显示距离下一次恶化 / 死亡还剩多少 worldDays。
+
+安全休养本身不会清毒，只会推进 `worldDay`；mild / serious 状态下选择 10 / 30 日调养前，必须明确提示可能在休养过程中恶化或死亡。
+
+## 38.8 三种治疗物的 canonical id 与共同规则
+
+R21 正式登记：
+
+```text
+zhixue_san   止血散
+qingdu_san   清毒散
+yangmai_dan  养脉丹
+```
+
+继续沿用第 14 节世界定位，不新增同质占位药。
+
+三种治疗物共同规则：
+
+- 使用真实 inventory stack；
+- 使用动作本身不推进 worldDay；
+- 只能在 active CombatState 之外使用；
+- 目标没有可治疗状态时拒绝且不消耗；
+- 对已知无效目标必须在消耗前拒绝，不允许先吃掉再提示没用。
+
+## 38.9 止血散
+
+对一个选定 active injury：
+
+```text
+light  → remaining recovery -7日
+severe → remaining recovery -5日
+```
+
+若缩短后 `recoveryDay <= current worldDay`，该条 injury 立即视为恢复。
+
+- 不治疗 meridian；
+- 不治疗 poison；
+- 每一条 injury record 最多从止血散获得一次恢复缩短；
+- 新产生的另一条 injury 可以再次使用新的止血散。
+
+止血散的职责是让普通外伤更快处理，并对 severe 提供有限辅助；它不是一包清空重伤的万能药。
+
+## 38.10 清毒散
+
+清毒散只处理 content 明确标记为 common low-grade 的 poison family。首版 `bishui_venom` 属于可处理对象。
+
+```text
+mild
+→ 消耗1包
+→ 立即清除 poison
+
+serious
+→ 消耗1包
+→ 降级为 mild
+→ nextWorsenDay = current worldDay +10
+```
+
+serious 被压回 mild 后，如果玩家再使用第 2 包清毒散，可以按 mild 规则立即清除。因此 serious 常见低阶毒可以真实消耗 2 包当场彻底解决；1 包只能先把危险压回 mild。
+
+未来未知 / 高阶 poison 没有明确 `common-low-grade / qingdu-treatable` 等价内容标记时，清毒散不可使用并且不消耗。
+
+## 38.11 养脉丹
+
+对一个选定 active meridian injury：
+
+```text
+remaining recovery -30日
+```
+
+若缩短后到期，该条 meridian injury 立即恢复。
+
+- 不治疗 light；
+- 不治疗 severe；
+- 不治疗 poison；
+- severe + meridian 同时存在时只处理 meridian，severe 原样保留；
+- 每条 meridian injury record 最多从养脉丹获得一次 30 日缩短。
+
+典型结果：
+
+```text
+45日普通经脉伤 → 服药后剩15日
+90日极端经脉伤 → 服药后剩60日
+```
+
+一枚一阶中品养脉丹不能把严重经脉 / 丹田损伤瞬间清空；未来若存在明确永久伤害，也不能靠该药自动修复。
+
+## 38.12 治疗渠道
+
+R21 只实现两种已经有真实承载的渠道：
+
+1. 自己使用现有真实药物；
+2. 既有 10 / 30 日 `recuperate-days` 安全休养。
+
+安全休养只按 worldDay 自然推进已有 recoveryDay，不额外赠送 ×2 恢复速度。
+
+医者 / 青云宗 / 家族治疗只保留 authoritative resolver / content hook。实际谁能治疗、价格、地点、关系与权限，等后续 NPC / 宗门内容轮提供真实渠道；R21 不伪造免费医生、医院菜单或宗门医疗部门。
+
+## 38.13 非战斗死亡与伤势恶化边界
+
+继续保持：
+
+```text
+Combat HP = 0 → 立即死亡
+```
+
+R21 新增的通用非战斗死亡只有：
+
+```text
+serious poison 到达 death milestone → 死亡
+```
+
+severe 本身不会因为日历自然流逝而随机暴毙。其实际代价来自：
+
+- Combat maxHP 降低；
+- wilderness / 修炼 / 突破限制；
+- 带 severe 再战更容易真实 HP=0；
+- 再次达到 severe 战斗结果会延长恢复；
+- 未来某个明确事件若在选择前说明“带重伤继续执行可能致死”，才按该事件自己的规则处理。
+
+R21 不做“每走一天重伤随机死亡”。
+
+poison 死亡记录只写真实因果，例如：
+
+> 碧水蛇毒始终没有处理。十日后毒性明显加重，又过十日，最终毒发身亡。
+
+不写宿命式升华。
+
+## 38.14 R21 / R22 实现边界
+
+### R21 负责
+
+```text
+light / severe / meridian 行动门禁
+→ optional poison runtime
+→ worldDay poison milestone
+→ 止血散 / 清毒散 / 养脉丹
+→ Combat injury / poison penalty
+→ UI
+→ Session / save / replay
+```
+
+### R22 才负责
+
+- 8 种妖兽正式 combat data 全量；
+- 碧水蛇正式攻击如何施加 `bishui_venom`；
+- 妖兽真实掉落；
+- 毒囊 / 妖丹 / 精血来源；
+- 普通妖兽刷新；
+- named / unique 个体死亡状态；
+- 生态变化。
+
+R21 可以用 generic resolver / 测试 action 验证 `bishui_venom`，但不得为了展示 poison 提前把碧水蛇做成正式野外敌人。
+
+## 38.15 C21 冻结结论
+
+R21 不得再临时猜：
+
+- light / severe / meridian 分别阻止哪些行动；
+- severe 的 Combat maxHP penalty；
+- meridian 的 Combat maxQi penalty；
+- mild / serious poison 的层级；
+- 碧水蛇常见毒的 canonical family；
+- poison 的 10 日 / 10 日恶化节奏；
+- serious poison 的非战斗死亡边界；
+- 止血散的 7 日 / 5 日恢复缩短；
+- 清毒散对 mild / serious 的精确处理；
+- 养脉丹的 30 日恢复缩短；
+- 多状态叠加方式；
+- poison 是否做 combat beat DOT。
+
+至此，R21 可以直接进入实现，不再需要由 Codex 临时编治疗数值。
