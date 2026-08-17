@@ -122,6 +122,7 @@ export function resolveMainTechniqueSelection(state: GameState, techniqueId: str
   if (!techniqueSupportsRealm(cultivationTechnique, state.cultivation.realm)) return r16Rejected(state, 'MAIN_TECHNIQUE_REALM_UNSUPPORTED')
   if (!(state.cultivation.knownTechniqueIds ?? []).includes(techniqueId)) return r16Rejected(state, 'TECHNIQUE_NOT_KNOWN')
   if (state.cultivation.mainTechniqueId === techniqueId) return r16Rejected(state, 'MAIN_TECHNIQUE_UNCHANGED')
+  if (techniqueId === 'yinsui_ningcha') return r16Rejected(state, 'YINSUI_ENTRY_REQUIRES_ADAPTATION')
   if (state.cultivation.techniqueSystemInitialized && state.cultivation.mainTechniqueId) return r16Rejected(state, 'MAIN_TECHNIQUE_CHANGE_REQUIRES_ADAPTATION')
   return { state: { ...state, cultivation: { ...state.cultivation, mainTechniqueId: techniqueId } }, applied: true, completed: true, gainApplied: 0, enteredQi: false }
 }

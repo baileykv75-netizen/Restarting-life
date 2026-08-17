@@ -11,6 +11,7 @@ import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
 import { FoundationBreakthroughPanel } from './components/FoundationBreakthroughPanel'
 import { GameStatusBar } from './components/GameStatusBar'
+import { GoldenCoreBreakthroughPanel } from './components/GoldenCoreBreakthroughPanel'
 import { InventoryPanel } from './components/InventoryPanel'
 import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
 import { SecretRealmPanel } from './components/SecretRealmPanel'
@@ -186,13 +187,12 @@ function App() {
       {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
       <FoundationBreakthroughPanel
         state={state}
-        onAttempt={(options) => persistCommand({
-          type: 'attempt-foundation-breakthrough',
-          usePozhangDan: options.usePozhangDan,
-          useNingjiDan: options.useNingjiDan,
-          spiritStoneInvestment: options.spiritStoneInvestment,
-        })}
+        onAttempt={(options) => persistCommand({ type: 'attempt-foundation-breakthrough', usePozhangDan: options.usePozhangDan, useNingjiDan: options.useNingjiDan, spiritStoneInvestment: options.spiritStoneInvestment })}
         onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })}
+      />
+      <GoldenCoreBreakthroughPanel
+        state={state}
+        onAttempt={(options) => persistCommand({ type: 'attempt-golden-core-breakthrough', route: options.route, useBaoyuanDan: options.useBaoyuanDan, useCenturySpiritGinsengForRecovery: options.useCenturySpiritGinsengForRecovery, spiritStoneInvestment: options.spiritStoneInvestment })}
       />
     </>
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
@@ -205,6 +205,6 @@ function App() {
     stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
   }
 
-  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
+  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} onUseLifespanItem={(itemId) => persistCommand({ type: 'use-lifespan-item', itemId })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
 }
 export default App

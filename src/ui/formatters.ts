@@ -1,13 +1,8 @@
 import type { GameState } from '../types/game'
-import { getRemainingLifespanDays } from '../core/lifespanEngine'
+import { getLifespanBreakdown, getRemainingLifespanDays } from '../core/lifespanEngine'
 import { formatDuration, getAgeParts, getSeason } from '../core/timeEngine'
 
-const SEASON_LABELS = {
-  spring: '春',
-  summer: '夏',
-  autumn: '秋',
-  winter: '冬',
-} as const
+const SEASON_LABELS = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' } as const
 
 export function formatAge(worldDay: number, birthDay = 0): string {
   const age = getAgeParts(birthDay, worldDay)
@@ -24,9 +19,7 @@ export function formatLifeMoment(worldDay: number, birthDay = 0): string {
 export function formatLifeSpan(startDay: number, endDay: number, birthDay = 0): string {
   const startAge = getAgeParts(birthDay, startDay)
   const endAge = getAgeParts(birthDay, endDay)
-  if (startAge.years !== endAge.years) {
-    return `${startAge.years}岁至${endAge.years}岁`
-  }
+  if (startAge.years !== endAge.years) return `${startAge.years}岁至${endAge.years}岁`
   return formatLifeMoment(endDay, birthDay)
 }
 
@@ -34,7 +27,7 @@ export function formatRealm(state: GameState): string {
   if (state.cultivation.realm === 'mortal') return '凡人'
   if (state.cultivation.realm === 'qi') return `炼气${state.cultivation.stage}层`
   if (state.cultivation.realm === 'golden_core') return '金丹'
-  const stage = state.cultivation.stage === 1 ? '前期' : state.cultivation.stage === 2 ? '中期' : '后期'
+  const stage = state.cultivation.stage === 1 ? '前期' : state.cultivation.stage === 2 ? '中期' : state.cultivation.stage === 3 ? '后期' : '圆满'
   return `筑基${stage}`
 }
 
@@ -45,7 +38,18 @@ export function formatFaction(state: GameState): string {
 }
 
 export function formatRemainingLifespan(state: GameState): string {
-  const remaining = getRemainingLifespanDays(state)
-  if (remaining === null) return '已越凡寿'
-  return `约${formatDuration(remaining)}`
+  return `约${formatDuration(getRemainingLifespanDays(state))}`
+}
+
+export function formatLifespanStatus(state: GameState): string {
+  const age = getAgeParts(state.identity.birthDay, state.worldDay)
+  return `${age.years} / ${getLifespanBreakdown(state).effectiveYears} 岁`
+}
+
+export function formatLifespanDetail(state: GameState): string {
+  const breakdown = getLifespanBreakdown(state)
+  const parts = [`基础${breakdown.baseYears}`]
+  if (breakdown.bonusYears > 0) parts.push(`延寿+${breakdown.bonusYears}`)
+  if (breakdown.penaltyYears > 0) parts.push(`永久代价-${breakdown.penaltyYears}`)
+  return parts.join(' · ')
 }
