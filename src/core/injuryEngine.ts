@@ -94,7 +94,7 @@ export function resolveRecuperateDays(state: GameState, days: number): InjuryMut
   if (!isRecuperationDuration(days)) return { state, applied: false, completed: false, reason: 'INVALID_RECUPERATION_DURATION' }
   if (state.secretRealm?.sunkenVeinChamber.active) return { state, applied: false, completed: false, reason: 'SECRET_REALM_ACTIVE' }
   if (state.events.currentEventId !== null) return { state, applied: false, completed: false, reason: 'EVENT_PENDING' }
-  if (getActiveInjuries(state).length === 0 && !hasActivePoison(state)) return { state, applied: false, completed: false, reason: 'NO_ACTIVE_HEALTH_CONDITION' }
+  if (getActiveInjuries(state).length === 0 && !hasActivePoison(state)) return { state, applied: false, completed: false, reason: 'NO_ACTIVE_INJURY' }
 
   const advanced = advanceWorldTime(state, days).state
   if (advanced.status !== 'playing') return { state: advanced, applied: true, completed: false }
