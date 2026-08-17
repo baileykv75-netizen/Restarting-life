@@ -6,6 +6,7 @@ export interface InjuryCondition {
   sourceId: string
   startedDay: number
   recoveryDay: number
+  treatmentKeys?: string[]
 }
 
 export interface InjuryState {

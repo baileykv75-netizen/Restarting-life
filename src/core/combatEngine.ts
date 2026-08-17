@@ -5,7 +5,8 @@ import type { CombatAction, CombatOpponentId, CombatSource, CombatState, CombatS
 import type { GameState, Realm } from '../types/game'
 import { getEquippedItemId, resolveEquipItem } from './equipmentEngine'
 import { getInventoryQuantity, removeItem } from './inventoryEngine'
-import { addInjuries, getActiveInjuries } from './injuryEngine'
+import { addInjuries, addOrExtendCombatSevereInjury, getActiveInjuries, hasActiveInjury } from './injuryEngine'
+import { hasSeriousPoison } from './poisonEngine'
 import { nextRandom, seedToState } from './rng'
 import { isTechniqueMoveUnlocked } from './techniqueEngine'
 
@@ -284,7 +285,7 @@ function withoutCombat(state: GameState): GameState {
 function applyPostCombatInjury(state: GameState, combat: CombatState): GameState {
   const hpRatio = combat.player.currentHP / combat.player.maxHP
   if (hpRatio <= 0.1 || combat.maxPlayerHitTaken >= combat.player.maxHP * 0.35) {
-    return addInjuries(state, combat.battleId, [{ kind: 'severe', recoveryDays: 45 }])
+    return addOrExtendCombatSevereInjury(state, combat.battleId)
   }
   if (hpRatio <= 0.3 || combat.maxPlayerHitTaken >= combat.player.maxHP * 0.25) {
     return addInjuries(state, combat.battleId, [{ kind: 'light', recoveryDays: 10 }])
@@ -531,6 +532,10 @@ export function resolveCombatStart(state: GameState, opponentId: CombatOpponentI
   if (prerequisite) return rejected(state, prerequisite)
   const opponent = COMBAT_OPPONENTS[opponentId]
   const playerStats = getPlayerCombatStats(state.cultivation.realm, state.cultivation.stage)
+  const hpMultiplier = hasActiveInjury(state, 'severe') ? 0.7 : hasSeriousPoison(state) ? 0.85 : 1
+  const qiMultiplier = hasActiveInjury(state, 'meridian') ? 0.65 : 1
+  const playerMaxHP = Math.max(1, Math.floor(playerStats.maxHP * hpMultiplier))
+  const playerMaxQi = Math.max(0, Math.floor(playerStats.maxQi * qiMultiplier))
   const mainRoll = nextRandom(state.rngState)
   const combatSeed = seedToState(`${state.runSeed}:r20-combat:${mainRoll.nextState}:${source}:${opponentId}`)
   let combat: CombatState = {
@@ -540,7 +545,7 @@ export function resolveCombatStart(state: GameState, opponentId: CombatOpponentI
     locationId: state.world.currentLocationId,
     beat: 1,
     rngState: combatSeed,
-    player: { currentHP: playerStats.maxHP, maxHP: playerStats.maxHP, currentQi: playerStats.maxQi, maxQi: playerStats.maxQi, baseAttack: playerStats.baseAttack, nextBasicAttackBeat: 1, statuses: {} },
+    player: { currentHP: playerMaxHP, maxHP: playerMaxHP, currentQi: playerMaxQi, maxQi: playerMaxQi, baseAttack: playerStats.baseAttack, nextBasicAttackBeat: 1, statuses: {} },
     opponent: { currentHP: opponent.maxHP, maxHP: opponent.maxHP, currentQi: opponent.maxQi, maxQi: opponent.maxQi, baseAttack: opponent.baseAttack, nextBasicAttackBeat: 1, statuses: {} },
     configuredMoveKeys: getConfiguredMoveKeys(state),
     moveReadyBeat: {},

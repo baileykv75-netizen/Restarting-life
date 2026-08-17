@@ -1,6 +1,7 @@
 import type { EquipmentSlot } from './equipment'
 import type { ExplorationDuration } from './exploration'
 import type { GameAction } from './gameAction'
+import type { PoisonFamily } from './poison'
 import type { SecretRealmAction } from './secretRealm'
 
 export type PlayerAction = 'cultivate' | 'explore' | 'livelihood' | 'breakthrough'
@@ -30,6 +31,8 @@ export type SessionCommand =
   | { type: 'use-lifespan-item'; itemId: string }
   | { type: 'attempt-golden-core-breakthrough'; route: 'standard' | 'evil'; useBaoyuanDan: boolean; useCenturySpiritGinsengForRecovery: boolean; spiritStoneInvestment: 0 | 200 | 400 }
   | { type: 'recuperate-days'; days: 10 | 30 }
+  | { type: 'apply-poison-condition'; family: PoisonFamily }
+  | { type: 'use-treatment-item'; itemId: string; injuryId?: string }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }
   | { type: 'explore-region'; days: ExplorationDuration }

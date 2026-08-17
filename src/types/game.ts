@@ -7,6 +7,7 @@ import type { ExplorationState } from './exploration'
 import type { InjuryState } from './injury'
 import type { InventoryState } from './inventory'
 import type { LifespanState } from './lifespan'
+import type { PoisonState } from './poison'
 import type { SecretRealmState } from './secretRealm'
 import type { SublocationState } from './sublocation'
 
@@ -48,6 +49,8 @@ export interface GameState {
   lifespan?: LifespanState
   /** Optional for R05-R19 compatibility; exists only while a formal R20 battle is active. */
   combat?: CombatState
+  /** Optional for R05-R20 compatibility; materialized only when a real poison condition is applied. */
+  poison?: PoisonState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }

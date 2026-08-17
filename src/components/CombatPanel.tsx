@@ -1,4 +1,5 @@
 import { getItemDefinition } from '../data/items'
+import { getPoisonDefinition } from '../data/poisons'
 import {
   getAvailableCombatItems,
   getCombatMoveViews,
@@ -8,6 +9,7 @@ import {
   getPlayerFleePreview,
 } from '../core/combatEngine'
 import { getEquippedItemId } from '../core/equipmentEngine'
+import { getActivePoisonConditions } from '../core/poisonEngine'
 import type { CombatAction } from '../types/combat'
 import type { GameState } from '../types/game'
 
@@ -29,7 +31,8 @@ export function CombatPanel({ state, onAction }: CombatPanelProps) {
   const flee = getPlayerFleePreview(state)
   const weaponId = getEquippedItemId(state, 'main-weapon')
   const weaponName = weaponId ? (getItemDefinition(weaponId)?.name ?? weaponId) : '未持法器'
-  const playerStatuses = getCombatStatusLabels(combat.player, combat.beat)
+  const poisonLabels = getActivePoisonConditions(state).map((poison) => `${getPoisonDefinition(poison.family).name}·${poison.severity === 'mild' ? '轻度' : '严重'}`)
+  const playerStatuses = [...getCombatStatusLabels(combat.player, combat.beat), ...poisonLabels]
   const opponentStatuses = getCombatStatusLabels(combat.opponent, combat.beat)
   const backupWeapons = Object.values(state.inventory?.stacks ?? {})
     .filter((stack) => stack.quantity > 0 && getItemDefinition(stack.itemId)?.equipmentSlot === 'main-weapon' && stack.itemId !== weaponId)

@@ -8,6 +8,7 @@ import {
 } from '../core/goldenCoreBreakthroughEngine'
 import { getActiveInjuries } from '../core/injuryEngine'
 import { getEffectiveMaxLifespanYears, getRemainingLifespanDays } from '../core/lifespanEngine'
+import { hasActivePoison } from '../core/poisonEngine'
 import type { GameState } from '../types/game'
 
 interface GoldenCoreBreakthroughPanelProps { state: GameState; onAttempt: (options: GoldenCoreBreakthroughOptions) => void }
@@ -25,6 +26,7 @@ export function GoldenCoreBreakthroughPanel({ state, onAttempt }: GoldenCoreBrea
   const preview = calculateGoldenCoreBreakthroughPreview(state, options)
   const remainingDays = getRemainingLifespanDays(state)
   const activeInjuries = getActiveInjuries(state)
+  const poisoned = hasActivePoison(state)
   const resourceBlocked = preview ? spiritStoneInvestment > state.resources.spiritStones
     || (options.useBaoyuanDan && !preview.ownsBaoyuanDan)
     || (useCenturySpiritGinsengForRecovery && !preview.ownsCenturySpiritGinseng)
@@ -41,6 +43,7 @@ export function GoldenCoreBreakthroughPanel({ state, onAttempt }: GoldenCoreBrea
       </div>
 
       {activeInjuries.length > 0 && <p className="foundation-block">当前伤势：{activeInjuries.map((injury) => injury.kind === 'light' ? '轻伤' : injury.kind === 'severe' ? '重伤' : '经脉伤').join('、')}。重伤或经脉伤会阻止结丹；轻伤会降低成功率。</p>}
+      {poisoned && <p className="foundation-block">当前中毒尚未清除，不能开始结丹。</p>}
       {remainingDays <= 60 && <p className="foundation-block">按当前寿元，你无法完整撑过接下来的 60 日。准备资源仍会在闭关开始时消耗，寿终后不会进行成功判定。</p>}
 
       {yinsui && <div className="foundation-stones"><p className="subsection-title">结丹路线</p><div className="foundation-inline-actions">
@@ -64,7 +67,7 @@ export function GoldenCoreBreakthroughPanel({ state, onAttempt }: GoldenCoreBrea
       </div></div>}
 
       <div className="foundation-risk"><p className="subsection-title">失败风险</p><p>失败会退回筑基前期至后期并留下 90～540 日量级伤势；极端失败内部 60% 直接死亡。百年灵参只把失败后的恢复期缩短至原来的 75%。</p></div>
-      {!preview && <p className="foundation-block">当前主修、伤势或地点尚不满足正式结丹条件。这里不会自动发放传承、丹药或闭关地点。</p>}
+      {!preview && <p className="foundation-block">当前主修、伤势、中毒或地点尚不满足正式结丹条件。这里不会自动发放传承、丹药或闭关地点。</p>}
       <button className="primary-button foundation-attempt" disabled={!preview || resourceBlocked} onClick={() => onAttempt(options)} type="button">尝试结丹｜60 日｜{preview ? `${preview.successPercent}%` : '不可尝试'}</button>
       {resourceBlocked && preview && <p className="foundation-footnote">所选准备里存在未持有的物品或灵石不足，资源齐全后才能开始。</p>}
     </section>

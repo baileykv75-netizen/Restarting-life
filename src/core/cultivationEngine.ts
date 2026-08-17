@@ -12,6 +12,7 @@ import type { GameState, Realm } from '../types/game'
 import type { ResolvedOutcome } from '../types/persistence'
 import type { QiDensity } from '../types/world'
 import { hasActiveLightInjury, hasBlockingCultivationInjury } from './injuryEngine'
+import { hasActivePoison, hasMildPoison, hasSeriousPoison } from './poisonEngine'
 import {
   addTechniqueProficiency,
   calculateTechniqueProficiencyGain,
@@ -71,6 +72,9 @@ export function performBasicCultivation(state: GameState): CultivationResult {
   if (state.cultivation.realm === 'golden_core') return { state, applied: false, reason: 'REALM_COMPLETE' }
   const gain = calculateCultivationGain(state)
   const advanced = advanceWorldTime(state, BASIC_CULTIVATION_DAYS).state
+  if (hasActivePoison(state) && advanced.status !== 'playing') {
+    return { state: advanced, applied: true, gain: 0, elapsedDays: advanced.worldDay - state.worldDay }
+  }
   const withGain: GameState = { ...advanced, resources: { ...advanced.resources, cultivation: advanced.resources.cultivation + gain } }
   const progressed = applyAutomaticStageProgression(withGain)
   return { state: progressed, applied: true, gain, elapsedDays: BASIC_CULTIVATION_DAYS }
@@ -150,15 +154,15 @@ export function calculateCultivationPreview(state: GameState, techniqueId: strin
   if (!technique || !root || !environment || !techniqueSupportsRealm(technique, state.cultivation.realm)) return null
   const affinityMultiplier = getAffinityMultiplier(state, technique)
   const traits = getTraitMultiplier(state, technique, days)
-  const injuryMultiplier = hasActiveLightInjury(state) ? 0.9 : 1
+  const healthMultiplier = hasActiveLightInjury(state) || hasMildPoison(state) ? 0.9 : 1
   const realmMultiplier = state.cultivation.realm === 'foundation' ? REALM_CULTIVATION_FACTOR.foundation : 1
-  const injuryFactors: CultivationFactor[] = injuryMultiplier < 1 ? [{ label: '轻伤影响', multiplier: injuryMultiplier }] : []
+  const healthFactors: CultivationFactor[] = healthMultiplier < 1 ? [{ label: hasActiveLightInjury(state) && hasMildPoison(state) ? '轻伤与轻度中毒影响' : hasActiveLightInjury(state) ? '轻伤影响' : '轻度中毒影响', multiplier: healthMultiplier }] : []
   const realmFactors: CultivationFactor[] = state.cultivation.realm === 'foundation' ? [{ label: '筑基阶段积累', multiplier: realmMultiplier }] : []
-  const gain = Math.floor(days * BASE_CULTIVATION_POINTS_PER_DAY * root.cultivationMultiplier * technique.baseEfficiency * affinityMultiplier * environment.multiplier * traits.multiplier * injuryMultiplier * realmMultiplier)
+  const gain = Math.floor(days * BASE_CULTIVATION_POINTS_PER_DAY * root.cultivationMultiplier * technique.baseEfficiency * affinityMultiplier * environment.multiplier * traits.multiplier * healthMultiplier * realmMultiplier)
   return { days, gain, technique, environmentLabel: environment.label, factors: [
     { label: root.name, multiplier: root.cultivationMultiplier }, { label: technique.name, multiplier: technique.baseEfficiency },
     { label: technique.universal ? '通用功法' : affinityMultiplier > 1 ? '灵根契合' : '灵根不契合', multiplier: affinityMultiplier },
-    { label: environment.label, multiplier: environment.multiplier }, ...realmFactors, ...traits.factors, ...injuryFactors,
+    { label: environment.label, multiplier: environment.multiplier }, ...realmFactors, ...traits.factors, ...healthFactors,
   ] }
 }
 
@@ -201,6 +205,7 @@ export function resolveCultivateDays(state: GameState, days: number): R16Cultiva
   if (state.secretRealm?.sunkenVeinChamber.active) return r16Rejected(state, 'SECRET_REALM_ACTIVE')
   if (state.events.currentEventId !== null) return r16Rejected(state, 'EVENT_PENDING')
   if (hasBlockingCultivationInjury(state)) return r16Rejected(state, 'INJURY_BLOCKS_CULTIVATION')
+  if (hasSeriousPoison(state)) return r16Rejected(state, 'SERIOUS_POISON_BLOCKS_CULTIVATION')
   if (state.cultivation.realm === 'golden_core') return r16Rejected(state, 'REALM_COMPLETE')
   if (isQiNineComplete(state)) return r16Rejected(state, 'QI_NINE_COMPLETE')
   if (isFoundationComplete(state)) return r16Rejected(state, 'FOUNDATION_COMPLETE')

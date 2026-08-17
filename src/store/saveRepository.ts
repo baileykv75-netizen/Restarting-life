@@ -46,11 +46,12 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const injuries = session.state.injuries
   const lifespan = session.state.lifespan
   const combat = session.state.combat
+  const poison = session.state.poison
   const knownTechniqueIds = session.state.cultivation.knownTechniqueIds
   const auxiliaryTechniqueIds = session.state.cultivation.auxiliaryTechniqueIds
   const techniquePractice = session.state.cultivation.techniquePractice
   const hasCultivationRuntime = Boolean(knownTechniqueIds || auxiliaryTechniqueIds || techniquePractice)
-  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !injuries && !lifespan && !combat && !hasCultivationRuntime) return persistent
+  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !injuries && !lifespan && !combat && !poison && !hasCultivationRuntime) return persistent
   return {
     ...persistent,
     currentSession: {
@@ -62,8 +63,9 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
         ...(secretRealm ? { secretRealm: { sunkenVeinChamber: { ...secretRealm.sunkenVeinChamber, nodeClaims: { ...secretRealm.sunkenVeinChamber.nodeClaims }, knowledge: { ...secretRealm.sunkenVeinChamber.knowledge }, pendingMaterials: { ...secretRealm.sunkenVeinChamber.pendingMaterials }, rewards: { ...secretRealm.sunkenVeinChamber.rewards, herbBed: { ...secretRealm.sunkenVeinChamber.rewards.herbBed }, sideRoom: { ...secretRealm.sunkenVeinChamber.rewards.sideRoom }, core: { ...secretRealm.sunkenVeinChamber.rewards.core } } } } } : {}),
         ...(inventory ? { inventory: { ...inventory, stacks: Object.fromEntries(Object.entries(inventory.stacks).map(([id, stack]) => [id, { ...stack }])) } } : {}),
         ...(equipment ? { equipment: { ...equipment } } : {}),
-        ...(injuries ? { injuries: { conditions: injuries.conditions.map((condition) => ({ ...condition })) } } : {}),
+        ...(injuries ? { injuries: { conditions: injuries.conditions.map((condition) => ({ ...condition, ...(condition.treatmentKeys ? { treatmentKeys: [...condition.treatmentKeys] } : {}) })) } } : {}),
         ...(lifespan ? { lifespan: { appliedEffectKeys: [...lifespan.appliedEffectKeys], permanentPenaltyKeys: [...lifespan.permanentPenaltyKeys] } } : {}),
+        ...(poison ? { poison: { conditions: Object.fromEntries(Object.entries(poison.conditions).map(([family, condition]) => [family, { ...condition }])) } } : {}),
         ...(combat ? { combat: {
           ...combat,
           player: { ...combat.player, statuses: { ...combat.player.statuses } },

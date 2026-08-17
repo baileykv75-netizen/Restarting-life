@@ -26,6 +26,7 @@ const BLOCK_REASON: Readonly<Record<string, string>> = {
   MAIN_TECHNIQUE_NOT_KNOWN: '当前主修不在已掌握功法中。',
   MAIN_TECHNIQUE_CANNOT_FOUNDATION: '当前掌握的主修内容还不足以支撑筑基。',
   INJURY_BLOCKS_FOUNDATION: '当前重伤或经脉伤尚未恢复，不能冲击筑基。',
+  POISON_BLOCKS_FOUNDATION: '当前中毒尚未清除，不能冲击筑基。',
   SECRET_REALM_ACTIVE: '秘境深入期间不能开始十四日筑基闭关。',
   EVENT_PENDING: '当前还有必须先处理的事件。',
   FOUNDATION_LOCATION_INVALID: '当前位置不能确认连续十四日的闭关条件。',
@@ -108,21 +109,11 @@ export function FoundationBreakthroughPanel({ state, onAttempt, onRecuperate }: 
 
           <div className="foundation-preparation-grid">
             <label className={`foundation-prep ${preview.ownsPozhangDan ? '' : 'unavailable'}`}>
-              <input
-                checked={usePozhangDan}
-                disabled={!preview.ownsPozhangDan}
-                onChange={(event) => setUsePozhangDan(event.target.checked)}
-                type="checkbox"
-              />
+              <input checked={usePozhangDan} disabled={!preview.ownsPozhangDan} onChange={(event) => setUsePozhangDan(event.target.checked)} type="checkbox" />
               <span><strong>破障丹</strong><small>{preview.ownsPozhangDan ? '使用 1 枚 · 成功率 +12%' : '背包中没有'}</small></span>
             </label>
             <label className={`foundation-prep ${preview.ownsNingjiDan ? '' : 'unavailable'}`}>
-              <input
-                checked={useNingjiDan}
-                disabled={!preview.ownsNingjiDan}
-                onChange={(event) => setUseNingjiDan(event.target.checked)}
-                type="checkbox"
-              />
+              <input checked={useNingjiDan} disabled={!preview.ownsNingjiDan} onChange={(event) => setUseNingjiDan(event.target.checked)} type="checkbox" />
               <span><strong>凝基丹</strong><small>{preview.ownsNingjiDan ? '使用 1 枚 · 成功率 +20%' : '背包中没有'}</small></span>
             </label>
           </div>
@@ -131,15 +122,8 @@ export function FoundationBreakthroughPanel({ state, onAttempt, onRecuperate }: 
             <p className="subsection-title">聚灵投入 · 当前 {preview.spiritStones} 枚下品灵石</p>
             <div className="foundation-inline-actions">
               {([0, 30, 60] as const).map((amount) => (
-                <button
-                  className={`secondary-button ${spiritStoneInvestment === amount ? 'selected' : ''}`}
-                  disabled={state.resources.spiritStones < amount}
-                  key={amount}
-                  onClick={() => setSpiritStoneInvestment(amount)}
-                  type="button"
-                >
-                  {amount === 0 ? '不投入' : `${amount} 枚`}
-                  <span>{amount === 0 ? '+0%' : amount === 30 ? '+8%' : '+14%'}</span>
+                <button className={`secondary-button ${spiritStoneInvestment === amount ? 'selected' : ''}`} disabled={state.resources.spiritStones < amount} key={amount} onClick={() => setSpiritStoneInvestment(amount)} type="button">
+                  {amount === 0 ? '不投入' : `${amount} 枚`}<span>{amount === 0 ? '+0%' : amount === 30 ? '+8%' : '+14%'}</span>
                 </button>
               ))}
             </div>
@@ -152,14 +136,7 @@ export function FoundationBreakthroughPanel({ state, onAttempt, onRecuperate }: 
           </div>
 
           {preview.blockReason && <p className="foundation-block">{BLOCK_REASON[preview.blockReason] ?? preview.blockReason}</p>}
-          <button
-            className="primary-button foundation-attempt"
-            disabled={!preview.canAttempt}
-            onClick={() => onAttempt(options)}
-            type="button"
-          >
-            开始筑基 · 14 日 · 成功率 {preview.successPercent}%
-          </button>
+          <button className="primary-button foundation-attempt" disabled={!preview.canAttempt} onClick={() => onAttempt(options)} type="button">开始筑基 · 14 日 · 成功率 {preview.successPercent}%</button>
           <p className="foundation-footnote">确认后，本次选择的丹药与灵石会立即投入。成功与失败都会消耗已经使用的准备资源。</p>
         </div>
       )}

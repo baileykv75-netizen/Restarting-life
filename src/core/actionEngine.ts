@@ -45,16 +45,17 @@ function drawAfterDuration(
     ...state,
     rngState: resolved.rngState,
   }
-  const progressed = advanceWorldTime(withResolvedRng, resolved.days).state
+  const advanced = advanceWorldTime(withResolvedRng, resolved.days)
+  const progressed = advanced.state
 
   if (progressed.status !== 'playing') {
-    return { state: progressed, applied: true, elapsedDays: resolved.days }
+    return { state: progressed, applied: true, elapsedDays: advanced.elapsedDays }
   }
 
   return {
     state: drawEvent(progressed, events, category).state,
     applied: true,
-    elapsedDays: resolved.days,
+    elapsedDays: advanced.elapsedDays,
   }
 }
 

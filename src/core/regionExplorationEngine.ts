@@ -4,7 +4,9 @@ import type { GameState } from '../types/game'
 import type { SublocationRuntime } from '../types/sublocation'
 import type { WorldDanger } from '../types/world'
 import { applyGameAction } from './gameActionReducer'
+import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
+import { hasSeriousPoison } from './poisonEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
 
 export const EXPLORATION_DURATIONS: readonly ExplorationDuration[] = [1, 3, 10]
@@ -117,6 +119,12 @@ export function resolveRegionExploration(state: GameState, days: number): Region
   if (state.lifeStage !== 'adult' || state.flags.location_knowledge_initialized !== true) {
     return rejected(state, days, 'EXPLORATION_REQUIRES_LOCATION_KNOWLEDGE')
   }
+  if (hasActiveInjury(state, 'severe')) {
+    return rejected(state, days, 'SEVERE_INJURY_BLOCKS_EXPLORATION')
+  }
+  if (hasSeriousPoison(state)) {
+    return rejected(state, days, 'SERIOUS_POISON_BLOCKS_EXPLORATION')
+  }
 
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
@@ -137,7 +145,7 @@ export function resolveRegionExploration(state: GameState, days: number): Region
       applied: true,
       completed: false,
       locationId: current.id,
-      days,
+      days: advanced.state.worldDay - state.worldDay,
       previousExploredDays,
       exploredDays: previousExploredDays,
       stageBefore,
