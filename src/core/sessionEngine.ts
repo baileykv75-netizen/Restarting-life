@@ -15,10 +15,12 @@ import { resolveCultivateDays, resolveCultivationInitialization, resolveMainTech
 import { resolveEquipItem, resolveEquipmentInitialization, resolveUnequipSlot } from './equipmentEngine'
 import { createEventCatalog, getAvailableChoices, resolveEventChoice } from './eventEngine'
 import { resolveFoundationBreakthrough } from './foundationBreakthroughEngine'
+import { resolveGoldenCoreBreakthrough } from './goldenCoreBreakthroughEngine'
 import { applyGameAction } from './gameActionReducer'
 import type { CreateGameStateOptions } from './gameState'
 import { resolveInventoryDrop, resolveInventoryInitialization, resolvePendingMaterialsTransfer } from './inventoryEngine'
 import { resolveRecuperateDays } from './injuryEngine'
+import { resolveUseLifespanItem } from './lifespanEngine'
 import { resolveLocationKnowledgeInitialization } from './locationKnowledgeEngine'
 import { getExplorationStageLabel, resolveRegionExploration, type RegionExplorationResult } from './regionExplorationEngine'
 import { refreshSunkenVeinDiscovery, resolveSecretRealmAction, resolveSecretRealmInitialization } from './secretRealmEngine'
@@ -41,7 +43,7 @@ function spiritSenseRealmBonus(state: GameSession['state']): number { const { re
 function effectiveStat(state: GameSession['state'], stat: StatKey): number { return stat === 'spiritSense' ? state.stats.spiritSense + spiritSenseRealmBonus(state) : state.stats[stat] }
 function captureOutcomeSnapshot(state: GameSession['state']): OutcomeSnapshot { return { worldDay: state.worldDay, spiritStones: state.resources.spiritStones, cultivation: state.resources.cultivation, realm: state.cultivation.realm, stage: state.cultivation.stage, stats: { constitution: effectiveStat(state, 'constitution'), comprehension: effectiveStat(state, 'comprehension'), spiritSense: effectiveStat(state, 'spiritSense'), mentality: effectiveStat(state, 'mentality'), luck: effectiveStat(state, 'luck') }, relationships: { ...state.relationships }, tags: [...state.tags], flags: { ...state.flags } } }
 function signed(value: number, suffix = ''): string { return `${value > 0 ? '+' : ''}${value}${suffix}` }
-function realmText(realm: GameSession['state']['cultivation']['realm'], stage: number): string { if (realm === 'mortal') return '凡人'; if (realm === 'qi') return `炼气${stage}层`; if (realm === 'foundation') return `筑基${stage === 1 ? '初期' : stage === 2 ? '中期' : '后期'}`; return '金丹' }
+function realmText(realm: GameSession['state']['cultivation']['realm'], stage: number): string { if (realm === 'mortal') return '凡人'; if (realm === 'qi') return `炼气${stage}层`; if (realm === 'foundation') return `筑基${stage === 1 ? '前期' : stage === 2 ? '中期' : stage === 3 ? '后期' : '圆满'}`; return '金丹' }
 function buildChanges(before: OutcomeSnapshot, after: GameSession['state']): StateChange[] { const changes: StateChange[] = []; const elapsedDays = after.worldDay - before.worldDay; if (elapsedDays > 0) changes.push({ label: '时间', value: `+${formatDuration(elapsedDays)}`, tone: 'neutral' }); const stones = after.resources.spiritStones - before.spiritStones; if (stones !== 0) changes.push({ label: '下品灵石', value: signed(stones, '枚'), tone: stones > 0 ? 'positive' : 'negative' }); const realmChanged = before.realm !== after.cultivation.realm || before.stage !== after.cultivation.stage; if (realmChanged) changes.push({ label: '境界', value: `${realmText(before.realm, before.stage)} → ${realmText(after.cultivation.realm, after.cultivation.stage)}`, tone: 'positive' }); else { const cultivation = after.resources.cultivation - before.cultivation; if (cultivation !== 0) changes.push({ label: '修为', value: signed(cultivation), tone: cultivation > 0 ? 'positive' : 'negative' }) } for (const stat of Object.keys(STAT_LABELS) as StatKey[]) { const delta = effectiveStat(after, stat) - before.stats[stat]; if (delta !== 0) changes.push({ label: STAT_LABELS[stat], value: signed(delta), tone: delta > 0 ? 'positive' : 'negative' }) } const ids = new Set([...Object.keys(before.relationships), ...Object.keys(after.relationships)]); for (const id of ids) { const delta = (after.relationships[id] ?? 0) - (before.relationships[id] ?? 0); if (delta !== 0) changes.push({ label: RELATIONSHIP_LABELS[id] ?? `${id}关系`, value: signed(delta), tone: delta > 0 ? 'positive' : 'negative' }) } return changes }
 function buildOutcome(before: OutcomeSnapshot, after: GameSession['state'], title: string, narrative: string, consequence?: string): ResolvedOutcome { return { title, narrative, changes: buildChanges(before, after), consequence: consequence ?? null } }
 function actionTitle(action: PlayerAction): string { if (action === 'cultivate') return '闭关结束'; if (action === 'explore') return '外出归来'; if (action === 'livelihood') return '差事做完了'; return '突破结果' }
@@ -52,38 +54,21 @@ function travelOutcome(before: GameSession['state'], result: TravelResult, fast:
   const changes: StateChange[] = [{ label: '时间', value: `+${formatDuration(result.travelDays)}`, tone: 'neutral' }]
   if (result.arrived && destination) changes.push({ label: '地点', value: `${origin?.name ?? '出发地'} → ${destination.name}`, tone: 'neutral' })
   if (!result.arrived && result.state.status !== 'playing') changes.push({ label: '状态', value: result.state.endReason ?? '旅途中死亡', tone: 'negative' })
-  return {
-    title: result.arrived ? (fast ? '赶路结束' : `抵达${destination?.name ?? '目的地'}`) : '旅途中止',
-    narrative: result.arrived
-      ? fast
-        ? `你沿已经走熟的路线前往${destination?.name ?? '目的地'}，共用了${formatDuration(result.travelDays)}。`
-        : `你从${origin?.name ?? '出发地'}前往${destination?.name ?? '目的地'}，用了${formatDuration(result.travelDays)}，已经抵达。`
-      : `这段路原本预计前往${destination?.name ?? '目的地'}，但你没能走到终点。`,
-    changes,
-    consequence: null,
-  }
+  return { title: result.arrived ? (fast ? '赶路结束' : `抵达${destination?.name ?? '目的地'}`) : '旅途中止', narrative: result.arrived ? fast ? `你沿已经走熟的路线前往${destination?.name ?? '目的地'}，共用了${formatDuration(result.travelDays)}。` : `你从${origin?.name ?? '出发地'}前往${destination?.name ?? '目的地'}，用了${formatDuration(result.travelDays)}，已经抵达。` : `这段路原本预计前往${destination?.name ?? '目的地'}，但你没能走到终点。`, changes, consequence: null }
 }
 function explorationOutcome(result: RegionExplorationResult): ResolvedOutcome {
   const location = result.locationId ? getWorldLocationById(result.locationId) : undefined
-  const beforeStage = getExplorationStageLabel(result.stageBefore)
-  const afterStage = getExplorationStageLabel(result.stageAfter)
-  return {
-    title: `${location?.name ?? '区域'}探索结束`,
-    narrative: `你在${location?.name ?? '当前区域'}进行了${formatDuration(result.days)}的系统探索。当前累计探索${result.exploredDays}天。`,
-    changes: [
-      { label: '时间', value: `+${formatDuration(result.days)}`, tone: 'neutral' },
-      { label: '累计探索', value: `${result.previousExploredDays}天 → ${result.exploredDays}天`, tone: 'neutral' },
-      { label: '探索阶段', value: beforeStage === afterStage ? afterStage : `${beforeStage} → ${afterStage}`, tone: 'neutral' },
-    ],
-    consequence: null,
-  }
+  const beforeStage = getExplorationStageLabel(result.stageBefore); const afterStage = getExplorationStageLabel(result.stageAfter)
+  return { title: `${location?.name ?? '区域'}探索结束`, narrative: `你在${location?.name ?? '当前区域'}进行了${formatDuration(result.days)}的系统探索。当前累计探索${result.exploredDays}天。`, changes: [
+    { label: '时间', value: `+${formatDuration(result.days)}`, tone: 'neutral' }, { label: '累计探索', value: `${result.previousExploredDays}天 → ${result.exploredDays}天`, tone: 'neutral' }, { label: '探索阶段', value: beforeStage === afterStage ? afterStage : `${beforeStage} → ${afterStage}`, tone: 'neutral' },
+  ], consequence: null }
 }
 export function createGameSession(options: CreateGameStateOptions): GameSession { return { state: generateBirthState(options), debugLog: [], pendingResult: null, pendingAction: null } }
-function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'initialize-equipment') return ['equipment:initialize']; if (command.type === 'equip-item') return ['equipment:equip']; if (command.type === 'unequip-slot') return ['equipment:unequip']; if (command.type === 'initialize-cultivation') return ['cultivation:initialize']; if (command.type === 'initialize-technique-system') return ['technique:initialize']; if (command.type === 'select-main-technique') return ['cultivation:select-main']; if (command.type === 'change-main-technique') return ['technique:change-main']; if (command.type === 'set-auxiliary-technique') return ['technique:set-auxiliary']; if (command.type === 'practice-technique-days') return ['technique:practice']; if (command.type === 'cultivate-days') return ['cultivation:practice']; if (command.type === 'attempt-foundation-breakthrough') return ['cultivation:foundation-breakthrough']; if (command.type === 'recuperate-days') return ['injury:recuperate']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
+function getEffectTypes(session: GameSession, command: SessionCommand): string[] { if (command.type === 'continue') return ['result:continue']; if (command.type === 'game-action') return [`game-action:${command.action.type}`]; if (command.type === 'action') return [`action:${command.action}`]; if (command.type === 'childhood-choice') return ['childhood:choice']; if (command.type === 'adult-entry-choice') return ['adult-entry:choice']; if (command.type === 'initialize-world') return ['world:initialize-location']; if (command.type === 'initialize-location-knowledge') return ['world:initialize-location-knowledge']; if (command.type === 'initialize-secret-realm') return ['world:initialize-secret-realm']; if (command.type === 'secret-realm') return [`world:secret-realm:${command.action}`]; if (command.type === 'initialize-inventory') return ['inventory:initialize']; if (command.type === 'inventory-drop') return ['inventory:drop']; if (command.type === 'initialize-equipment') return ['equipment:initialize']; if (command.type === 'equip-item') return ['equipment:equip']; if (command.type === 'unequip-slot') return ['equipment:unequip']; if (command.type === 'initialize-cultivation') return ['cultivation:initialize']; if (command.type === 'initialize-technique-system') return ['technique:initialize']; if (command.type === 'select-main-technique') return ['cultivation:select-main']; if (command.type === 'change-main-technique') return ['technique:change-main']; if (command.type === 'set-auxiliary-technique') return ['technique:set-auxiliary']; if (command.type === 'practice-technique-days') return ['technique:practice']; if (command.type === 'cultivate-days') return ['cultivation:practice']; if (command.type === 'attempt-foundation-breakthrough') return ['cultivation:foundation-breakthrough']; if (command.type === 'use-lifespan-item') return ['lifespan:use-item']; if (command.type === 'attempt-golden-core-breakthrough') return ['cultivation:golden-core-breakthrough']; if (command.type === 'recuperate-days') return ['injury:recuperate']; if (command.type === 'travel') return ['world:travel']; if (command.type === 'fast-travel') return ['world:fast-travel']; if (command.type === 'explore-region') return ['world:explore-region']; const currentEventId = session.state.events.currentEventId; if (!currentEventId) return ['choice:missing-event']; const event = FORMAL_EVENT_CATALOG.get(currentEventId); if (!event) return ['choice:unknown-event']; if (event.category === 'breakthrough' && command.choiceId === 'attempt') return ['seededBreakthrough']; const choice = event.choices.find((candidate) => candidate.id === command.choiceId); return choice?.effects.map((effect) => effect.type) ?? [] }
 
 export function executeSessionCommand(session: GameSession, command: SessionCommand): SessionCommandResult {
   if (command.type === 'continue') { if (!session.pendingResult) return { session, applied: false, reason: 'NO_PENDING_RESULT' }; return { session: { ...session, pendingResult: null }, applied: true } }
-  const isCultivationSystemCommand = command.type === 'initialize-cultivation' || command.type === 'initialize-technique-system' || command.type === 'select-main-technique' || command.type === 'change-main-technique' || command.type === 'set-auxiliary-technique' || command.type === 'practice-technique-days' || command.type === 'cultivate-days' || command.type === 'attempt-foundation-breakthrough' || command.type === 'recuperate-days'
+  const isCultivationSystemCommand = command.type === 'initialize-cultivation' || command.type === 'initialize-technique-system' || command.type === 'select-main-technique' || command.type === 'change-main-technique' || command.type === 'set-auxiliary-technique' || command.type === 'practice-technique-days' || command.type === 'cultivate-days' || command.type === 'attempt-foundation-breakthrough' || command.type === 'use-lifespan-item' || command.type === 'attempt-golden-core-breakthrough' || command.type === 'recuperate-days'
   if (isCultivationSystemCommand && session.pendingResult) return { session, applied: false, reason: 'RESULT_PENDING' }
   const workingSession: GameSession = session.pendingResult ? { ...session, pendingResult: null } : session
   const before = workingSession.state
@@ -96,116 +81,97 @@ export function executeSessionCommand(session: GameSession, command: SessionComm
 
   if (command.type === 'childhood-choice') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveChildhoodChoice(before, command.choiceId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingResult = result.outcome ?? null; pendingAction = null; effectTypes = result.effectTypes
+    const result = resolveChildhoodChoice(before, command.choiceId); nextState = result.state; applied = result.applied; reason = result.reason; pendingResult = result.outcome ?? null; pendingAction = null; effectTypes = result.effectTypes
   } else if (command.type === 'adult-entry-choice') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveAdultEntryChoice(before, command.optionId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingResult = result.outcome ?? null; pendingAction = null; effectTypes = result.effectTypes
+    const result = resolveAdultEntryChoice(before, command.optionId); nextState = result.state; applied = result.applied; reason = result.reason; pendingResult = result.outcome ?? null; pendingAction = null; effectTypes = result.effectTypes
   } else if (command.type === 'initialize-world') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveWorldInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location']
+    const result = resolveWorldInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location']
   } else if (command.type === 'initialize-location-knowledge') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveLocationKnowledgeInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location-knowledge']
+    const result = resolveLocationKnowledgeInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-location-knowledge']
   } else if (command.type === 'initialize-secret-realm') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveSecretRealmInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-secret-realm']
+    const result = resolveSecretRealmInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['world:initialize-secret-realm']
   } else if (command.type === 'secret-realm') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveSecretRealmAction(before, command.action)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
-    if (applied && nextState.inventory) {
-      const transfer = resolvePendingMaterialsTransfer(nextState)
-      if (!transfer.applied) return { session: workingSession, applied: false, reason: transfer.reason }
-      nextState = transfer.state
-    }
+    const result = resolveSecretRealmAction(before, command.action); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && nextState.inventory) { const transfer = resolvePendingMaterialsTransfer(nextState); if (!transfer.applied) return { session: workingSession, applied: false, reason: transfer.reason }; nextState = transfer.state }
     if (nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = [`world:secret-realm:${command.action}`]
   } else if (command.type === 'initialize-inventory') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveInventoryInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['inventory:initialize']
+    const result = resolveInventoryInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['inventory:initialize']
   } else if (command.type === 'inventory-drop') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveInventoryDrop(before, command.itemId, command.quantity)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['inventory:drop']
+    const result = resolveInventoryDrop(before, command.itemId, command.quantity); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['inventory:drop']
   } else if (command.type === 'initialize-equipment') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveEquipmentInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:initialize']
+    const result = resolveEquipmentInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:initialize']
   } else if (command.type === 'equip-item') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveEquipItem(before, command.itemId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:equip']
+    const result = resolveEquipItem(before, command.itemId); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:equip']
   } else if (command.type === 'unequip-slot') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveUnequipSlot(before, command.slot)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:unequip']
+    const result = resolveUnequipSlot(before, command.slot); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['equipment:unequip']
   } else if (command.type === 'initialize-cultivation') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveCultivationInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:initialize']
+    const result = resolveCultivationInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:initialize']
   } else if (command.type === 'initialize-technique-system') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveTechniqueSystemInitialization(before)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:initialize']
+    const result = resolveTechniqueSystemInitialization(before); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:initialize']
   } else if (command.type === 'select-main-technique') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveMainTechniqueSelection(before, command.techniqueId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:select-main']
+    const result = resolveMainTechniqueSelection(before, command.techniqueId); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['cultivation:select-main']
   } else if (command.type === 'change-main-technique') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveChangeMainTechnique(before, command.techniqueId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    const result = resolveChangeMainTechnique(before, command.techniqueId); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = ['technique:change-main']
   } else if (command.type === 'set-auxiliary-technique') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveSetAuxiliaryTechnique(before, command.techniqueId, command.enabled)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:set-auxiliary']
+    const result = resolveSetAuxiliaryTechnique(before, command.techniqueId, command.enabled); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null; effectTypes = ['technique:set-auxiliary']
   } else if (command.type === 'practice-technique-days') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveTechniquePracticeDays(before, command.techniqueId, command.days)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    const result = resolveTechniquePracticeDays(before, command.techniqueId, command.days); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = ['technique:practice']
   } else if (command.type === 'cultivate-days') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveCultivateDays(before, command.days)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    const result = resolveCultivateDays(before, command.days); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = ['cultivation:practice']
   } else if (command.type === 'attempt-foundation-breakthrough') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveFoundationBreakthrough(before, {
-      usePozhangDan: command.usePozhangDan,
-      useNingjiDan: command.useNingjiDan,
-      spiritStoneInvestment: command.spiritStoneInvestment,
-    })
+    const result = resolveFoundationBreakthrough(before, { usePozhangDan: command.usePozhangDan, useNingjiDan: command.useNingjiDan, spiritStoneInvestment: command.spiritStoneInvestment })
     nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = ['cultivation:foundation-breakthrough']
+  } else if (command.type === 'use-lifespan-item') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveUseLifespanItem(before, command.itemId); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
+    effectTypes = ['lifespan:use-item']
+  } else if (command.type === 'attempt-golden-core-breakthrough') {
+    if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
+    const result = resolveGoldenCoreBreakthrough(before, { route: command.route, useBaoyuanDan: command.useBaoyuanDan, useCenturySpiritGinsengForRecovery: command.useCenturySpiritGinsengForRecovery, spiritStoneInvestment: command.spiritStoneInvestment })
+    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
+    effectTypes = ['cultivation:golden-core-breakthrough']
   } else if (command.type === 'recuperate-days') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveRecuperateDays(before, command.days)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    const result = resolveRecuperateDays(before, command.days); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed && nextState.status === 'playing') pendingResult = result.outcome ?? null
     effectTypes = ['injury:recuperate']
   } else if (command.type === 'travel' || command.type === 'fast-travel') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = command.type === 'travel' ? resolveTravel(before, command.destinationId) : resolveFastTravel(before, command.destinationId)
-    nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
+    const result = command.type === 'travel' ? resolveTravel(before, command.destinationId) : resolveFastTravel(before, command.destinationId); nextState = result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied) pendingResult = travelOutcome(before, result, command.type === 'fast-travel')
     effectTypes = command.type === 'travel' ? ['world:travel'] : ['world:fast-travel']
   } else if (command.type === 'explore-region') {
     if (before.events.currentEventId !== null || pendingAction !== null) return { session: workingSession, applied: false, reason: 'EVENT_PENDING' }
-    const result = resolveRegionExploration(before, command.days)
-    nextState = result.state.secretRealm ? refreshSunkenVeinDiscovery(result.state) : result.state
-    applied = result.applied; reason = result.reason; pendingAction = null
+    const result = resolveRegionExploration(before, command.days); nextState = result.state.secretRealm ? refreshSunkenVeinDiscovery(result.state) : result.state; applied = result.applied; reason = result.reason; pendingAction = null
     if (applied && result.completed) pendingResult = explorationOutcome(result)
     effectTypes = ['world:explore-region']
   } else if (command.type === 'action') {

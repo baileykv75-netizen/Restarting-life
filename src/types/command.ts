@@ -27,6 +27,8 @@ export type SessionCommand =
   | { type: 'practice-technique-days'; techniqueId: string; days: 1 | 3 | 10 | 30 }
   | { type: 'cultivate-days'; days: 1 | 3 | 10 | 30 }
   | { type: 'attempt-foundation-breakthrough'; usePozhangDan: boolean; useNingjiDan: boolean; spiritStoneInvestment: 0 | 30 | 60 }
+  | { type: 'use-lifespan-item'; itemId: string }
+  | { type: 'attempt-golden-core-breakthrough'; route: 'standard' | 'evil'; useBaoyuanDan: boolean; useCenturySpiritGinsengForRecovery: boolean; spiritStoneInvestment: 0 | 200 | 400 }
   | { type: 'recuperate-days'; days: 10 | 30 }
   | { type: 'travel'; destinationId: string }
   | { type: 'fast-travel'; destinationId: string }

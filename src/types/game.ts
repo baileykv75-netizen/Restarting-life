@@ -5,6 +5,7 @@ import type { EquipmentState } from './equipment'
 import type { ExplorationState } from './exploration'
 import type { InjuryState } from './injury'
 import type { InventoryState } from './inventory'
+import type { LifespanState } from './lifespan'
 import type { SecretRealmState } from './secretRealm'
 import type { SublocationState } from './sublocation'
 
@@ -42,6 +43,8 @@ export interface GameState {
   equipment?: EquipmentState
   /** Optional for R05-R17 compatibility; materialized only when a real injury occurs. */
   injuries?: InjuryState
+  /** Optional for R05-R18 compatibility; materialized only when a real lifespan effect or permanent penalty occurs. */
+  lifespan?: LifespanState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
