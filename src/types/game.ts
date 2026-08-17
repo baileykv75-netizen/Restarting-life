@@ -1,6 +1,7 @@
 import type { AdultEntryProgress } from './adultEntry'
 import type { ChildhoodProgress } from './childhood'
 import type { ChronicleEntry } from './chronicle'
+import type { CombatState } from './combat'
 import type { EquipmentState } from './equipment'
 import type { ExplorationState } from './exploration'
 import type { InjuryState } from './injury'
@@ -45,6 +46,8 @@ export interface GameState {
   injuries?: InjuryState
   /** Optional for R05-R18 compatibility; materialized only when a real lifespan effect or permanent penalty occurs. */
   lifespan?: LifespanState
+  /** Optional for R05-R19 compatibility; exists only while a formal R20 battle is active. */
+  combat?: CombatState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }

@@ -102,15 +102,27 @@ describe('R15 equipment state', () => {
     expect(getInventoryQuantity(finalCopy.state, 'qingfeng_sword')).toBe(1)
   })
 
-  it('formats the world grade system without inventing grades for the ten unfrozen equipment items', () => {
+  it('formats the C20-frozen grades for all ten first-version equipment items', () => {
     expect(formatItemGrade({ tier: 1, quality: 'low' })).toBe('一阶下品')
     expect(formatItemGrade({ tier: 1, quality: 'mid' })).toBe('一阶中品')
     expect(formatItemGrade({ tier: 1, quality: 'high' })).toBe('一阶上品')
     expect(formatItemGrade({ tier: 2, quality: 'low' })).toBe('二阶下品')
     expect(formatItemGrade({})).toBe('品阶未标定')
+    const expectedGrades: Record<string, string> = {
+      qingfeng_sword: '一阶下品',
+      black_iron_greatsword: '一阶中品',
+      red_pattern_blade: '一阶中品',
+      green_bamboo_spirit_bow: '一阶中品',
+      black_iron_armor: '一阶中品',
+      green_wolf_soft_armor: '一阶中品',
+      heart_guard_mirror: '一阶上品',
+      spirit_suppressing_jade: '一阶中品',
+      flowing_cloud_boots: '一阶上品',
+      spirit_seeking_compass: '一阶上品',
+    }
     const equipmentDefinitions = ITEM_DEFINITIONS.filter((item) => 'equipmentSlot' in item)
     expect(equipmentDefinitions).toHaveLength(10)
-    for (const item of equipmentDefinitions) expect(formatItemGrade(getItemDefinition(item.id)!)).toBe('品阶未标定')
+    for (const item of equipmentDefinitions) expect(formatItemGrade(getItemDefinition(item.id)!)).toBe(expectedGrades[item.id])
   })
 
   it('persists and deep-clones the four equipment references on save/reload', () => {

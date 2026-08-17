@@ -1,3 +1,4 @@
+import type { CombatAction, CombatOpponentId, CombatSource } from './combat'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from './game'
 
 export type GameFlagValue = GameState['flags'][string]
@@ -17,6 +18,8 @@ export type GameAction =
   | { type: 'SET_LIFE_STAGE'; stage: LifeStage }
   | { type: 'SET_CURRENT_LOCATION'; locationId: string | null }
   | { type: 'INITIALIZE_SUBLOCATIONS' }
+  | { type: 'START_COMBAT'; opponentId: CombatOpponentId; source: CombatSource }
+  | { type: 'COMBAT_ACTION'; action: CombatAction }
   | {
       type: 'SET_LOCATION_KNOWLEDGE'
       locationId: string

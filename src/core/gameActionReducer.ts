@@ -1,6 +1,7 @@
 import { getWorldLocationById } from '../data/worldLocations'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/game'
 import type { GameAction, GameFlagValue } from '../types/gameAction'
+import { resolveCombatAction, resolveCombatStart } from './combatEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
 import { advanceWorldTime } from './worldEngine'
 
@@ -18,6 +19,7 @@ function isFlagValue(value: unknown): value is GameFlagValue { return typeof val
 
 export function applyGameAction(state: GameState, action: GameAction): GameActionResult {
   if (state.status !== 'playing') return rejected(state, 'GAME_ENDED')
+  if (state.combat && action.type !== 'COMBAT_ACTION') return rejected(state, 'COMBAT_ACTIVE')
 
   switch (action.type) {
     case 'ADVANCE_TIME': {
@@ -49,13 +51,21 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     case 'INITIALIZE_SUBLOCATIONS': {
       return resolveSublocationInitialization(state)
     }
+    case 'START_COMBAT': {
+      const result = resolveCombatStart(state, action.opponentId, action.source)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'COMBAT_ACTION': {
+      const result = resolveCombatAction(state, action.action)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
     case 'SET_LOCATION_KNOWLEDGE': {
       if (!isNonEmptyId(action.locationId) || !isLocationKnowledgeStatus(action.status)) return rejected(state, 'INVALID_LOCATION_KNOWLEDGE')
       if (!getWorldLocationById(action.locationId)) return rejected(state, 'INVALID_LOCATION_KNOWLEDGE_ID')
       const current = state.knowledge.locations[action.locationId]
       if (current === 'discovered' && action.status === 'rumored') return rejected(state, 'LOCATION_KNOWLEDGE_CANNOT_DOWNGRADE')
       if (current === action.status) return rejected(state, 'NO_CHANGE')
-      return { state: { ...state, knowledge: { ...state.knowledge, locations: { ...state.knowledge.locations, [action.locationId]: action.status } } }, applied: true }
+      return { state: { ...state, knowledge: { locations: { ...state.knowledge.locations, [action.locationId]: action.status } } }, applied: true }
     }
   }
 }

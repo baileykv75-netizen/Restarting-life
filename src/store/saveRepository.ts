@@ -45,11 +45,12 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
   const equipment = session.state.equipment
   const injuries = session.state.injuries
   const lifespan = session.state.lifespan
+  const combat = session.state.combat
   const knownTechniqueIds = session.state.cultivation.knownTechniqueIds
   const auxiliaryTechniqueIds = session.state.cultivation.auxiliaryTechniqueIds
   const techniquePractice = session.state.cultivation.techniquePractice
   const hasCultivationRuntime = Boolean(knownTechniqueIds || auxiliaryTechniqueIds || techniquePractice)
-  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !injuries && !lifespan && !hasCultivationRuntime) return persistent
+  if (!exploration && !sublocations && !secretRealm && !inventory && !equipment && !injuries && !lifespan && !combat && !hasCultivationRuntime) return persistent
   return {
     ...persistent,
     currentSession: {
@@ -63,6 +64,15 @@ function cloneLoadedRuntimeState(persistent: PersistentGame): PersistentGame {
         ...(equipment ? { equipment: { ...equipment } } : {}),
         ...(injuries ? { injuries: { conditions: injuries.conditions.map((condition) => ({ ...condition })) } } : {}),
         ...(lifespan ? { lifespan: { appliedEffectKeys: [...lifespan.appliedEffectKeys], permanentPenaltyKeys: [...lifespan.permanentPenaltyKeys] } } : {}),
+        ...(combat ? { combat: {
+          ...combat,
+          player: { ...combat.player, statuses: { ...combat.player.statuses } },
+          opponent: { ...combat.opponent, statuses: { ...combat.opponent.statuses } },
+          configuredMoveKeys: [...combat.configuredMoveKeys],
+          moveReadyBeat: { ...combat.moveReadyBeat },
+          telegraph: combat.telegraph ? { ...combat.telegraph } : null,
+          log: [...combat.log],
+        } } : {}),
         ...(hasCultivationRuntime ? { cultivation: { ...session.state.cultivation, ...(knownTechniqueIds ? { knownTechniqueIds: [...knownTechniqueIds] } : {}), ...(auxiliaryTechniqueIds ? { auxiliaryTechniqueIds: [...auxiliaryTechniqueIds] } : {}), ...(techniquePractice ? { techniquePractice: Object.fromEntries(Object.entries(techniquePractice).map(([id, practice]) => [id, { ...practice }])) } : {}) } } : {}),
       },
     },

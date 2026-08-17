@@ -6,6 +6,7 @@ import { BirthSelectionPanel } from './components/BirthSelectionPanel'
 import { CharacterPanel } from './components/CharacterPanel'
 import { ChildhoodPanel } from './components/ChildhoodPanel'
 import { ChroniclePanel } from './components/ChroniclePanel'
+import { CombatPanel } from './components/CombatPanel'
 import { CultivationPanel } from './components/CultivationPanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
@@ -36,6 +37,7 @@ import './inventory.css'
 import './equipment.css'
 import './cultivation.css'
 import './foundation.css'
+import './combat.css'
 
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
@@ -56,6 +58,7 @@ function App() {
     const currentState = currentSession?.state
     if (!currentSession || !currentState) return
     if (currentState.status !== 'playing' || currentState.lifeStage !== 'adult') return
+    if (currentState.combat) return
     if (currentSession.pendingResult || currentSession.pendingAction || currentState.events.currentEventId !== null) return
 
     try {
@@ -179,8 +182,10 @@ function App() {
     stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
   } else if (state.status !== 'playing') {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
+  } else if (state.combat) {
+    stageContent = <CombatPanel state={state} onAction={(action) => persistCommand({ type: 'game-action', action: { type: 'COMBAT_ACTION', action } })} />
   } else if (state.secretRealm?.sunkenVeinChamber.active) {
-    stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} />
+    stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <>
       <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />
@@ -205,6 +210,6 @@ function App() {
     stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
   }
 
-  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} onUseLifespanItem={(itemId) => persistCommand({ type: 'use-lifespan-item', itemId })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
+  return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => state.combat ? setNotice('战斗中不能调整护甲与法器。') : persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && !state.combat && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} onUseLifespanItem={(itemId) => persistCommand({ type: 'use-lifespan-item', itemId })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
 }
 export default App

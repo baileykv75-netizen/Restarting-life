@@ -5,6 +5,7 @@ import type { SecretRealmAction, SecretRealmMaterialId } from '../types/secretRe
 interface SecretRealmPanelProps {
   state: GameState
   onAction: (action: SecretRealmAction) => void
+  onStartCoreCombat: () => void
 }
 
 const MATERIAL_LABELS: Record<SecretRealmMaterialId, string> = {
@@ -26,7 +27,7 @@ function encounterRiskText(state: GameState, safeGate: boolean): string {
   return `${base}。${safeGate ? '旧阵已经按泄压顺序开启，核心灵压相对稳定一些。' : '石门是强行开启的，核心灵压仍明显紊乱。'}`
 }
 
-export function SecretRealmPanel({ state, onAction }: SecretRealmPanelProps) {
+export function SecretRealmPanel({ state, onAction, onStartCoreCombat }: SecretRealmPanelProps) {
   const runtime = state.secretRealm?.sunkenVeinChamber
   if (!runtime?.active || !runtime.currentNodeId) return null
 
@@ -81,7 +82,7 @@ export function SecretRealmPanel({ state, onAction }: SecretRealmPanelProps) {
 
     {node === 'vein-heart-chamber' && <>
       <p className="story-text">中央引脉石柱已经开裂，旧槽被碎灵晶撑开。墙角堆着脱落岩甲，另一侧能看见被石屑堵住的泄压孔。身后的石门已经重新落下。</p>
-      {runtime.encounter === 'unresolved' && <div className="secret-realm-warning core-danger"><strong>成年岩甲蜥占据着核心区</strong><p>{encounterRiskText(state, runtime.gateMethod === 'safe')}</p><button className="danger-action confirm-core-button" onClick={() => onAction('resolve-core-encounter')} type="button">应对岩甲蜥</button></div>}
+      {runtime.encounter === 'unresolved' && <div className="secret-realm-warning core-danger"><strong>成年岩甲蜥占据着核心区</strong><p>{encounterRiskText(state, runtime.gateMethod === 'safe')}</p><button className="danger-action confirm-core-button" onClick={onStartCoreCombat} type="button">迎战岩甲蜥</button></div>}
       {runtime.encounter === 'victory' && <><p className="secret-realm-done">核心危险已经处理。现在可以靠近泄压结构，并从侧面断层打开离开的路。</p><button className="primary-button secret-realm-wide" onClick={() => onAction('vent-and-exit')} type="button">完成泄压并从断层离开</button></>}
     </>}
 
