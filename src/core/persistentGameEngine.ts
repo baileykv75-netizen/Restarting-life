@@ -69,6 +69,12 @@ export function applyPersistentCommand(
 ): { persistent: PersistentGame; applied: boolean; reason?: string } {
   const currentSession = persistent.currentSession
   if (!currentSession) return { persistent, applied: false, reason: 'NO_CURRENT_RUN' }
+  if (
+    currentSession.state.combat &&
+    !(command.type === 'game-action' && command.action.type === 'COMBAT_ACTION')
+  ) {
+    return { persistent, applied: false, reason: 'COMBAT_ACTIVE' }
+  }
 
   const result = executeSessionCommand(currentSession, command)
   if (!result.applied) return { persistent, applied: false, reason: result.reason }
