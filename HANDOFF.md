@@ -4,17 +4,18 @@
 
 ## 当前状态
 
-- 当前开发主线：**C20「战斗 / 装备数值冻结」已完成；下一轮进入 R20「半自动战斗骨架」。**
-- R00.1～R00.3：迁移、V3 存档、开发纪律完成。
-- R01～R04：唯一 GameState、SessionCommand / replay、单档自动保存、V2 Game Shell 完成。
-- R05～R07：出生三选一、童年关键节点、成年 / 入道入口完成。
+- 当前开发主线：**R20「半自动战斗骨架」已完成；下一轮先做 C21「伤势 / 中毒 / 治疗内容冻结」，再进入 R21 实现。**
+- R00.1～R04：迁移、唯一 GameState、Session / replay、V3 单档存档、V2 Game Shell 完成。
+- R05～R07：出生三选一、童年、成年 / 入道完成。
 - R08～R13：固定世界、地点知识、旅行、区域探索、随机子地点、首版秘境「沉脉石室」完成。
-- R14～R15：正式背包、储物袋、四槽装备结构完成。
-- C16 / R16～R17：修炼内容冻结、基础修炼、功法 / 熟练度 / 改修完成。
-- R18：正式 injury runtime 与炼气→筑基完成。
+- R14～R15：正式背包、储物袋、四槽装备完成。
+- C16 / R16～R17：修炼内容、炼气修炼、功法 / 熟练 / 改修完成。
+- R18：authoritative injury runtime 与炼气→筑基完成。
 - C19 / R19：寿元、延寿、筑基后修炼、60 日结丹与金丹完成。
-- **C20：10 件装备阶品、战斗基础数值、combat beat、伤害 / 护甲 / 逃跑公式、首批招式与消耗品、4 个 R20 测试敌人已全部冻结到 `V2_CONTENT_BIBLE.md` 第 37 节。**
-- legacy Action/Event/Result/End 仍只为旧档 / 旧测试 / 迁移兼容保留，不得继续扩张。
+- C20：装备阶品、战斗数值、beat、主动招式、战斗物品、逃跑、4 个测试敌人冻结完成。
+- **R20：唯一正式 Combat runtime、半自动 beat 战斗、真实物品 / 装备 / 招式、逃跑、伤势 / 死亡、save / replay、沉脉石室正式岩甲蜥战斗完成。**
+
+legacy Action/Event/Result/End 与 R13 旧概率岩甲蜥 resolver 只为旧档 / 旧测试 / 历史 replay 兼容保留；实际玩家 R20 路径不再调用旧概率战斗。
 
 ---
 
@@ -32,87 +33,85 @@ UI / feature
 → auto-save
 ```
 
-禁止：
-
-- React 直接改核心状态；
-- 页面直接写 localStorage；
-- 第二套 GameState / inventory / equipment / injury / lifespan / combat truth；
-- implementation round 临时编造未冻结数值；
-- 为新功能破坏 R05～R19 replay 语义。
-
-R20 新 combat runtime 应优先做成 `GameState` 的 optional 正式字段，让旧状态继续合法；不要为了 R20 重写整个 GameState。
-
----
-
-# 二、R19 当前可依赖基础
-
-R20 可以直接依赖现有：
-
-- `inventory`：R14 正式背包与真实物品数量；
-- `equipment`：R15 四装备槽与换装 / 卸装；
-- `cultivation`：当前 realm / stage、known techniques、main / auxiliary、proficiency；
-- `injuries`：R18 authoritative injury runtime；
-- `lifespan`：R19 authoritative lifespan runtime；
-- `SessionCommand / debugLog / digest / replay / saveRepository`；
-- `secretRealm.sunkenVeinChamber`：R13 沉脉石室状态。
-
-R20 不应复制上述数据到 CombatState 形成第二真源。CombatState 只保存一场战斗真正需要的瞬时状态与引用。
-
----
-
-# 三、C20 内容真源
-
-C20 提交：
+R20 没有建立第二套 Session 协议。正式战斗操作使用现有：
 
 ```text
-e6cfeed25cb19c236cd36edcbcc95de9b14c1a14
-V2 C20: freeze combat and equipment balance
+SessionCommand: game-action
+→ GameAction: START_COMBAT / COMBAT_ACTION
+→ CombatEngine
+→ GameState.combat
 ```
 
-该提交只修改：
+`applyPersistentCommand()` 已增加战斗门禁：只要 `state.combat` 存在，除 `game-action -> COMBAT_ACTION` 外的正式 SessionCommand 全部返回 `COMBAT_ACTIVE`。
 
-```text
-V2_CONTENT_BIBLE.md
-```
+因此战斗中不能通过底层入口绕过 CombatPanel 去：
 
-未修改任何 `src/`。
+- 旅行；
+- 修炼；
+- 探索；
+- 普通换装 / 卸装；
+- 使用寿元物；
+- 突破；
+- 进入其他世界流程。
 
-C20 CI：
-
-```text
-run 31992012512
-verify 95277128409
-Typecheck ✅
-Test ✅
-Build ✅
-```
-
-实现时以 `V2_CONTENT_BIBLE.md` **第 37 节**为战斗数值唯一内容真源。
+战斗内换主武器必须走 CombatEngine 自己的 `switch-weapon`。
 
 ---
 
-# 四、10 件装备已冻结
+# 二、R20 CombatState
 
-| 装备 | 阶品 | R20 核心效果 |
-|---|---|---|
-| 青锋剑 | 一阶下品 | 普攻 ×1.00，1 beat |
-| 黑铁重剑 | 一阶中品 | 普攻 ×1.55，2 beats，12pp 穿甲 |
-| 赤纹刀 | 一阶中品 | 普攻 ×1.05；火属性主动最终伤害 ×1.12 |
-| 青竹灵弓 | 一阶中品 | 正常开战先手 ×1.15；近身普攻 ×0.65 |
-| 黑铁护甲 | 一阶中品 | 20% 护甲减伤；逃跑 -12pp |
-| 青狼软甲 | 一阶中品 | 12% 护甲减伤；无移动惩罚 |
-| 护心镜 | 一阶上品 | 重伤级命中 ×0.50；R20 每战一次 |
-| 镇灵玉 | 一阶中品 | mind / spirit 抵抗 +30pp |
-| 流云靴 | 一阶上品 | 逃跑 +15pp |
-| 寻灵盘 | 一阶上品 | 战斗数值 0；保持探索用途 |
+新增 optional：
 
-小型储物袋不属于这 10 件战斗 / 装备平衡对象。
+```ts
+state.combat?: CombatState
+```
+
+旧 R05～R19 状态没有 combat 完全合法；`createInitialGameState()` 不塞空 combat。
+
+CombatState 只保留单场瞬时真源：
+
+- battleId / source / opponentId / locationId；
+- beat；
+- 独立 combat rngState；
+- 双方 currentHP / maxHP / currentQi / maxQi / baseAttack；
+- nextBasicAttackBeat；
+- 临时状态；
+- 最多 4 个本场配置招式；
+- cooldown ready beat；
+- 回气丹本场次数；
+- 护心镜是否已触发；
+- 本拍是否已换武器；
+- 青竹灵弓 opening 是否已处理；
+- 敌人 telegraph；
+- 最大单次受击；
+- 最近战斗日志。
+
+CombatState **不复制**：
+
+- inventory 数量；
+- equipment ownership；
+- knownTechniqueIds；
+- permanent injury；
+- lifespan；
+- secret realm 主状态。
 
 ---
 
-# 五、HP / Qi / baseAttack
+# 三、R20 静态战斗数据
 
-正式表：
+新增：
+
+```text
+src/types/combat.ts
+src/data/combat.ts
+src/core/combatEngine.ts
+src/components/CombatPanel.tsx
+src/combat.css
+```
+
+C20 第 37 节仍是数值唯一内容真源。
+
+## 玩家 HP / Qi / baseAttack
 
 ```text
 炼气1  100 /  60 / 10
@@ -131,306 +130,448 @@ Build ✅
 金丹    650 / 500 / 110
 ```
 
-顺序为：
-
-```text
-maxHP / maxQi / baseAttack
-```
-
-`baseAttack` 是境界 / 小阶段提供的基础攻击尺度；R20 不临时把 constitution / comprehension 再接进第二套攻击公式。
-
-HP / Qi 属于战斗 runtime。战斗 beat 不推进 `worldDay`；长期代价由 injury / world state 承接。
+凡人只保留 R20 兼容底线 `100 HP / 0 Qi / 10 baseAttack`，不是新增一套凡人战斗成长系统。
 
 ---
 
-# 六、伤害与护甲
+# 四、10 件装备正式进入 R20 数值
+
+`src/data/items.ts` 已补齐 C20 阶品：
+
+| 装备 | 阶品 | 战斗身份 |
+|---|---|---|
+| 青锋剑 | 一阶下品 | ×1.00，1 beat 基准 |
+| 黑铁重剑 | 一阶中品 | ×1.55，2 beats，12pp 穿甲 |
+| 赤纹刀 | 一阶中品 | ×1.05，fire active ×1.12 |
+| 青竹灵弓 | 一阶中品 | 正常开战先手 ×1.15；近身 ×0.65 |
+| 黑铁护甲 | 一阶中品 | 20% 减伤；逃跑 -12pp |
+| 青狼软甲 | 一阶中品 | 12% 减伤；无移动惩罚 |
+| 护心镜 | 一阶上品 | 重伤级命中 ×0.50；每战一次 |
+| 镇灵玉 | 一阶中品 | mind / spirit +30pp hook；R20 不强造心神敌人 |
+| 流云靴 | 一阶上品 | 逃跑 +15pp |
+| 寻灵盘 | 一阶上品 | combat 0；继续探索用途 |
+
+R15 原本“10 件装备品阶未标定”的测试已改为锁住以上最终阶品。
+
+---
+
+# 五、R20 beat 与伤害
+
+一个 combat beat 是一次完整决策窗口，不推进 worldDay。
+
+实际顺序：
 
 ```text
-普通攻击：
-rawDamage = baseAttack × weaponBasicMultiplier
-
-武器招式：
-rawDamage = baseAttack × weaponBasicMultiplier × moveMultiplier
-
-纯术法：
-rawDamage = baseAttack × spellMultiplier
+当前预兆 / 状态
+→ 玩家可免费换主武器一次
+→ 玩家一个 beat action / 普攻
+→ 玩家结算，敌方 HP=0 则结束
+→ 敌方普通攻击 / 已预兆特殊动作 / 低血量行为
+→ beat + 1
+→ 生成下一拍 telegraph
 ```
 
-纯术法不乘武器普攻倍率；赤纹刀 fire-active +12% 是明确例外。
+黑铁重剑：
+
+```text
+basicInterval = 2
+```
+
+切武器不会重置 `nextBasicAttackBeat`，测试已锁住。
+
+伤害：
+
+```text
+普通：baseAttack × weaponBasicMultiplier
+武器招式：baseAttack × weaponBasicMultiplier × moveMultiplier
+纯术法：baseAttack × spellMultiplier
+```
 
 护甲：
 
 ```text
-effectiveArmorReduction
-= clamp(0, 35%, armorReduction - armorPenetration)
-
-afterArmor
-= round(rawDamage × (1 - effectiveArmorReduction))
+effectiveArmor = clamp(0, 35%, armor - penetration)
 ```
 
-穿甲按百分点扣减。
+临时护体累计减伤上限 55%。
 
-首版无：暴击 / 命中 / 闪避 / 随机伤害浮动。
-
-`暴露`：下一次受伤 ×1.25，然后消耗。
+无 crit / hit / dodge / 随机伤害波动。
 
 ---
 
-# 七、combat beat
+# 六、R20 主动招式
 
-一个 beat 是一个完整决策窗口，不是实时秒数。
-
-顺序：
+本场配置来自真实：
 
 ```text
-到期状态 / 上一拍预兆动作
-→ 免费换主武器一次
-→ 玩家一个 beat action；否则自动普攻
-→ 玩家结算，目标死亡则立刻结束
-→ 敌人结算
-→ cooldown / 状态推进 / 生成下一拍预兆
+knownTechniqueIds
++ auxiliaryTechniqueIds
++ proficiency / move unlock
 ```
 
-占 beat：主动招式、丹药、符箓、一次性法器、逃跑。
+最多取 4 个，不自动发放。
 
-换武器不占 beat，但每 beat 最多一次。
-
-黑铁重剑普攻间隔 2 beats；切武器不能重置 `nextBasicAttackBeat`。
-
-逃跑成功后敌人本 beat 不追补攻击；失败则玩家损失本 beat 行动，敌人照常行动。
-
-强招必须提前一 beat 预兆。
-
----
-
-# 八、首批主动招式
+当前精确值继续沿用 C20：
 
 ```text
-刺        Qi 8  ｜武器×1.20｜+5pp穿甲｜cd0
-斩        Qi14  ｜武器×1.55｜cd1
-御剑追击  Qi18  ｜武器×1.35；追击目标×1.65｜小成｜cd2
-火弹      Qi12  ｜术法×1.35｜cd0
-炎爆      Qi24  ｜术法×1.85｜cd2
-缠束      Qi14  ｜同境70% / 高一境40% / 低一境90% 束缚1beat｜cd2
-荆刺      Qi16  ｜术法×1.25；束缚目标×1.55｜cd1
-水幕      Qi18  ｜下一次命中×0.65；2beats后过期｜cd2
-石甲护体  Qi20  ｜3beats额外减伤20%；逃跑-15pp｜cd3
-金芒      Qi16  ｜术法×1.45｜18pp穿甲｜cd1
+刺        Qi8  ｜武器×1.20｜5pp穿甲｜cd0
+斩        Qi14 ｜武器×1.55｜cd1
+御剑追击  Qi18 ｜武器×1.35；retreating×1.65｜小成｜cd2
+火弹      Qi12 ｜术法×1.35｜cd0
+炎爆      Qi24 ｜术法×1.85｜cd2
+缠束      Qi14 ｜70/40/90% 束缚｜cd2
+荆刺      Qi16 ｜术法×1.25；束缚目标×1.55｜cd1
+水幕      Qi18 ｜下一次命中×0.65｜cd2
+石甲护体  Qi20 ｜3拍额外20%减伤；逃跑-15pp｜cd3
+金芒      Qi16 ｜术法×1.45｜18pp穿甲｜cd1
 ```
 
-控制使用 seeded combat RNG。
-
-战前最多配置 4 个主动招式；是否真实已学继续读取 R17 known technique + move unlock。
-
-不要自动发招式。
+剑诀主动招式需要真实剑类主武器；当前青锋剑 / 黑铁重剑视为剑类。
 
 ---
 
-# 九、战斗消耗品
+# 七、状态效果
+
+R20 已实际承载：
+
+- 束缚；
+- 迟缓；
+- 护体；
+- 暴露；
+- 狂暴；
+- retreating（只用于追击窗口）。
+
+效果：
 
 ```text
-回气丹：+40 Qi，1 beat，每战最多2枚
-火符：baseAttack×1.45，1 beat
-金刃符：baseAttack×1.30，20pp穿甲，1 beat
-护身符：下一次命中×0.55，最长3beats，1 beat
-轻身符：3beats逃跑+25pp，移除1个迟缓，1 beat
-破灵锥：破可破护体 + 暴露；无护体仅 baseAttack×0.60
-雷火珠：min(baseAttack×2.20, targetMaxHP×35%)，10pp穿甲
-困兽索：妖兽同/低大境85%束缚2；高一50%束缚1；高二+20%束缚1
+暴露：下一次受伤 ×1.25 后消耗
+狂暴：造成伤害 ×1.20；受到伤害 ×1.10
+水幕：下一次命中 ×0.65
+石甲：持续护体 +20%
 ```
 
-清障符、传音符不加战斗伤害。
+中毒没有在 R20 偷做 runtime；留给 C21 / R21。
 
 ---
 
-# 十、逃跑
+# 八、真实战斗物品
+
+R20 正式登记并使用真实 inventory stack：
+
+```text
+huiqi_dan             回气丹
+fire_talisman         火符
+golden_blade_talisman 金刃符
+protective_talisman   护身符
+lightness_talisman    轻身符
+spirit_breaking_awl   破灵锥
+thunderfire_orb       雷火珠
+beast_binding_rope    困兽索
+```
+
+使用统一走 `removeItem()`，没有 CombatState 内第二份数量。
+
+规则：
+
+```text
+回气丹：+40 Qi，每战最多2
+火符：baseAttack×1.45
+金刃符：baseAttack×1.30，20pp穿甲
+护身符：下一次命中×0.55
+轻身符：3拍逃跑+25pp，并解除迟缓
+破灵锥：破临时护体并暴露；无可破防护时×0.60
+雷火珠：min(baseAttack×2.20, targetHP×35%)，10pp穿甲
+困兽索：只对妖兽，按境界差85/50/20%
+```
+
+R20 **没有实现这些物品的商店 / 掉落来源**；它们的来源仍必须由后续真实世界内容负责。
+
+---
+
+# 九、逃跑
+
+UI 显示准确成功率与主要修正。
 
 ```text
 fleeChance = clamp(10%, 90%, 50% + modifiers)
 ```
 
-关键修正：
+已读取：
 
-- 同大境界按阶段带，每档 ±5pp；
-- 低 / 高一大境界：-20 / +20pp；
-- 差两大境界以上：±35pp；
-- 轻身术 +8；流云步 +15；踏风行 +20，只取最高身法；
-- 身轻步稳 +8；
-- 流云靴 +15；
-- 轻身符 +25；
-- 黑铁护甲 -12；
-- 石甲 -15；
-- light / severe / meridian injury = -5 / -15 / -10，伤势合计最低 -20；
-- 迟缓 -20；
-- 束缚直接不能逃。
+- 境界 / 阶段带；
+- 最高已启用身法；
+- 身轻步稳；
+- 流云靴；
+- 轻身符；
+- 黑铁护甲；
+- 石甲；
+- R18 light / severe / meridian；
+- 迟缓 / 束缚；
+- 敌人明确 flee hook。
 
-敌人 / 地形 hook 只有内容明确时才读，不造 speed 属性。
+束缚直接禁止逃跑。
 
-UI 必须显示准确逃跑率与主要修正来源。
+逃跑概率使用 combat RNG；失败后敌人正常获得行动机会，后续还能再逃。
 
 ---
 
-# 十一、R20 只允许的 4 个测试敌人
+# 十、R20 四个骨架敌人
 
-### T-01 青背狼
+只实现 C20 指定样本，不代表 R22 妖兽内容完成。
+
+### 青背狼
 
 ```text
-炼气2量级｜HP105｜Qi0｜attack12｜armor0
-咬×1.00
-扑击×1.60，提前一beat预兆
-HP≤25%可逃
-玩家逃跑-8pp
+炼气2量级
+HP105 / attack12 / armor0
+撕咬×1.00
+扑击×1.60，提前预兆
+HP≤25%尝试逃
+玩家逃跑 -8pp
 ```
 
-### T-02 成年岩甲蜥
+### 成年岩甲蜥
 
 ```text
-炼气4量级｜HP155｜Qi0｜attack16｜armor22%
-咬×1.00
+炼气4量级
+HP155 / attack16 / armor22%
+咬击×1.00
 扫尾×1.70，提前预兆
-扫尾后自身暴露一次
+扫尾后自身暴露
 沉脉石室个体不逃
-玩家逃跑+5pp
+玩家逃跑 +5pp
 ```
 
-### T-03 赤鬃山猿
+### 赤鬃山猿
 
 ```text
-炼气8量级｜HP210｜Qi0｜attack26｜armor8%
+炼气8量级
+HP210 / attack26 / armor8%
 重拳×1.00
 蓄力砸击×2.00，提前预兆
-HP≤30%进入狂暴
-玩家逃跑-5pp
+HP≤30%狂暴
+玩家逃跑 -5pp
 ```
 
-### T-04 普通散修
+### 普通散修
 
 ```text
-炼气5｜HP140｜Qi100｜attack18｜armor12%
+炼气5
+HP140 / Qi100 / attack18 / armor12%
 青锋剑
 可用火弹
-最多1张真实火符作为测试携带物
-HP≤30%优先逃跑
+测试模板可使用1张火符
+HP≤30%尝试逃跑
 ```
 
-C20 没有冻结这 4 个样本的正式掉落；R22 才负责。
+R22 才补：8 种妖兽全量 combat data、真实战利品、刷新、妖丹 / 精血、named / unique death。
 
 ---
 
-# 十二、R13 临时战斗必须在 R20 被替换
+# 十一、沉脉石室正式战斗替换
 
-当前沉脉石室仍有旧的：
+实际 UI 现在为：
 
 ```text
-encounterChance()
-resolveCoreEncounter()
+确认进入脉心室
+→ SecretRealmPanel 显示“迎战岩甲蜥”
+→ START_COMBAT(adult-rock-lizard, sunken-vein-core)
+→ CombatPanel
+→ 正式胜利
+→ secretRealm.sunkenVeinChamber.encounter = victory
+→ 返回脉心室
+→ 泄压并离开
 ```
 
-它们按境界 + RNG 直接决定岩甲蜥胜负，只是 R13 在 CombatEngine 出现前的临时占位。
-
-R20 必须：
+沉脉石室核心来源：
 
 ```text
-进入脉心室
-→ 创建正式 Combat runtime
-→ 对手使用 T-02 成年岩甲蜥
-→ 正式 combat victory
-→ secretRealm encounter = victory
-→ 才能继续泄压 / 离开
+flee = 禁止
 ```
 
-HP ≤ 0 走唯一死亡流程。
+因此不会用新逃跑系统穿过 C13 已冻结的不可回头点。
 
-旧概率 resolver 必须删除或停止调用，不允许长期保留两套战斗真源。
-
----
-
-# 十三、R20 与 R18 injury 接口
-
-R20 不造第二套伤势。
-
-战斗结束：
-
-- HP ≤ 0：直接死亡；
-- 存活且最终 HP ≤10%，或单次最终命中 ≥35% maxHP：severe；
-- 否则最终 HP ≤30%，或单次最终命中 ≥25% maxHP：light；
-- severe 优先于 light；
-- meridian 只由明确经脉 / 丹田伤害生成；R20 四测试敌人不随机生成。
-
-恢复时间继续走 R18 injury 规则。
-
-R21 才实现 poison runtime、清毒 / 止血 / 养脉与伤势恶化。
+R13 `resolve-core-encounter` 旧命令仍保留历史 replay / 旧测试语义，但玩家 UI 已停止调用；不要再扩张旧概率战斗。
 
 ---
 
-# 十四、R20 / R21 / R22 / R23 范围边界
+# 十二、战斗结束、伤势与死亡
 
-R20：
+HP = 0：
+
+- 立即进入唯一 `dead` 状态；
+- 写明实际对手；
+- 增加克制的 Chronicle 死亡记录；
+- 清除 CombatState；
+- `applyPersistentCommand()` 按既有流程归档人生。
+
+存活结束时继续复用 R18 injury：
 
 ```text
-CombatState
-HP / Qi
-离散 beat
-自动普攻
-最多4主动招式
-真实丹药 / 符 / 一次性法器
-快速换武器
-精确逃跑率
-胜 / 负 / 逃 / 死
-Session / save / replay
-沉脉石室正式战斗替换
+最终HP ≤10% 或单次命中 ≥35% maxHP
+→ severe / 45日
+
+否则最终HP ≤30% 或单次命中 ≥25% maxHP
+→ light / 10日
 ```
 
-R21：poison、完整伤势恶化与治疗。
+severe 优先；R20 四个测试敌人不会随机制造 meridian。
 
-R22：8 妖兽正式 combat data、掉落、刷新、named death、妖丹 / 精血来源。
+这里的 10 / 45 日沿用现有 R18 恢复尺度，不是新建第二套 wound runtime。
 
-R23：危险判断、强妖兽领地、独特妖兽死亡后的区域危险变化。
+C21 / R21 需要继续解决：
 
-R20 禁止顺手实现后面三轮。
+- 中毒；
+- 战后持续恶化；
+- 止血散 / 清毒散 / 养脉丹；
+- 更完整的治疗与未处理死亡。
 
 ---
 
-# 十五、仍待正确时机补齐的内容缺口
+# 十三、save / replay
+
+`saveRepository` 已深拷贝 active CombatState：
+
+- player / opponent；
+- status objects；
+- configuredMoveKeys；
+- cooldown map；
+- telegraph；
+- log。
+
+旧存档没有 combat 继续合法。
+
+Combat RNG：
+
+- 开战从主 `rngState` 消耗一次确定性 step；
+- 再派生独立 combat rng；
+- 战斗控制 / 逃跑 / 困兽等只消费 combat rng；
+- 同一 state + command 序列确定性一致。
+
+正式动作通过 `game-action` 写入 debug log / digest；专项测试已验证 Session 序列确定性。
+
+---
+
+# 十四、R20 提交与验证
+
+主功能提交：
+
+```text
+8dfb65fbcbaacbd8201cf389694eaa6e8fe80dea
+V2 R20: implement formal semi-auto combat runtime
+```
+
+首次 CI：
+
+```text
+run 32019571712
+verify 95356202762
+Typecheck ✅
+Test ✅
+Build ✅
+```
+
+审查后补的战斗门禁 FIX：
+
+```text
+7e502ba01c0741172dcd85eb57ef35ed8c45b486
+V2 R20 FIX: lock persistent commands during combat
+```
+
+FIX CI：
+
+```text
+run 32019755211
+verify 95356762407
+Typecheck ✅
+Test ✅
+Build ✅
+```
+
+GitHub Pages：
+
+```text
+run 32019755157
+build ✅
+deploy ✅
+source = main
+public = true
+```
+
+Pages API 当前地址：
+
+```text
+https://baileykv75-netizen.github.io/Restarting-life/
+```
+
+当前工具执行环境对 `github.io` DNS 解析失败，因此本轮没有伪称做过外部 HTTP 200 浏览器探测；GitHub 自身 Pages build / deploy 均成功。
+
+---
+
+# 十五、仍待正确时机补齐的内容
+
+继续保留，不在 R20 顺手填：
 
 1. 8～12 个正式随机子地点模板；
 2. 如首版确实需要，再冻结第 2 个小秘境；
 3. 8～12 个重大机缘具体内容，C30 前补；
 4. 30 个普通事件正式正文；
-5. 高阶功法、抱元丹、延寿物的真实世界获取入口，在宗门 / NPC / 商店 / 机缘对应轮实现；
-6. R21 完整治疗 / 中毒；
-7. R22 妖兽掉落与二阶妖丹 / 精血来源。
+5. 高阶功法、抱元丹、延寿物的真实世界获取入口；
+6. **C21 / R21：中毒、恶化、止血散 / 清毒散 / 养脉丹精确治疗闭环；**
+7. **C22 / R22：妖兽正式 combat data、掉落、妖丹 / 精血、刷新与 unique death；**
+8. R23：战斗能力进入区域危险判断、强大妖兽领地与区域变化。
 
-**已关闭缺口：首版 10 件装备的具体阶 + 品与 R20 基础战斗数值。**
+已关闭：
+
+- 10 件装备阶品；
+- R20 基础战斗数值；
+- 玩家正式战斗双真源问题；
+- 沉脉石室临时概率战斗的玩家 UI 路径。
 
 ---
 
-# 十六、当前迁移主线
+# 十六、为什么下一步先是 C21
+
+路线文档原本直接写 R21「伤势与治疗」，但当前 Content Bible 只冻结了：
+
+- injury 种类；
+- 止血散 / 清毒散 / 养脉丹的世界定位；
+- 中毒会恶化的方向。
+
+尚未冻结：
+
+- 第一版 poison runtime 的最小分级；
+- 恶化发生在什么时间阈值；
+- 每种治疗物到底处理什么、一次处理多少；
+- severe / meridian 是否一次就能完全治疗；
+- 未处理到何种条件会死亡；
+- 战斗 / 探索 / 修炼分别读取哪些伤势修正。
+
+如果直接进入 R21，Codex / 实现层必然需要临时猜这些值。
+
+因此下一轮先做一个短内容检查点：
+
+> **C21｜伤势 / 中毒 / 治疗内容冻结**
+
+只更新内容真源，不写 `src/`；冻结后立即进入 R21。
+
+---
+
+# 十七、当前迁移主线
 
 ```text
-出生三选一 ✅
-→ 童年 ✅
-→ 成年 / 入道 ✅
-→ 世界 / 地点知识 / 旅行 / 探索 ✅
-→ 随机子地点 ✅
-→ 沉脉石室 ✅
-→ 背包 / 装备结构 ✅
+出生 / 童年 / 成年 ✅
+→ 世界 / 知识 / 旅行 / 探索 ✅
+→ 子地点 / 沉脉石室 ✅
+→ 背包 / 装备 ✅
 → 修炼 / 功法 / 筑基 ✅
 → 寿元 / 延寿 / 金丹 ✅
-→ C20 战斗 / 装备数值冻结 ✅
-→ R20 半自动战斗 ← 下一轮
+→ C20 战斗数值 ✅
+→ R20 半自动战斗 ✅
+→ C21 伤势 / 中毒 / 治疗内容冻结 ← 下一轮
 → R21 伤势与治疗
+→ C22 妖兽 / 生态内容冻结
 → R22 妖兽与战利品
 → R23 危险判断 / 强大妖兽领地
 → 宗门 / NPC / 职业 / 世界事件
 ```
-
----
-
-# 十七、下一步
-
-执行：
-
-> **R20｜半自动战斗骨架**
-
-只依据 `V2_CONTENT_BIBLE.md` 第 37 节实现，不再改战斗内容数值，不提前做 R21～R23。
