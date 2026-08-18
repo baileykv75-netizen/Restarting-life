@@ -34,6 +34,7 @@ export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: Qing
       <div className="sect-access-list">
         <AccessRow enabled={access.outerRegistry} label="外院" note="查验名籍、身份与宗门内部登记。" />
         <AccessRow enabled={access.serviceArea} label="杂役与外围区域" note="宗门日常运转所需的外围区域。" />
+        <AccessRow enabled={access.basicInternalResources} label="基础内部资源" note="名籍在册者可使用的最基础食宿、杂务与公共设施。" />
         <AccessRow enabled={access.basicTeaching} label="传功堂基础传授" note="正式弟子可领取青云宗基础功法。" />
         <AccessRow enabled={access.discipleCultivationArea} label="弟子修炼区域" note="正式弟子可借宗门灵脉环境修炼。" />
         <AccessRow enabled={access.affairsHallEntry} label="事务堂" note="你已有进入事务堂办理弟子事务的资格。" />
