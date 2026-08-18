@@ -4,20 +4,24 @@ import type { ExplorationDuration } from '../types/exploration'
 import type { GameState } from '../types/game'
 import { getOrdinaryBeastEncounterWeightMultiplier } from './beastEcologySelectors'
 import { resolveCombatStart } from './combatEngine'
-import { nextRandom, seedToState, weightedPick } from './rng'
+import { nextRandom, randomInt, seedToState, weightedPick } from './rng'
 
 interface WildernessEncounterCandidate {
   beastId: BeastId
   opponentId: CombatOpponentId
 }
 
-export interface WildernessEncounterResult {
-  state: GameState
+export interface WildernessEncounterPlan {
   encountered: boolean
   opponentId?: CombatOpponentId
   beastId?: BeastId
   chance: number
+  encounterAfterDays?: number
   reason?: string
+}
+
+export interface WildernessEncounterResult extends WildernessEncounterPlan {
+  state: GameState
 }
 
 const BASE_ENCOUNTER_CHANCE: Readonly<Record<ExplorationDuration, number>> = {
@@ -56,20 +60,20 @@ function encounterSeed(state: GameState, locationId: string, previousExploredDay
   return seedToState(`${state.runSeed}:r22-fix:wilderness:${locationId}:${state.worldDay}:${previousExploredDays}:${days}`)
 }
 
-export function resolveWildernessEncounter(
+export function planWildernessEncounter(
   state: GameState,
   locationId: string,
   previousExploredDays: number,
   days: ExplorationDuration,
-): WildernessEncounterResult {
+): WildernessEncounterPlan {
   if (state.flags.wilderness_encounters_initialized !== true) {
-    return { state, encountered: false, chance: 0, reason: 'WILDERNESS_ENCOUNTERS_NOT_INITIALIZED' }
+    return { encountered: false, chance: 0, reason: 'WILDERNESS_ENCOUNTERS_NOT_INITIALIZED' }
   }
-  if (state.combat) return { state, encountered: false, chance: 0, reason: 'COMBAT_ALREADY_ACTIVE' }
-  if (state.pendingBeastLoot) return { state, encountered: false, chance: 0, reason: 'PENDING_BEAST_LOOT' }
+  if (state.combat) return { encountered: false, chance: 0, reason: 'COMBAT_ALREADY_ACTIVE' }
+  if (state.pendingBeastLoot) return { encountered: false, chance: 0, reason: 'PENDING_BEAST_LOOT' }
 
   const pool = getOrdinaryWildernessEncounterPool(locationId)
-  if (pool.length === 0) return { state, encountered: false, chance: 0, reason: 'NO_ORDINARY_BEAST_POOL' }
+  if (pool.length === 0) return { encountered: false, chance: 0, reason: 'NO_ORDINARY_BEAST_POOL' }
 
   const weighted = pool
     .map((candidate) => ({
@@ -78,31 +82,45 @@ export function resolveWildernessEncounter(
     }))
     .filter((candidate) => candidate.weight > 0)
 
-  if (weighted.length === 0) return { state, encountered: false, chance: 0, reason: 'ORDINARY_BEASTS_DEPLETED' }
+  if (weighted.length === 0) return { encountered: false, chance: 0, reason: 'ORDINARY_BEASTS_DEPLETED' }
 
   const totalWeight = weighted.reduce((sum, candidate) => sum + candidate.weight, 0)
   const relativePresence = totalWeight / pool.length
   const chance = Math.min(0.95, BASE_ENCOUNTER_CHANCE[days] * relativePresence)
   const chanceRoll = nextRandom(encounterSeed(state, locationId, previousExploredDays, days))
-  if (chanceRoll.value >= chance) return { state, encountered: false, chance }
+  if (chanceRoll.value >= chance) return { encountered: false, chance }
 
   const picked = weightedPick(chanceRoll.nextState, weighted)
-  const started = resolveCombatStart(state, picked.item.opponentId, 'field', [], 'ordinary')
-  if (!started.applied) {
-    return {
-      state,
-      encountered: false,
-      chance,
-      beastId: picked.item.beastId,
-      opponentId: picked.item.opponentId,
-      reason: started.reason ?? 'WILDERNESS_COMBAT_START_FAILED',
-    }
-  }
+  const encounterDay = randomInt(picked.nextState, 1, days)
   return {
-    state: started.state,
     encountered: true,
     chance,
     beastId: picked.item.beastId,
     opponentId: picked.item.opponentId,
+    encounterAfterDays: encounterDay.value,
   }
+}
+
+export function startWildernessEncounter(state: GameState, plan: WildernessEncounterPlan): WildernessEncounterResult {
+  if (!plan.encountered || !plan.opponentId || !plan.beastId) return { state, ...plan }
+  const started = resolveCombatStart(state, plan.opponentId, 'field', [], 'ordinary')
+  if (!started.applied) {
+    return {
+      state,
+      ...plan,
+      encountered: false,
+      reason: started.reason ?? 'WILDERNESS_COMBAT_START_FAILED',
+    }
+  }
+  return { state: started.state, ...plan }
+}
+
+export function resolveWildernessEncounter(
+  state: GameState,
+  locationId: string,
+  previousExploredDays: number,
+  days: ExplorationDuration,
+): WildernessEncounterResult {
+  const plan = planWildernessEncounter(state, locationId, previousExploredDays, days)
+  return startWildernessEncounter(state, plan)
 }
