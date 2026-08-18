@@ -4,24 +4,25 @@
 
 ## 当前状态
 
-- 当前开发主线：**R22「妖兽与战利品」已完成实现与专项回归；下一步先做 R22-FIX「成年野外循环验收」，不要直接扩 R23。**
-- R00.1～R15：迁移、唯一 GameState、出生、童年、成年、世界、知识、旅行、探索、子地点、沉脉石室、背包与装备完成。
-- C16 / R16～R17：修炼内容、炼气修炼、功法 / 熟练 / 改修完成。
-- R18：authoritative injury runtime 与炼气→筑基完成。
-- C19 / R19：寿元、延寿、筑基后修炼、结丹与金丹完成。
-- C20 / R20：唯一正式 Combat runtime、半自动 beat、装备 / 物品 / 招式 / 逃跑、战斗伤势 / 死亡、save / replay、沉脉石室正式岩甲蜥战斗完成。
-- C21 / R21：injury action gates、optional poison runtime、worldDay 毒性恶化、三种治疗物、Combat health penalties、UI / save / replay 完成。
-- C22 / R22：首版 8 种妖兽、telegraph / escape AI、碧水蛇 poison exposure、真实战利品、pending corpse loot、ordinary population pressure、30 日恢复、寒潭鳞蟒 special world truth、独角苍狼 unique world truth 与生态后果完成。
-- R23 **尚未开始**：本轮没有修改区域危险评分、强大妖兽领地或世界事件。
+- 当前开发主线：**R22-FIX「成年野外循环验收」已完成实现；下一轮进入 R23「危险判断 + 强大妖兽领地」。**
+- R00.1～R15：统一状态、出生 / 童年 / 成年、世界 / 知识 / 旅行 / 探索、子地点、沉脉石室、背包与装备完成。
+- R16～R17：修炼、功法、熟练度与改修完成。
+- R18：伤势与筑基完成。
+- R19：寿元、延寿、筑基后修炼、结丹与金丹完成。
+- R20：唯一正式 Combat runtime、beat、装备 / 物品 / 招式 / 逃跑、伤势 / 死亡、沉脉石室正式岩甲蜥战斗完成。
+- R21：poison、治疗、伤势行动门禁、worldDay 毒性恶化完成。
+- R22：8 种妖兽、真实战利品、pending corpse loot、ordinary population pressure、30 日恢复、special / unique world truth 完成。
+- **R22-FIX：普通野外探索已经真正接入 R22 妖兽战斗；长探索会被真实遭遇中断。**
+- R23 尚未实现动态危险判断、强大妖兽领地入口与领地状态变化。
 
 ---
 
-# 一、唯一状态与调度纪律
+# 一、长期架构纪律
 
-继续保持：
+继续保持唯一链路：
 
 ```text
-UI / feature
+React UI
 → SessionCommand
 → resolver / GameAction
 → 唯一 GameState
@@ -32,6 +33,7 @@ UI / feature
 
 当前 authoritative truths：
 
+- `worldDay`：唯一世界时间；
 - inventory：R14；
 - equipment：R15；
 - cultivation / technique：R16～R17；
@@ -39,481 +41,423 @@ UI / feature
 - lifespan：R19；
 - combat：R20；
 - poison / treatment：R21；
-- beast combat：继续扩展 R20 CombatEngine；
-- beast loot：R22 `resolveBeastLoot()` + `pendingBeastLoot`，真正所有权仍只在 R14 inventory；
-- beast ecology：R22 optional `beastEcology`；
-- ecology recovery：继续只由统一 `worldDay` 驱动。
+- beast combat / loot / ecology：R22；
+- ordinary wilderness encounter：R22-FIX `wildernessEncounterEngine.ts`。
 
 禁止后续新增：
 
 ```text
+GameStateV2
 BeastCombatEngineV2
 第二套 inventory
 第二套 world timer
-GameStateV2
-独立的“怪物掉落背包”
+第二套 encounter RNG 真源
 ```
 
 ---
 
-# 二、R22 主要实现文件
+# 二、R22-FIX 为什么必须做
+
+R22 合并后，8 种妖兽、CombatEngine、loot 与 ecology 都已经存在，但 R11 `resolveRegionExploration()` 仍然只做：
 
 ```text
-src/types/beast.ts
-src/data/beasts.ts
-src/data/beastItems.ts
-src/core/beastEngine.ts
-src/core/beastEcologySelectors.ts
-src/components/BeastLootPanel.tsx
-src/beast-loot.css
+推进 worldDay
+→ 增加 exploredDays
+→ 发现子地点
 ```
 
-并扩展：
+普通玩家从地图上的“探索 1 / 3 / 10 天”没有任何路径进入 R22 妖兽战斗。
+
+因此此前是：
 
 ```text
-src/types/game.ts
-src/types/combat.ts
-src/types/gameAction.ts
-src/data/combat.ts
-src/data/items.ts
-src/core/combatEngine.ts
-src/core/gameActionReducer.ts
-src/core/worldEngine.ts
-src/App.tsx
+系统完成 ≠ 玩家可玩
 ```
 
-专项测试：
-
-```text
-src/core/beastEngine.test.ts
-src/core/beastEcologySelectors.test.ts
-```
+R22-FIX 只修这条断链，不扩 R23。
 
 ---
 
-# 三、首版 8 种妖兽
+# 三、R22-FIX 新增 authoritative encounter 层
 
-canonical ids：
+新增：
 
 ```text
-greenback_wolf           青背狼
-redtail_fox              赤尾狐
-ironhide_boar            铁甲猪
-bishui_snake             碧水蛇
-rock_armored_lizard      岩甲蜥
-red_maned_ape            赤鬃山猿
-cold_pool_scale_python   寒潭鳞蟒
-one_horned_azure_wolf    独角苍狼
+src/core/wildernessEncounterEngine.ts
+src/core/wildernessEncounterEngine.test.ts
 ```
 
-核心数值严格按 Content Bible §39：
+它不创建新的战斗系统，只负责：
 
-| 妖兽 | 量级 | HP | attack | armor | 核心机制 |
-|---|---|---:|---:|---:|---|
-| 青背狼 | 炼气2 | 105 | 12 | 0% | 扑击×1.60；HP≤25% 一次 65% 撤退；玩家逃跑-8pp |
-| 赤尾狐 | 炼气2 | 90 | 11 | 0% | HP≤55% 急遁预兆；下一拍 85% 脱离；玩家逃跑+5pp |
-| 铁甲猪 | 炼气3 | 150 | 15 | 18% | 冲撞×1.80；movement-required；结算后自身暴露 |
-| 碧水蛇 | 炼气3 | 125 | 14 | 4% | 毒袭×1.25；真实伤害后写入 bishui exposure |
-| 成年岩甲蜥 | 炼气4 | 155 | 16 | 22% | 扫尾×1.70；自身暴露；普通个体一次 35% 撤退；秘境个体不逃 |
-| 赤鬃山猿 | 炼气8 | 210 | 26 | 8% | 蓄力砸击×2.00；护身 2 beats；HP≤30% 狂暴 |
-| 寒潭鳞蟒 | 筑基前～中 | 300 | 46 | 12% | 缠杀 / 寒息；寒潭 context 强化；special 不逃 |
-| 独角苍狼 | 筑基中 | 340 | 52 | 10% | 狼啸 3 beats 增伤 / 裂风扑杀；HP≤30% 狂暴；unique 不逃 |
+```text
+当前 wilderness
++ 玩家选择的探索时长
++ ordinary population pressure
++ deterministic seed
+→ 是否发生普通妖兽遭遇
+→ 遭遇发生在本次探索第几天
+→ 调用现有 resolveCombatStart()
+```
 
-C20 三个既有妖兽样本的 HP / attack / armor 保持原值，没有为 R22 改写旧战斗基线。
+所有实际战斗继续进入 R20 / R22 `CombatEngine`。
 
 ---
 
-# 四、敌方 AI / telegraph 顺序
+# 四、普通野外 encounter pool
 
-R22 继续使用 CombatState 的离散 beat，不建第二套 AI runtime。
+R22-FIX 只把 Content Bible 已明确属于固定区域的 **ordinary** 妖兽放入随机探索池。
 
-敌方行动顺序：
-
-```text
-已有 telegraph 结算
-→ 首次低血量行为
-→ 正常特殊动作 / 普攻
-```
-
-关键规则：
-
-- movement-required 特殊动作可被当拍束缚打断；
-- cooldown 使用 `opponentSpecialReadyBeat`；
-- 青背狼 / 碧水蛇 / 普通岩甲蜥的低血量逃跑只判定一次；
-- 赤尾狐先展示急遁预兆，玩家获得反应窗口，下一拍才做 seeded 85% 脱离；
-- 赤鬃山猿 / 独角苍狼低血量进入既有狂暴，不逃；
-- 沉脉石室岩甲蜥不执行普通个体逃跑。
-
----
-
-# 五、碧水蛇 poison 接口
-
-普通咬击不施毒。
-
-只有毒袭造成最终实际伤害 > 0 时：
-
-```text
-combat.pendingPoisonExposures.bishui_venom += 1
-```
-
-Combat beat 内没有 poison DOT。
-
-玩家以存活方式结束战斗时——胜利、玩家逃跑、碧水蛇逃跑——在清除 CombatState 前按 exposure 次数调用 R21 poison resolver：
-
-```text
-clean +1 → mild
-clean +2 → serious
-mild +1 → serious
-serious + any → serious，且不刷新死亡期限
-```
-
-Combat HP=0 死亡则不再写长期 poison。
-
----
-
-# 六、寒潭 context
-
-`cold-pool` 只通过明确 combat context tag 生效：
-
-```text
-damage ×1.10
-armorReduction +5pp
-player fleeChance -10pp
-```
-
-离潭后不传该 tag，即自然失去三项强化。
-
-R22 没有新增格子水域、游泳条、实时距离或区域危险评分。
-
----
-
-# 七、真实战利品
-
-静态 definitions：`src/data/beasts.ts`
-
-pure seeded resolver：
-
-```ts
-resolveBeastLoot(beastId, variant, rngState, context)
-→ { items, nextRngState }
-```
-
-规则：
-
-- 不使用 `Math.random()`；
-- 妖兽不掉灵石；
-- 不掉装备箱 / 随机词条 / 经验球；
-- `strong` 条件只读真实 encounter variant；
-- 普通 Combat 不自动制造 `damaged-carcass`；
-- explicit `damaged-carcass` 才会让皮 / 鳞 / 甲数量减半向下取整；
-- 同一 battleId 的 loot seed 确定性一致。
-
-canonical material ids：
-
-```text
-greenback_wolf_pelt
-greenback_wolf_fang
-redtail_fox_pelt
-redtail_fox_tail_fur
-ironhide_boar_hide
-ironhide_boar_tusk
-beast_bone
-bishui_venom_sac
-bishui_snake_gall
-bishui_snake_skin
-rock_lizard_carapace
-rock_lizard_mineral_crystal
-red_maned_ape_tendon
-low_grade_beast_essence
-immature_beast_core
-mature_first_tier_beast_core
-cold_pool_python_scale
-cold_pool_python_tendon
-cold_pool_python_cold_sac
-complete_second_tier_beast_core
-high_grade_beast_essence
-azure_wolf_pelt
-azure_wolf_horn
-```
-
-C19 稳定二阶资源来源仍只有：
-
-1. 寒潭鳞蟒；
-2. 独角苍狼。
-
-普通妖兽绝不掉完整二阶妖丹 / 高品质精血；赤鬃山猿 strong 最多是一阶成熟妖丹。
-
----
-
-# 八、pending corpse loot / 背包满
-
-胜利结算与拾取分离：
-
-```text
-combat victory
-→ world truth / population 先结算
-→ seeded loot 只生成一次
-→ pendingBeastLoot
-→ 玩家按 item / quantity 领取
-→ addItem() 继续作为唯一容量检查
-```
-
-关键兼容：
-
-- 背包满时领取失败是 atomic reject；
-- 不修改 remaining；
-- 不回滚战斗；
-- 不让已死妖兽复活；
-- pending 未处理时禁止开启下一场会覆盖尸体 loot 的战斗；
-- 玩家可显式放弃全部剩余战利品；
-- `pendingBeastLoot` 不是第二背包，只表示地面 / 尸体上尚未取得的材料。
-
-UI 已显示：妖兽名、remaining、背包占用 / 容量、领取 1、全部领取、放弃剩余。
-
----
-
-# 九、沉脉石室岩甲蜥兼容
-
-`source = sunken-vein-core` 的成年岩甲蜥：
-
-```text
-继续走既有 R13 / R14 secret-realm reward / claim
-不生成 R22 generic beast corpse loot
-```
-
-因此不会出现：
-
-```text
-secret-realm reward + generic rock-lizard loot
-```
-
-旧 R13 replay 不需要反向迁移。
-
----
-
-# 十、ordinary population pressure
-
-ordinary 六种：
+## 黑风山
 
 ```text
 greenback_wolf
+greenback-wolf
+
 redtail_fox
+redtail-fox
+
 ironhide_boar
-bishui_snake
+ironhide-boar
+
 rock_armored_lizard
+adult-rock-lizard
+```
+
+即：青背狼、赤尾狐、铁甲猪、普通岩甲蜥。
+
+## 灵溪谷
+
+```text
+redtail_fox
+bishui_snake
+```
+
+即：赤尾狐、碧水蛇。
+
+## 万兽岭
+
+```text
+greenback_wolf
 red_maned_ape
 ```
 
-每个 `location + species` optional materialize：
+即：青背狼、赤鬃山猿。
+
+### 明确不进入 ordinary random pool
 
 ```text
-pressure: 0 | 1 | 2 | 3
-baseline: 0 | 1 | 2 | 3
-lastRecoveryCheckDay: number
+cold_pool_scale_python
+one_horned_azure_wolf
 ```
 
-初始：
+寒潭鳞蟒和独角苍狼仍是 hidden special / unique world truth。
 
-```text
-pressure = 2
-baseline = 2
-```
+R22-FIX 不允许玩家因为按了普通探索按钮，就在完全没有任何地点 / 线索铺垫的情况下随机撞见它们。
 
-真实击杀 ordinary：
-
-```text
-pressure = max(0, pressure - 1)
-```
-
-敌人逃跑 / 玩家逃跑不降低。
-
-encounter weight selector 已冻结：
-
-```text
-pressure 0 → 0
-pressure 1 → 0.50
-pressure 2 → 1.00
-pressure 3 → 1.50
-```
-
-30 worldDays 恢复继续接统一 `advanceWorldTime()`：
-
-```text
-pressure < baseline → 每跨一个 30 日 milestone +1，最多到 baseline
-pressure == baseline → unchanged
-pressure > baseline → unchanged
-```
-
-长动作跨多个 milestone 会聚合恢复；如果 poison / lifespan 在中途终止动作，只按真实到达的 `worldDay` 结算。
+它们的明确领地 / 地点入口留给 R23。
 
 ---
 
-# 十一、寒潭鳞蟒 special world truth
+# 五、遭遇概率与 ecology
 
-optional ecology 第一次真实需要时 deterministic materialize。
+R22-FIX 使用简单的 exploration exposure，而不是再造一套“区域危险模拟器”。
 
-状态：
+未受 ecology 压力修正前：
 
 ```text
-generated
-instanceId
-alive
-lootClaimed
-lairCleared
+试探 1 天  → 25%
+巡探 3 天  → 50%
+深入 10 天 → 80%
 ```
 
-规则：
+随后读取 R22 已存在的 ordinary population encounter weight：
 
-- 非每世生成；
-- 当前实现用 `runSeed` deterministic 50/50 presence 作为执行概率，因为 C22 冻结了“seeded generated or absent”但没有额外冻结出现率；
-- 生成后 instance id 稳定；
-- 死亡本世不刷新；
-- 死亡即 `lairCleared=true`；
-- pending loot 处理完 / 放弃后 `lootClaimed=true`；
-- UI 不提前展示其是否生成。
+```text
+pressure 0 → ×0
+pressure 1 → ×0.50
+pressure 2 → ×1.00
+pressure 3 → ×1.50
+```
 
-如果后续内容冻结给出明确出现率，只调整 seeded presence rule，不改变 world-truth 结构。
+实现上使用当前区域 ordinary pool 的相对总 presence 修正 encounter chance，最终上限 95%。
+
+注意：
+
+- 这是 R22-FIX 的“探索期间碰见普通妖兽”节奏；
+- **不是 R23 的区域危险评分**；
+- 不向 UI 显示后台精确遭遇概率；
+- 不改变 R22 妖兽 combat 数值。
+
+ordinary 被杀后 pressure 下降，因此后续探索会真实更难再碰见同类；30 worldDays 恢复仍只走 R22 已接好的统一时间推进。
 
 ---
 
-# 十二、独角苍狼 unique world truth
+# 六、长探索现在可以被真实风险中断
 
-每世始终存在唯一 world truth：
+玩家选择：
 
 ```text
-uniqueId = one_horned_azure_wolf
-instanceId
-alive
-lootClaimed
+深入 · 10 天
 ```
 
-玩家 knowledge / discovery 没有和该 truth 绑定，未发现时 UI 不泄露。
+并不保证系统把 10 天一次性安全结算完。
 
-玩家斩杀后原子结算：
+若 seeded encounter 落在第 3 天：
 
-1. `alive=false`，本世永久不刷新；
-2. unique loot 只生成一次；
-3. 写入 major Chronicle「斩杀独角苍狼」；
-4. `flags.killed_one_horned_azure_wolf=true`，并保留 `beastEcology.specialIndividuals.oneHornedAzureWolf.alive=false` 作为 E03 / 后续世界逻辑的权威死亡事实；
-5. `beast_ridge + greenback_wolf` baseline 永久改为 1；
-6. 当前 pressure 同时压到 `min(current,1)`；
-7. 后续 30 日只能恢复到 baseline=1。
+```text
+计划探索 10 天
+→ worldDay 只推进 3 天
+→ exploredDays 只增加 3 天
+→ 这 3 天内满足的子地点发现照常结算
+→ 第 3 天遭遇妖兽
+→ 立即进入现有 CombatEngine
+→ 剩余 7 天不自动继续
+```
 
-R22 不把死亡事实转换成地图危险评分；R23 再读取。
+Combat log 会明确写：
+
+> 本次探索进行到第 X 天时，前路被妖兽截断。
+
+玩家战斗结束后回到正常世界状态，再自行决定：
+
+- 继续探索；
+- 处理战利品；
+- 返回安全地点；
+- 治疗；
+- 修炼；
+- 改变装备 / 准备。
+
+这比“先结算十天，再附送一场战斗”更符合一世一局的风险感。
 
 ---
 
-# 十三、save / replay / 兼容
+# 七、旧 save / replay 兼容
 
-- `beastEcology` 与 `pendingBeastLoot` 都是 GameState optional；
-- 旧 schema-3 save 没有这两个字段仍合法；
-- 旧 active combat save 没有 R22 combat optional fields 仍合法；
-- persistent JSON save/reload 保留并深拷贝 ecology / pending loot / combat nested runtime；
-- loot RNG 只读 deterministic seed；
-- population recovery 只读 worldDay；
-- R20/R21 既有测试仍必须通过。
+这是本轮的重要兼容设计。
+
+新野外遭遇通过已有 `SET_FLAG` 显式启用：
+
+```text
+wilderness_encounters_initialized = true
+```
+
+真实玩家第一次在 R22-FIX 版本点击区域探索时，`App.persistExplore()` 会：
+
+```text
+初始化既有 sublocations / secret realm / inventory（如需要）
+→ 若 encounter flag 尚未存在，走 SessionCommand + SET_FLAG 写入
+→ 再执行 explore-region
+```
+
+因此：
+
+### 旧 replay
+
+历史 R11～R22 replay 中没有这条 flag command：
+
+```text
+explore-region
+→ 保留旧“纯探索”语义
+```
+
+不会因为更新代码而改变历史 digest。
+
+### 新 replay
+
+新游戏 / 更新后继续玩的存档：
+
+```text
+SET_FLAG wilderness_encounters_initialized
+→ explore-region
+→ deterministic encounter
+```
+
+flag 本身进入 debug log，因此 replay 可以完整复现。
+
+没有新增 schemaVersion，也没有偷偷根据“当前软件版本”改变 resolver。
 
 ---
 
-# 十四、R22 验证结果
+# 八、玩家 UI 改动
 
-开发分支：
-
-```text
-agent/r22-beast-loot
-```
-
-Draft PR：
+`WorldMapPanel` 的三个探索按钮不再只是机械数字：
 
 ```text
-#11  V2 R22: implement beast combat, loot and ecology
+试探 · 1天
+巡探 · 3天
+深入 · 10天
 ```
 
-CI 验证路径：
+页面明确告诉玩家：
 
-```text
-npm run typecheck
-npm test
-npm run build
-```
+- 探索时间越长，更容易发现子地点；
+- 也越可能在行动结束前碰上此地活动的普通妖兽；
+- 遭遇会中断本次探索；
+- 玩家可以在正式战斗里再决定硬拼还是撤退。
 
-在 R22 核心实现与专项测试加入后，GitHub Actions 已跑通 Typecheck + Test；最终文档提交后仍需以该 PR 最新 head 的 CI 为合并门槛。
+仍然只展示角色合理知道的信息：
 
-专项覆盖至少包括：
+- 当前区域客观危险；
+- 以角色当前境界计算的粗略风险；
+- 已发现地点 / 子地点。
 
-- 8 种 canonical combat definitions；
-- C20 三个妖兽 anchor 数值不变；
-- strong / 一阶 / 二阶妖丹来源；
-- deterministic loot；
-- `damaged-carcass`；
-- ordinary kill / enemy flee pressure；
-- 30 / 60 / 90 日恢复与新 baseline；
-- pending loot 容量不足 atomic reject；
-- partial claim / abandon；
-- secret-realm rock lizard no double loot；
-- cold-pool python seeded truth；
-- unique azure wolf permanent death / Chronicle / baseline consequence；
-- old state optional compatibility；
-- save/reload deep clone；
-- movement telegraph + bind interrupt；
-- Bishui poison victory / player flee / snake flee / combat death；
-- serious poison deadline no refresh；
-- cold-pool armor / flee context；
-- population encounter weight 0 / 0.5 / 1 / 1.5。
+不会展示：
+
+- 精确 encounter roll；
+- pressure 数字；
+- 未发现的寒潭鳞蟒；
+- 未发现的独角苍狼；
+- hidden loot 概率。
 
 ---
 
-# 十五、下一步：R22-FIX 成年野外循环验收
+# 九、战后闭环审查结果
 
-不要直接开始堆 R23 内容。
+当前 App 主流程优先级保持：
 
-按新的整体开发计划，先从玩家视角检查：
+```text
+pending result
+→ death
+→ combat
+→ pendingBeastLoot
+→ secret realm / world map
+```
+
+因此野外 ordinary encounter 后可以真实形成：
+
+```text
+区域探索
+→ 妖兽打断
+→ CombatPanel
+→ 胜利 / 撤退 / 敌人逃跑 / 死亡
+→ injury / bishui poison（如发生）
+→ 胜利时 deterministic corpse loot
+→ BeastLootPanel
+→ 背包容量取舍
+→ InventoryPanel 治疗 / 丢弃 / 装备
+→ WorldMap 旅行 / 再探索
+→ 修炼 / 休养
+```
+
+现有 R22 BeastLootPanel 已满足：
+
+- 显示真实材料；
+- 显示背包占用 / 容量；
+- 领取 1 / 全部领取；
+- 容量不足 atomic reject；
+- 显式放弃剩余材料。
+
+现有 InventoryPanel 已满足：
+
+- 轻伤 / 重伤 / 经脉伤状态；
+- 碧水蛇毒状态；
+- 止血散 / 清毒散 / 养脉丹；
+- 10 / 30 日休养；
+- 装备与背包整理。
+
+所以本轮没有再复制一个“战后菜单”。
+
+---
+
+# 十、R22-FIX 验收覆盖
+
+专项测试至少覆盖：
+
+1. 三个 wilderness 的 ordinary pool 正确；
+2. cold-pool python / unique azure wolf 不进入普通随机探索；
+3. 旧状态没有 enable flag 时仍保持原 R11 探索语义；
+4. 1 / 3 / 10 日基础 exposure；
+5. ecology pressure 会真实修改 encounter exposure；
+6. 区域全部 ordinary pressure=0 时不生成普通妖兽；
+7. 长探索 encounter day deterministic；
+8. 遭遇发生时 worldDay 只推进到中断日；
+9. exploredDays 只增加实际已经走过的时间；
+10. 遭遇直接进入已有 CombatEngine；
+11. encounter variant 为 ordinary；
+12. encounter-bearing Session replay deterministic；
+13. 旧 R11/R20/R21/R22 回归测试继续通过；
+14. Typecheck / Test / Build 必须全绿才允许合并。
+
+---
+
+# 十一、R22-FIX 后目前真正成立的成年野外主链
 
 ```text
 地点
-→ 情报
-→ 准备
-→ 探索
-→ 风险
-→ 妖兽遭遇
-→ telegraph / 战斗 / 逃跑
-→ 伤势 / poison
-→ 尸体真实材料
-→ 背包取舍
-→ 返回 / 治疗 / 修炼
+→ 粗略风险信息
+→ 选择试探 / 巡探 / 深入
 → worldDay 推进
-→ population / unique world truth 改变
+→ 发现子地点，或被 ordinary 妖兽中断
+→ telegraph / Combat / flee
+→ injury / poison
+→ corpse loot
+→ inventory capacity 取舍
+→ 返回 / 治疗 / 装备 / 修炼
+→ 再次进入世界
+→ ordinary ecology 随击杀与 worldDay 改变
 ```
 
-重点不是再增加怪物，而是确认这些已完成系统能否组成一个真实可玩的“成年野外循环”。
-
-R22-FIX 应优先发现并修：
-
-1. 玩家是否有真实入口遇到 R22 妖兽，而不是只有 engine data；
-2. 探索与 encounter 是否仍过于抽象；
-3. 风险信息是否足够支持玩家做取舍，但不提前泄露 hidden truth；
-4. 战斗结束后的背包 / 治疗 / 返回节奏是否顺畅；
-5. 是否存在重复点击、无意义 1/3/10 日机械操作；
-6. 天赋 / 出身 / 装备是否真的影响成年野外选择；
-7. 是否出现系统都“完成”但彼此不发生作用的问题。
-
-完成 R22-FIX 验收后，再进入 R23「危险判断 / 强大妖兽领地」。
+这解决了此前最大的“系统都有，但互相不发生作用”问题。
 
 ---
 
-# 十六、当前主线
+# 十二、仍然明确没有做的内容
+
+R22-FIX 没有实现：
+
+- R23 动态危险判断；
+- 强大妖兽明确领地；
+- 寒潭鳞蟒地点发现 / 挑战入口；
+- 独角苍狼领地发现 / 挑战入口；
+- W02 兽群南迁；
+- 多妖兽群体实时战斗；
+- 狩猎专用系统；
+- 采集系统；
+- 商店 / 出售兽材；
+- 御兽；
+- NPC 猎妖任务；
+- 新增第 9 种妖兽。
+
+不要用 R23 去顺手补这些更远的系统。
+
+---
+
+# 十三、下一轮：R23「危险判断 + 强大妖兽领地」
+
+路线图唯一目标：
+
+> **“我知道这里危险，但我仍可以进去。”**
+
+R23 应建立在已经成立的 R22-FIX 主链之上，而不是重写 exploration / combat。
+
+重点：
+
+1. 让“客观危险”更多读取真实 world truth / ecology / known strong presence；
+2. 让“对当前角色风险”更多读取当前真实 combat capability，而不是只有境界粗分；
+3. 已获得合理情报时，给强大妖兽领地自然、模糊但有用的风险提示；
+4. 寒潭鳞蟒 / 独角苍狼通过明确地点 / 领地 / knowledge 入口进入玩家路径；
+5. 风险提示不能泄露玩家尚不知道的 hidden truth；
+6. **高风险只警告，不因数值差距无理由禁止玩家进入。**
+
+具体施工范围以更新后的 `CURRENT_TASK.md` 为准。
+
+---
+
+# 十四、当前主线
 
 ```text
 出生 / 童年 / 成年 ✅
-→ 世界 / 知识 / 旅行 / 探索 ✅
+→ 世界 / 知识 / 旅行 / 基础探索 ✅
 → 子地点 / 沉脉石室 ✅
 → 背包 / 装备 ✅
 → 修炼 / 功法 / 筑基 ✅
 → 寿元 / 延寿 / 金丹 ✅
-→ C20 / R20 战斗 ✅
-→ C21 / R21 伤势 / poison / 治疗 ✅
-→ C22 / R22 妖兽 / 战利品 / 生态 ✅
-→ R22-FIX 成年野外循环验收 ← 下一步
-→ R23 危险判断 / 强大妖兽领地
-→ 宗门 / NPC / 职业 / 世界事件
+→ R20 战斗 ✅
+→ R21 injury / poison / 治疗 ✅
+→ R22 妖兽 / 战利品 / ecology ✅
+→ R22-FIX 成年野外循环 ✅
+→ R23 危险判断 / 强大妖兽领地 ← 下一轮
+→ R24～R26 宗门 / 身份
+→ R27～R29 炼丹 / 炼器 / 御兽
+→ R30～R32 NPC / 世界事件 / 结局
 ```

@@ -1,4 +1,5 @@
 import { getWorldLocationById } from '../data/worldLocations'
+import type { CombatOpponentId } from '../types/combat'
 import type { ExplorationDuration, ExplorationStage, RegionRisk } from '../types/exploration'
 import type { GameState } from '../types/game'
 import type { SublocationRuntime } from '../types/sublocation'
@@ -8,6 +9,7 @@ import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { hasSeriousPoison } from './poisonEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
+import { planWildernessEncounter, startWildernessEncounter } from './wildernessEncounterEngine'
 
 export const EXPLORATION_DURATIONS: readonly ExplorationDuration[] = [1, 3, 10]
 
@@ -44,6 +46,7 @@ export interface RegionExplorationResult {
   stageBefore: ExplorationStage | null
   stageAfter: ExplorationStage | null
   discoveredSublocations: SublocationRuntime[]
+  encounteredOpponentId?: CombatOpponentId
   reason?: string
 }
 
@@ -119,6 +122,7 @@ export function resolveRegionExploration(state: GameState, days: number): Region
   if (state.lifeStage !== 'adult' || state.flags.location_knowledge_initialized !== true) {
     return rejected(state, days, 'EXPLORATION_REQUIRES_LOCATION_KNOWLEDGE')
   }
+  if (state.pendingBeastLoot) return rejected(state, days, 'PENDING_BEAST_LOOT_BLOCKS_EXPLORATION')
   if (hasActiveInjury(state, 'severe')) {
     return rejected(state, days, 'SEVERE_INJURY_BLOCKS_EXPLORATION')
   }
@@ -136,7 +140,9 @@ export function resolveRegionExploration(state: GameState, days: number): Region
 
   const previousExploredDays = getRegionExploredDays(state, current.id)
   const stageBefore = getExplorationStage(previousExploredDays)
-  const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days })
+  const encounterPlan = planWildernessEncounter(state, current.id, previousExploredDays, days)
+  const elapsedDays = encounterPlan.encountered ? (encounterPlan.encounterAfterDays ?? days) : days
+  const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days: elapsedDays })
   if (!advanced.applied) return rejected(state, days, advanced.reason ?? 'TIME_ADVANCE_FAILED')
 
   if (advanced.state.status !== 'playing') {
@@ -154,7 +160,7 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     }
   }
 
-  const exploredDays = previousExploredDays + days
+  const exploredDays = previousExploredDays + elapsedDays
   const progressedState: GameState = {
     ...advanced.state,
     exploration: {
@@ -165,17 +171,20 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     },
   }
   const discovery = discoverEligibleSublocations(progressedState, current.id, exploredDays)
+  const encounter = startWildernessEncounter(discovery.state, encounterPlan)
+  const interrupted = encounter.encountered
 
   return {
-    state: discovery.state,
+    state: encounter.state,
     applied: true,
-    completed: true,
+    completed: !interrupted,
     locationId: current.id,
-    days,
+    days: elapsedDays,
     previousExploredDays,
     exploredDays,
     stageBefore,
     stageAfter: getExplorationStage(exploredDays),
     discoveredSublocations: discovery.discovered,
+    ...(interrupted && encounter.opponentId ? { encounteredOpponentId: encounter.opponentId } : {}),
   }
 }
