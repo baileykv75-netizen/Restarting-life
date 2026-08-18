@@ -216,6 +216,28 @@ function killSpecialIndividual(state: GameState, beastId: BeastId): GameState {
   return withEcology
 }
 
+function recordUniquePlayerVictory(state: GameState, context: BeastVictoryContext): GameState {
+  if (context.beastId !== 'one_horned_azure_wolf') return state
+  const narrative = '你在万兽岭斩杀了本世唯一的独角苍狼。此后狼群的活动格局发生了变化。'
+  return {
+    ...state,
+    flags: { ...state.flags, killed_one_horned_azure_wolf: true },
+    chronicle: [...state.chronicle, {
+      id: `${state.runId}:unique-beast:${context.beastId}:${state.worldDay}:${state.chronicle.length + 1}`,
+      startDay: state.worldDay,
+      endDay: state.worldDay,
+      title: '斩杀独角苍狼',
+      sceneText: narrative,
+      narrative,
+      changes: [{ label: '万兽岭狼群', value: '头狼死亡', tone: 'neutral' }],
+      importance: 'major',
+      sourceType: 'activity',
+      sourceId: `beast:${context.beastId}`,
+      locationId: context.locationId ?? undefined,
+    }],
+  }
+}
+
 export function settleBeastVictory(state: GameState, context: BeastVictoryContext): GameState {
   let next = state
   if (isOrdinaryBeast(context.beastId) && context.variant !== 'special' && context.variant !== 'unique' && context.locationId) {
@@ -223,6 +245,7 @@ export function settleBeastVictory(state: GameState, context: BeastVictoryContex
   } else if (context.beastId === 'cold_pool_scale_python' || context.beastId === 'one_horned_azure_wolf') {
     next = killSpecialIndividual(next, context.beastId)
   }
+  next = recordUniquePlayerVictory(next, context)
 
   const loot = resolveBeastLoot(
     context.beastId,
