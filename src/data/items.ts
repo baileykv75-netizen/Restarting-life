@@ -1,4 +1,5 @@
 import type { ItemDefinition } from '../types/inventory'
+import { BEAST_ITEM_DEFINITIONS } from './beastItems'
 
 export const ITEM_DEFINITIONS = [
   { id: 'green_dew_grass', name: '青露草', category: 'material', stackLimit: 10, slotCost: 1 },
@@ -39,6 +40,7 @@ export const ITEM_DEFINITIONS = [
   { id: 'spirit_suppressing_jade', name: '镇灵玉', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'protective-artifact', tier: 1, quality: 'mid', description: '针对神识冲击与心神干扰提供防护。', ruleTags: ['artifact:protective', 'mind:resistance-hook', 'spirit-sense:defense-hook'] },
   { id: 'flowing_cloud_boots', name: '流云靴', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'support-artifact', tier: 1, quality: 'high', description: '帮助移动、逃跑与山野赶路。', ruleTags: ['artifact:support', 'mobility:travel-hook', 'mobility:flee-hook'] },
   { id: 'spirit_seeking_compass', name: '寻灵盘', category: 'artifact', stackLimit: 1, slotCost: 1, equipmentSlot: 'support-artifact', tier: 1, quality: 'high', description: '探测附近明显灵气异常，只提供异常提示，不直接暴露隐藏坐标。', ruleTags: ['artifact:support', 'exploration:qi-anomaly-hook'] },
+  ...BEAST_ITEM_DEFINITIONS,
 ] as const satisfies readonly ItemDefinition[]
 
 const ITEM_BY_ID = new Map<string, ItemDefinition>(ITEM_DEFINITIONS.map((item) => [item.id, item]))
