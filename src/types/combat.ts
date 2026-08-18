@@ -1,7 +1,15 @@
+import type { BeastCombatContextTag, BeastEncounterVariant } from './beast'
+import type { PoisonFamily } from './poison'
+
 export type CombatOpponentId =
   | 'greenback-wolf'
+  | 'redtail-fox'
+  | 'ironhide-boar'
+  | 'bishui-snake'
   | 'adult-rock-lizard'
   | 'red-maned-ape'
+  | 'cold-pool-scale-python'
+  | 'one-horned-azure-wolf'
   | 'ordinary-loose-cultivator'
 
 export type CombatSource = 'field' | 'sunken-vein-core'
@@ -13,6 +21,15 @@ export type CombatAction =
   | { type: 'switch-weapon'; itemId: string }
   | { type: 'flee' }
 
+export type CombatSpecialEffect =
+  | 'expose-self'
+  | 'bishui-poison-exposure'
+  | 'bind-player'
+  | 'slow-player'
+  | 'guard-self'
+  | 'damage-boost'
+  | 'escape'
+
 export interface CombatStatusState {
   boundUntilBeat?: number
   slowedUntilBeat?: number
@@ -21,8 +38,11 @@ export interface CombatStatusState {
   stoneArmorUntilBeat?: number
   protectiveTalismanUntilBeat?: number
   lightnessTalismanUntilBeat?: number
+  guardedUntilBeat?: number
+  damageBoostUntilBeat?: number
   enraged?: boolean
   retreatingUntilBeat?: number
+  lowHealthResolved?: boolean
 }
 
 export interface CombatantRuntime {
@@ -42,6 +62,8 @@ export interface CombatTelegraph {
   movementRequired: boolean
   heavy: boolean
   kind: 'physical' | 'spell' | 'item'
+  effect?: CombatSpecialEffect
+  cooldown?: number
 }
 
 export interface CombatState {
@@ -63,4 +85,10 @@ export interface CombatState {
   telegraph: CombatTelegraph | null
   maxPlayerHitTaken: number
   log: string[]
+  /** R22 optional fields keep old active R20 saves legal. */
+  contextTags?: BeastCombatContextTag[]
+  encounterVariant?: BeastEncounterVariant
+  beastInstanceId?: string
+  opponentSpecialReadyBeat?: Record<string, number>
+  pendingPoisonExposures?: Partial<Record<PoisonFamily, number>>
 }
