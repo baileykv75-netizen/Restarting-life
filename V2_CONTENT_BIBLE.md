@@ -1775,7 +1775,7 @@ NPC 只掉实际携带的玉简或书卷，不会因为死亡自动掉出完整�
 
 **不做周期性自动扣食物。**
 
-早期讨论中的“每 30 天消耗灵兽食物”会产生重复维护感，与一世 1～2 小时目标冲突，因此首版删除。只有成长、受伤、特殊培养或事件时才消耗对应资源。
+早期讨论中的“每 30 天自动消耗食物”会产生重复维护感，与一世 1～2 小时目标冲突，因此首版删除。只有成长、受伤、特殊培养或事件时才消耗对应资源。
 
 ---
 
@@ -4255,3 +4255,233 @@ R21 不得再临时猜：
 - poison 是否做 combat beat DOT。
 
 至此，R21 可以直接进入实现，不再需要由 Codex 临时编治疗数值。
+
+---
+
+# 39. 妖兽、战利品与生态执行规则（C22 冻结）
+
+本节正式关闭 R22 开工前的妖兽 combat data、真实掉落、妖丹 / 精血来源、ordinary respawn、special / unique death 与碧水蛇 poison 接口缺口。第 13、18、23、27、28、37、38 节仍负责世界定位与既有规则；**凡涉及首版 8 种妖兽的执行数值、战利品数量、刷新语义与 unique death 后果，均以本节为实现权威值。**
+
+## 39.1 首版 8 种妖兽 canonical id
+
+```text
+greenback_wolf           青背狼
+redtail_fox              赤尾狐
+ironhide_boar            铁甲猪
+bishui_snake             碧水蛇
+rock_armored_lizard      岩甲蜥
+red_maned_ape            赤鬃山猿
+cold_pool_scale_python   寒潭鳞蟒
+one_horned_azure_wolf    独角苍狼
+```
+
+R22 不新增第 9 种妖兽，不为了数值覆盖临时造怪。
+
+## 39.2 8 种妖兽最终 Combat data
+
+| 妖兽 | 境界量级 | HP | Qi | baseAttack | armor | 普攻 | 特殊动作 | 低血量 / 逃跑 | 玩家逃跑 hook |
+|---|---|---:|---:|---:|---:|---|---|---|---:|
+| 青背狼 | 炼气2 | 105 | 0 | 12 | 0% | 撕咬 ×1.00，1 beat | 扑击 ×1.60，提前 1 beat 伏低身体，`movement-required`，cd2 | HP≤25% 首次触发一次 65% 撤退判定 | -8pp |
+| 赤尾狐 | 炼气2 | 90 | 0 | 11 | 0% | 撕咬 ×0.90，1 beat | 急遁：HP≤55% 时提前 1 beat 后退观察；下一 beat 若未被束缚则 85% 脱离，只触发一次 | 以急遁为主要求生手段 | +5pp |
+| 铁甲猪 | 炼气3 | 150 | 0 | 15 | 18% | 顶咬 ×1.00，1 beat | 冲撞 ×1.80，提前 1 beat 刨地低头，`movement-required`，cd3；结算后自身暴露 1 次 | 不主动逃跑 | 0pp |
+| 碧水蛇 | 炼气3 | 125 | 0 | 14 | 4% | 咬击 ×0.90，1 beat | 毒袭 ×1.25，提前 1 beat 昂首、毒腺鼓起，cd2；造成实际伤害时记录 1 次 `bishui_venom` exposure | HP≤20% 首次触发一次 40% 撤退判定 | 0pp |
+| 成年岩甲蜥 | 炼气4 | 155 | 0 | 16 | 22% | 咬击 ×1.00，1 beat | 扫尾 ×1.70，提前 1 beat 抬尾，cd3；结算后自身暴露 1 次 | 普通个体 HP≤20% 可一次 35% 撤退；沉脉石室个体不逃 | +5pp |
+| 赤鬃山猿 | 炼气8 | 210 | 0 | 26 | 8% | 重拳 ×1.00，1 beat | 蓄力砸击 ×2.00，提前 1 beat 举臂蓄力，cd3；护身：提前 1 beat 屈身护胸，随后 2 beats 额外减伤20%，cd4 | HP≤30% 进入既有狂暴，之后不逃 | -5pp |
+| 寒潭鳞蟒 | 筑基前期～中期 | 300 | 0 | 46 | 12% | 蟒尾 / 咬击 ×1.00，1 beat | 缠杀 ×1.45，提前 1 beat 盘身收紧，命中后束缚1 beat，cd3；寒息 ×1.60，提前1 beat 喉部泛白，命中后迟缓2 beats，cd3 | 特殊个体不逃 | 寒潭内 -10pp；离潭后 0pp |
+| 独角苍狼 | 筑基中期 | 340 | 0 | 52 | 10% | 撕咬 ×1.00，1 beat | 狼啸：提前1 beat 仰首蓄气，之后3 beats 造成伤害×1.15，cd4；裂风扑杀 ×1.90，提前1 beat 压低前身，`movement-required`，cd3 | HP≤30% 进入狂暴；unique 不逃 | -12pp |
+
+### C20 三个既有样本不改
+
+青背狼、成年岩甲蜥、赤鬃山猿的核心 HP / attack / armor / 已有主特殊招式全部原样继承。C22 只补：
+
+- 明确 cooldown；
+- 岩甲蜥普通个体与沉脉石室特殊个体的逃跑差异；
+- 赤鬃山猿第 18 节已有“护身”动作；
+- 统一掉落与生态语义。
+
+## 39.3 寒潭地形
+
+寒潭鳞蟒基础数据按离潭后的正常状态记录。在真实寒潭水域：
+
+```text
+造成伤害 ×1.10
+armorReduction +5pp
+玩家 fleeChance -10pp
+```
+
+引离寒潭后以上三项全部取消。不建立格子水域、游泳条或实时地形系统；战斗来源只传 `cold-pool` context tag。
+
+## 39.4 碧水蛇与 R21 poison 正式接口
+
+普通咬击首版不自动施毒。只有“毒袭”在造成大于 0 的最终实际伤害时记录：
+
+```text
+pendingPoisonExposures.bishui_venom += 1
+```
+
+Combat beat 内仍不做 poison DOT。
+
+战斗以玩家存活方式结束时——玩家胜利、玩家成功逃跑或碧水蛇成功逃跑——在清除 CombatState 前，把本场 exposure 按次数顺序提交给 R21 `applyPoison()`：
+
+```text
+无既有毒 + 1 exposure → mild
+无既有毒 + 2 exposures → mild → serious
+已有 mild + 1 exposure → serious
+已有 serious + 任意 exposure → 仍 serious，且不刷新死亡期限
+```
+
+玩家若已在战斗中死亡，不再额外写长期 poison。
+
+## 39.5 真实战利品共同规则
+
+- 灵石绝不由妖兽身体掉落；
+- 不掉装备箱、随机词条、经验球；
+- 掉落取自真实尸体部位；
+- 普通战斗方式不会暗中随机“把皮打烂”；
+- 只有未来明确事件 / 环境写入 `damaged-carcass` 时，皮 / 鳞 / 甲类数量减半向下取整；R22 普通 Combat 不自动设置该 flag；
+- 数量由 seeded loot RNG 一次确定；同一战斗 replay 必须一致。
+
+## 39.6 首版 canonical 妖兽材料与数量
+
+| 妖兽 | 必定 / 常见材料 | 条件材料 |
+|---|---|---|
+| 青背狼 | `greenback_wolf_pelt` 狼皮×1；`greenback_wolf_fang` 狼牙×2～4 | 成年强个体可有 `low_grade_beast_essence`×1；明确 `strong` 个体仅 10% 出 `immature_beast_core`×1，普通个体无妖核 |
+| 赤尾狐 | `redtail_fox_pelt` 狐皮×1；`redtail_fox_tail_fur` 尾毛×1～2 | 成年个体 `low_grade_beast_essence`×1；无成熟妖丹 |
+| 铁甲猪 | `ironhide_boar_hide` 厚皮×1～2；`ironhide_boar_tusk` 獠牙×2；`beast_bone` 骨料×1～3 | 无成熟妖丹 |
+| 碧水蛇 | `bishui_venom_sac` 毒囊×1；`bishui_snake_gall` 蛇胆×1；`bishui_snake_skin` 蛇皮×1 | 无成熟妖丹 |
+| 岩甲蜥 | 复用 `rock_lizard_carapace` 背甲×1；`rock_lizard_mineral_crystal` 矿性结晶×1～2 | 第18节“少量特殊矿物”首版并入矿性结晶类别，不另造第二种同质矿物；无成熟妖丹 |
+| 赤鬃山猿 | `red_maned_ape_tendon` 兽筋×1；`beast_bone` 骨料×2～4；`low_grade_beast_essence`×1～2 | 只有明确 `strong` / 炼气9层量级成年个体 25% 形成 `mature_first_tier_beast_core`×1；普通个体无妖丹 |
+| 寒潭鳞蟒 | `cold_pool_python_scale` 二阶鳞皮×2～4；`cold_pool_python_tendon` 蟒筋×1～2；`cold_pool_python_cold_sac` 寒囊×1 | 完整二阶个体必定 `complete_second_tier_beast_core`×1 + `high_grade_beast_essence`×1 |
+| 独角苍狼 | `azure_wolf_pelt` 苍狼皮×1；`azure_wolf_horn` 独角×1 | 必定 `complete_second_tier_beast_core`×1 + `high_grade_beast_essence`×2；本世仅一次 |
+
+## 39.7 C19 结丹资源正式来源
+
+首版 `complete_second_tier_beast_core` 的稳定来源只有：
+
+1. 本世生成并被击杀的寒潭鳞蟒；
+2. 被击杀的独角苍狼。
+
+`high_grade_beast_essence` 的首版稳定来源同样只有这两种二阶特殊个体。
+
+普通青背狼、赤尾狐、铁甲猪、碧水蛇、岩甲蜥绝不产生完整二阶妖丹或高品质精血。赤鬃山猿强个体最多形成一阶成熟妖丹，不能替代 C19 二阶妖丹。
+
+## 39.8 ordinary population pressure
+
+以下六种属于 ordinary respawnable population：
+
+- 青背狼；
+- 赤尾狐；
+- 铁甲猪；
+- 碧水蛇；
+- 普通岩甲蜥；
+- 普通赤鬃山猿。
+
+死亡是真死；之后再次遇到的是种群中的其他个体。
+
+每个“区域 + 物种”只维护：
+
+```text
+populationPressure: 0 | 1 | 2 | 3
+baseline = 2
+```
+
+语义：
+
+```text
+0 = 当前几乎见不到普通个体；不生成该物种普通 encounter
+1 = 稀少；普通 encounter 权重 ×0.50
+2 = 常态；普通 encounter 权重 ×1.00
+3 = 异常活跃；普通 encounter 权重 ×1.50
+```
+
+每次玩家实际击杀一个 ordinary 个体：
+
+```text
+pressure = max(0, pressure - 1)
+```
+
+每跨过一个 30 worldDays 聚合检查：
+
+```text
+若 pressure < 当前 baseline → +1
+若 pressure == baseline → 不变
+若 pressure > baseline → 不因“繁殖”自动下降；由世界事件 / R23 决定
+```
+
+不记录每只普通妖兽年龄、性别、交配、饥饿和迁徙路径。
+
+## 39.9 寒潭鳞蟒：special individual
+
+寒潭鳞蟒不是 ordinary respawn：
+
+- 本世是否生成由 seeded world state 决定；
+- 生成后拥有稳定 instance id 与 `alive`；
+- 只存在于灵溪谷深处对应寒潭类特殊地点；
+- 死亡后本世不刷新；
+- 尸体战利品只能领取一次；
+- 对应寒潭标记 `lair-cleared`；
+- 不因其死亡自动重写整个灵溪谷危险度，区域危险动态化留给 R23。
+
+## 39.10 独角苍狼：unique individual
+
+首版每世存在 1 只独角苍狼，但玩家可能终生不知道、从未遇见，也可能由 NPC / 世界事件先处理。
+
+必须保存稳定：
+
+```text
+uniqueId = one_horned_azure_wolf
+alive: boolean
+known/discovered 与 world truth 分离
+lootClaimed: boolean
+```
+
+死亡后：
+
+1. 本世永久 `alive=false`，绝不刷新；
+2. 完整二阶妖丹、苍狼皮、独角、高品质精血只能产生一次；
+3. 写入 Chronicle / 《此世传》的资格；
+4. E03「独角苍狼」读取死亡事实；
+5. 万兽岭青背狼相关 `baseline` 从 2 永久降为 1；当前青背狼 pressure 同时压到 `min(current, 1)`；
+6. R23 再把该事实换算成区域客观危险与角色风险变化。
+
+普通狼群仍会随 30 日检查恢复到新的 baseline=1；因此独角苍狼死后狼没有灭绝，只是长期压力真实降低。
+
+## 39.11 R22 / R23 边界
+
+### R22 实现
+
+```text
+8种妖兽正式 combat definitions
+→ 特殊招式 / telegraph / AI
+→ 碧水蛇 exposure → R21 poison
+→ 真实 loot bundle
+→ 妖兽材料进正式 inventory
+→ ordinary population pressure
+→ 30日恢复
+→ 寒潭鳞蟒 special alive/dead
+→ 独角苍狼 unique alive/dead + 一次性 loot
+→ save / replay / UI
+```
+
+### R23 再实现
+
+- 区域危险根据正式 combat capability / population pressure 动态变化；
+- 强大妖兽领地提示；
+- 独角苍狼死亡后危险评价变化；
+- W02 兽群南迁等世界事件对 pressure / baseline 的动态修改。
+
+C22 不做御兽、商店、猎妖任务、怪物多单位实时队伍战、元素抗性大表或生态模拟器。
+
+## 39.12 C22 冻结结论
+
+R22 不得再临时猜：
+
+- 8 种妖兽 HP / attack / armor；
+- 特殊招式与 telegraph；
+- 碧水蛇如何写入 `bishui_venom`；
+- 每种妖兽掉什么、掉多少；
+- 一阶妖丹和二阶妖丹边界；
+- C19 二阶妖丹 / 高品质精血来源；
+- ordinary respawn 的 30 日语义；
+- 寒潭鳞蟒 special death；
+- 独角苍狼 unique death 与狼群 baseline 后果。
