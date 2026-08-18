@@ -1,4 +1,5 @@
 import { getWorldLocationById } from '../data/worldLocations'
+import type { CombatOpponentId } from '../types/combat'
 import type { ExplorationDuration, ExplorationStage, RegionRisk } from '../types/exploration'
 import type { GameState } from '../types/game'
 import type { SublocationRuntime } from '../types/sublocation'
@@ -8,6 +9,7 @@ import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { hasSeriousPoison } from './poisonEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
+import { resolveWildernessEncounter } from './wildernessEncounterEngine'
 
 export const EXPLORATION_DURATIONS: readonly ExplorationDuration[] = [1, 3, 10]
 
@@ -44,6 +46,7 @@ export interface RegionExplorationResult {
   stageBefore: ExplorationStage | null
   stageAfter: ExplorationStage | null
   discoveredSublocations: SublocationRuntime[]
+  encounteredOpponentId?: CombatOpponentId
   reason?: string
 }
 
@@ -119,6 +122,7 @@ export function resolveRegionExploration(state: GameState, days: number): Region
   if (state.lifeStage !== 'adult' || state.flags.location_knowledge_initialized !== true) {
     return rejected(state, days, 'EXPLORATION_REQUIRES_LOCATION_KNOWLEDGE')
   }
+  if (state.pendingBeastLoot) return rejected(state, days, 'PENDING_BEAST_LOOT_BLOCKS_EXPLORATION')
   if (hasActiveInjury(state, 'severe')) {
     return rejected(state, days, 'SEVERE_INJURY_BLOCKS_EXPLORATION')
   }
@@ -165,9 +169,10 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     },
   }
   const discovery = discoverEligibleSublocations(progressedState, current.id, exploredDays)
+  const encounter = resolveWildernessEncounter(discovery.state, current.id, previousExploredDays, days)
 
   return {
-    state: discovery.state,
+    state: encounter.state,
     applied: true,
     completed: true,
     locationId: current.id,
@@ -177,5 +182,6 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     stageBefore,
     stageAfter: getExplorationStage(exploredDays),
     discoveredSublocations: discovery.discovered,
+    ...(encounter.encountered && encounter.opponentId ? { encounteredOpponentId: encounter.opponentId } : {}),
   }
 }
