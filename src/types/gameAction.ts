@@ -28,6 +28,8 @@ export type GameAction =
       encounterVariant?: BeastEncounterVariant
     }
   | { type: 'ENTER_BEAST_TERRITORY'; territoryId: StrongBeastTerritoryId }
+  | { type: 'JOIN_QINGYUN_SECT' }
+  | { type: 'RECEIVE_QINGYUN_BASIC_TEACHING' }
   | { type: 'COMBAT_ACTION'; action: CombatAction }
   | { type: 'CLAIM_BEAST_LOOT'; itemId: string; quantity: number }
   | { type: 'ABANDON_BEAST_LOOT' }

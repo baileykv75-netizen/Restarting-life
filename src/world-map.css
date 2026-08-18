@@ -17,6 +17,28 @@
 .world-location-facts span { padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,.035); color: #9ea8a1; font: 500 .76rem/1.2 ui-sans-serif, system-ui, sans-serif; }
 .world-location-parent, .world-location-adjacent { margin: 10px 0 0; color: #a9afa9; font-size: .86rem; line-height: 1.6; }
 .world-location-parent strong { color: #d4d0c4; }
+.qingyun-sect-section { margin-top: 18px; padding: 16px; border: 1px solid rgba(181, 201, 188, .16); border-radius: 12px; background: rgba(181, 201, 188, .025); }
+.sect-heading { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.sect-heading .subsection-title { margin: 0 0 5px; }
+.sect-heading h3 { margin: 0; color: #ded9cd; font-size: 1rem; }
+.sect-heading > span { padding: 5px 8px; border: 1px solid rgba(181, 201, 188, .18); border-radius: 999px; color: #9eaaa2; font-size: .7rem; }
+.sect-join-card { margin-top: 12px; padding: 12px; border-radius: 9px; background: rgba(0, 0, 0, .1); }
+.sect-join-card > strong { color: #d8d3c7; font-size: .9rem; }
+.sect-join-card p { margin: 7px 0 0; color: #9da69f; font-size: .78rem; line-height: 1.55; }
+.sect-condition-list { display: grid; gap: 5px; margin: 10px 0 12px; }
+.sect-condition-list span { color: #9da69f; font-size: .74rem; }
+.sect-condition-list span.missing { color: #c3a58e; }
+.sect-access-list { display: grid; gap: 7px; margin-top: 13px; }
+.sect-access-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 11px; border: 1px solid rgba(181, 201, 188, .12); border-radius: 9px; background: rgba(0,0,0,.08); }
+.sect-access-row > div strong, .sect-access-row > div span { display: block; }
+.sect-access-row > div strong { color: #d3cec2; font-size: .82rem; }
+.sect-access-row > div span { margin-top: 3px; color: #8f9992; font-size: .7rem; line-height: 1.4; }
+.sect-access-row em { flex: 0 0 auto; color: #9fb5a5; font-size: .7rem; font-style: normal; }
+.sect-access-row.locked { opacity: .58; border-style: dashed; }
+.sect-access-row.locked em { color: #8d8580; }
+.sect-teaching-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(181, 201, 188, .16); border-radius: 9px; background: rgba(181, 201, 188, .035); }
+.sect-teaching-card strong { color: #ddd8cc; font-size: .86rem; }
+.sect-teaching-card p { margin: 7px 0 10px; color: #9ca69e; font-size: .76rem; line-height: 1.55; }
 .region-exploration-section { margin-top: 20px; padding: 16px; border: 1px solid rgba(181, 201, 188, .14); border-radius: 12px; background: rgba(255,255,255,.02); }
 .region-exploration-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .region-exploration-heading .subsection-title { margin: 0 0 5px; }
@@ -73,6 +95,7 @@
   .world-map-node.child-node { font-size: .6rem; }
   .world-map-node.rumored em { display: none; }
   .region-risk-grid { grid-template-columns: 1fr; }
-  .strong-territory-heading { display: block; }
-  .strong-territory-heading > em { display: block; margin-top: 6px; }
+  .strong-territory-heading, .sect-heading { display: block; }
+  .strong-territory-heading > em, .sect-heading > span { display: inline-block; margin-top: 6px; }
+  .sect-access-row { align-items: flex-start; }
 }

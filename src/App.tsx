@@ -194,6 +194,26 @@ function App() {
       setNotice(caught instanceof Error ? caught.message : '进入领地时状态未能保存')
     }
   }
+  function persistJoinQingyunSect() {
+    try {
+      const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'JOIN_QINGYUN_SECT' } })
+      if (!result.applied) { setNotice(result.reason ?? '当前无法办理青云宗入门登记'); return }
+      setGame(result.persistent)
+      setNotice('宗门名籍已经登记。身份与权限会从现在起按正式宗门成员处理。')
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '宗门身份未能保存')
+    }
+  }
+  function persistReceiveQingyunBasicTeaching() {
+    try {
+      const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'RECEIVE_QINGYUN_BASIC_TEACHING' } })
+      if (!result.applied) { setNotice(result.reason ?? '当前无法领取基础传功'); return }
+      setGame(result.persistent)
+      setNotice('你已经取得《青元引气诀》的基础传授，可以在修炼面板中正式使用。')
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '基础传功未能保存')
+    }
+  }
   function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
   function persistTechniquePractice(techniqueId: string, days: TechniquePracticeDuration) { persistCommand({ type: 'practice-technique-days', techniqueId, days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
@@ -222,7 +242,7 @@ function App() {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <>
-      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} />
+      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} />
       {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
       <FoundationBreakthroughPanel
         state={state}

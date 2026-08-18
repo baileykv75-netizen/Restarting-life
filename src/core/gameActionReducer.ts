@@ -3,6 +3,7 @@ import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/gam
 import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
+import { resolveJoinQingyunSect, resolveReceiveQingyunBasicTeaching } from './sectMembershipEngine'
 import { resolveStrongBeastTerritoryEntry } from './strongBeastTerritoryEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
 import { advanceWorldTime } from './worldEngine'
@@ -59,6 +60,14 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     }
     case 'ENTER_BEAST_TERRITORY': {
       const result = resolveStrongBeastTerritoryEntry(state, action.territoryId)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'JOIN_QINGYUN_SECT': {
+      const result = resolveJoinQingyunSect(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'RECEIVE_QINGYUN_BASIC_TEACHING': {
+      const result = resolveReceiveQingyunBasicTeaching(state)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'COMBAT_ACTION': {

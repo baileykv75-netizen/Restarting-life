@@ -1,14 +1,12 @@
-# 当前任务：V2 R24 - 宗门加入与身份
+# 当前任务：V2 R25 - 宗门贡献与任务
 
 ## 本轮唯一目标
 
-实现路线图规定的最小宗门路线：
+把 R24 已经成立的“青云宗正式身份”继续变成一条真正可玩的宗门内部循环：
 
-> **玩家可以真正加入青云宗，并且“宗门身份”开始改变可访问的内容。**
+> **进入事务堂 → 接一桩具体事务 → 付出真实时间 / 风险 → 完成 → 获得贡献与实际奖励。**
 
-R23 已经完成成年野外的风险 / 强敌领地闭环。R24 不继续扩野外系统，而是让“加入宗门”从背景文字变成正式、可保存、可被后续 R25 / R26 读取的身份事实。
-
-首版只做 **青云宗**。
+首版只做青云宗，不重做 membership。
 
 ---
 
@@ -17,271 +15,341 @@ R23 已经完成成年野外的风险 / 强敌领地闭环。R24 不继续扩野
 1. `AGENTS.md`
 2. `V2_GAME_DESIGN.md`
    - 自由路线；
-   - 宗门 / 散修取舍；
-   - 世界因果；
-   - 一世感。
+   - 一世感；
+   - 时间系统；
+   - 世界因果。
 3. `V2_CONTENT_BIBLE.md`
    - §3 青云宗与地方秩序；
    - §3.3 五个核心部门；
    - §3.4 弟子层级；
-   - 出身与成年入道相关内容。
-4. `V2_GITHUB_ROADMAP.md` 的 R24 / R25 / R26 边界。
-5. `HANDOFF.md`。
-6. 现有重点：
-   - `src/types/game.ts`
-   - `src/data/backgrounds.ts`
-   - `src/data/adultEntries.ts`
-   - `src/core/adultEntryEngine.ts`
-   - `src/core/locationKnowledgeEngine.ts`
+   - §3.5 宗门贡献；
+   - 黑风山 / 灵溪谷 / 万兽岭与已有材料。
+4. `V2_GITHUB_ROADMAP.md` 的 R25 / R26 边界。
+5. `HANDOFF.md`，特别是 R24 membership / access 结构。
+6. 现有重点代码：
+   - `src/types/sect.ts`
+   - `src/core/sectMembershipEngine.ts`
+   - `src/components/QingyunSectPanel.tsx`
    - `src/core/travelEngine.ts`
-   - `src/data/worldLocations.ts`
-   - `src/components/WorldMapPanel.tsx`
-   - `src/components/CharacterPanel.tsx`
+   - `src/core/worldEngine.ts`
+   - `src/core/combatEngine.ts`
+   - `src/core/beastEngine.ts`
+   - `src/core/inventoryEngine.ts`
+   - `src/data/items.ts`
    - Session / GameAction / persistence / replay 相关代码。
 
 ---
 
 # 二、最高架构原则
 
-## 2.1 不建立第二套角色身份
+## 2.1 R24 membership 是唯一身份真源
 
-现有：
-
-```text
-GameState
-identity.faction
-background / adultEntry / tags / flags
-```
-
-R24 必须先审查这些字段，再做最小扩展。
-
-如果需要结构化宗门运行态，可以增加一个 **optional、单一 authoritative** 的 membership 状态，但禁止：
+禁止重新用：
 
 ```text
-SectGameStateV2
-第二份 faction
-UI 自己维护 rank
-用散乱 flags 同时表示多个互相矛盾的宗门身份
+identity.faction === qingyun
+某个 qingyun_xxx flag
+UI 本地状态
 ```
 
-最终必须能唯一回答：
+独立判断“是不是正式青云宗弟子”。
 
-```text
-是否属于青云宗？
-何时加入？
-通过什么路径加入？
-当前是杂役 / 外门 / 内门 / 真传中的哪一层？
-当前身份允许访问什么？
-```
-
-## 2.2 一宗首版
-
-R24 只实现：
-
-```text
-qingyun
-```
-
-不得为了“可扩展”顺手生成第二宗、魔宗、完整宗门框架平台。
-
-## 2.3 身份必须改变选择
-
-宗门身份不能只是 CharacterPanel 多一行文字。
-
-至少需要真实改变：
-
-- 某些青云宗内部入口是否可用；
-- 基础传功 / 修炼资源的访问权限；
-- 后续 R25 任务 / 贡献和 R26 师承 / 违规可读取统一身份。
-
-R24 可以只建立**权限与入口**，不提前实现 R25 的贡献兑换和任务内容。
-
----
-
-# 三、青云宗正式定位
-
-首版沿用 Content Bible：
-
-> 地方正道宗门，优势是稳定功法、修炼环境、师承、任务、丹药、法器与保护；代价是身份、规矩与义务。
-
-弟子层级固定：
-
-```text
-杂役 → 外门 → 内门 → 真传
-```
-
-含义：
-
-- 杂役：正式宗门体系中的最低身份；
-- 外门：正常正式弟子入口；
-- 内门：更高权限，需要后续条件推进；
-- 真传：高层身份，**不能因出身直接赠送**。
-
-R24 不需要把四层晋升玩法全部做完，但 state / permission 结构必须能稳定承载它们。
-
----
-
-# 四、加入路径
-
-至少实现两类：
-
-## 4.1 正常入门
-
-面向普通成年角色的正式入口。
-
-要求：
-
-- 必须存在真实世界入口，而不是 debug 按钮；
-- 玩家能看到入门所需的已知条件；
-- 满足后主动选择加入；
-- 不满足时说明缺什么，但不要伪造隐藏随机判定；
-- 加入后写入 authoritative membership / faction；
-- Chronicle 记录一次重要身份变化。
-
-正常入口首版优先从：
-
-```text
-青云宗 / 青云行馆 / 已有成年入道机会
-```
-
-中复用现有地点与成年内容，不新增无来源地点。
-
-## 4.2 少量特殊入门
-
-只读取 **现有已冻结出身 / 成年入口 / 已有关系或事实**。
-
-例如修仙家庭、宗门相关成年入口若已经明确给出更直接渠道，可以减少普通流程；但：
-
-- 不自行创造大批特殊关系；
-- 不因为强出身直接给真传；
-- 特殊入门最终也写入同一 membership state。
-
----
-
-# 五、身份与权限
-
-R24 至少建立一个纯 selector，等价于：
+宗门事务入口必须先读取：
 
 ```ts
-getSectAccess(state)
+getSectAccess(state).affairsHallEntry
 ```
 
-它只读当前正式宗门身份，回答可访问的最小权限。
+R25 可以新增一个 optional、单一 authoritative 的宗门进度状态，例如：
 
-首版至少区分：
+```ts
+sectProgress?: {
+  contribution: number
+  activeAssignment?: ...
+}
+```
 
-## 非宗门成员
+但不得建立第二份 membership / rank。
 
-- 只能访问对外公开内容；
-- 不能把传功堂 / 内部修炼资源当公共商店。
+## 2.2 贡献是资源，不是身份
 
-## 杂役
-
-- 外院登记 / 杂役区域；
-- 极基础内部资源；
-- 不自动获得内门级传承。
-
-## 外门
-
-- 正式弟子基础权限；
-- 可访问基础传功入口；
-- 为 R25 宗门事务 / 贡献建立真实入口。
-
-## 内门
-
-- 更高内部资源权限字段存在；
-- R24 不必提前填满所有高级内容。
-
-## 真传
-
-- 最高首版身份字段可表达；
-- R24 不提供“出生即真传”捷径。
-
-权限必须是 selector / rule，而不是 UI hardcode。
-
----
-
-# 六、自由路线必须保留
-
-加入青云宗是选择，不是主线强制。
-
-玩家必须仍可以：
+贡献与 rank 分开：
 
 ```text
-不加入
-→ 继续散修 / 家族 / 野外路线
+sectMembership.rank = 你是谁
+sectProgress.contribution = 你在宗门里积累了多少可用功绩
 ```
 
-R24 禁止因为宗门系统上线，就把所有修仙角色自动改成青云弟子。
+R25 不得直接用 contribution 数值偷偷改 rank。
+
+内门 / 真传晋升若需要贡献，只在权限 / 条件层留下可读取字段；正式晋升流程不在本轮完成。
+
+## 2.3 不是每日任务系统
+
+禁止：
+
+- 每日刷新；
+- 签到；
+- 连续做十次同一任务刷贡献；
+- “任务点数 / 活跃度”；
+- 为了在线时长制造重复劳动。
+
+任务应该像这一世中真实发生的一桩宗门事务。
 
 ---
 
-# 七、UI 最小要求
+# 三、首版四类事务
 
-玩家至少能看懂：
+固定使用路线图四类：
 
-1. 自己当前是否属于青云宗；
-2. 当前身份层级；
-3. 已知入门条件；
-4. 加入后最直接的权限变化；
-5. 不加入仍可继续游戏；
-6. 已经加入后不再显示重复入门按钮。
+```text
+采药
+巡山
+护送
+清剿
+```
 
-CharacterPanel / 世界地点可选择最小必要改动，不做完整宗门主页美术重构。
+不要新增第五大类。
+
+## 3.1 采药
+
+定位：低风险、稳定回报。
+
+优先复用：
+
+- 灵溪谷；
+- 已有灵药 / 药材物品；
+- worldDay；
+- inventory capacity。
+
+必须有真实时间成本。
+
+若现有正式 item 中没有合适的交付物，先审查 `V2_CONTENT_BIBLE.md` 与 `items.ts`，只补最小必要材料，不批量生成药材百科。
+
+## 3.2 巡山
+
+定位：中低风险、信息与宗门贡献并重。
+
+优先复用：
+
+- 青云宗周边；
+- 黑风山 / 灵溪谷入口；
+- R23 risk judgement；
+- ordinary beast encounter。
+
+允许出现“平安完成”与“途中遇到问题”两类结果，但不要重新造第二套随机事件引擎。
+
+## 3.3 护送
+
+定位：真实时间成本 + 路线风险。
+
+优先复用：
+
+- 已知 world route；
+- travelEngine；
+- worldDay；
+- 路线中断 / 战斗已有能力。
+
+不要实现完整商队经营。
+
+## 3.4 清剿
+
+定位：高风险、高贡献。
+
+必须尽量复用已有：
+
+```text
+R20 CombatEngine
+R21 injury / poison
+R22 ordinary beasts / ecology
+R23 danger judgement
+```
+
+禁止“点一下按钮直接结算杀死三只妖兽”。
+
+至少一个首版清剿任务应真正进入现有正式战斗。
 
 ---
 
-# 八、必须回归
+# 四、任务生命周期
+
+首版必须建立明确生命周期，不要只做四个奖励按钮。
+
+建议最小状态：
+
+```text
+available
+→ accepted
+→ in_progress / awaiting_completion
+→ completed
+→ settled
+```
+
+实际字段可以更简，但必须能回答：
+
+- 当前有没有接任务；
+- 接的是哪一类；
+- 从哪一天开始；
+- 当前目标；
+- 是否完成；
+- 奖励是否已经领取。
+
+禁止同一任务重复结算奖励。
+
+首版同时只允许 1 个 active assignment，避免堆任务清单。
+
+---
+
+# 五、贡献与奖励
+
+贡献至少需要：
+
+```text
+current contribution
+本次变化
+来源 assignmentId
+```
+
+如果 Content Bible 没有冻结精确贡献数值，本轮先做一个很小的 C25 数值冻结，再实现；不得在不同 engine / UI 各自 hardcode 奖励。
+
+奖励优先使用现有正式资源：
+
+- 宗门贡献；
+- 下品灵石；
+- 已有 inventory 物品 / 妖兽材料 /基础消耗品。
+
+禁止首版新增：
+
+- 任务宝箱；
+- 随机装备箱；
+- SSR 掉落；
+- 独立“宗门币”；
+- 经验球。
+
+贡献不是新货币皮肤，而是后续宗门权限与兑换的功绩记录。
+
+---
+
+# 六、地点与时间必须真实
+
+任务不能在青云宗面板里“原地完成”。
+
+至少部分任务要让玩家：
+
+```text
+青云宗事务堂接任务
+→ 去真实地点
+→ 消耗真实 worldDay
+→ 完成目标
+→ 返回 / 结算
+```
+
+需要移动时复用现有 travel；需要战斗时复用 Combat；需要物品时复用 inventory。
+
+不要新增第二套任务专用时间。
+
+---
+
+# 七、失败与放弃
+
+首版必须允许任务不是永远成功。
+
+至少处理：
+
+- 玩家死亡；
+- 战斗失败 / 逃跑；
+- 目标没有完成；
+- 玩家主动放弃。
+
+放弃可以不给奖励，但 R25 不做复杂违规处罚。
+
+禁止把“任务失败”直接扩成 R26 的宗门处分系统。
+
+---
+
+# 八、UI 最小要求
+
+在青云宗 / 事务堂入口，玩家至少能看懂：
+
+1. 当前宗门身份；
+2. 当前贡献；
+3. 当前有没有在办的事务；
+4. 可接的四类首版事务；
+5. 每项明确的时间 / 地点 / 已知风险；
+6. 完成目标；
+7. 奖励；
+8. 是否可以放弃；
+9. 已完成任务不会重复领奖。
+
+玩家文案禁止出现：
+
+- R25；
+- “系统任务”；
+- “每日”；
+- “活跃度”；
+- debug / placeholder；
+- 手游式推荐战力。
+
+---
+
+# 九、必须回归
 
 至少覆盖：
 
-1. 非成员不会被自动加入；
-2. 正常入门条件可解释；
-3. 满足条件后可正式加入；
-4. 特殊入门读取现有真实背景 / 成年事实；
-5. 所有路径最终写入同一 membership truth；
-6. `identity.faction` 与 membership 不矛盾；
-7. 四种 rank 可被合法表达；
-8. 真传不能由出生直接免费授予；
-9. 不同 rank 的 access selector 有真实差异；
-10. 加入宗门写 Chronicle；
-11. 加入后刷新 / save reload 身份不丢；
-12. Session replay deterministic；
-13. R22-FIX ordinary exploration 不退化；
-14. R23 risk / territory 不退化；
-15. R20～R22 combat / poison / loot 回归不退化；
-16. Typecheck / Test / Build 全绿。
+1. 非宗门成员不能接内部事务；
+2. 杂役不能绕过 `affairsHallEntry` 接正式弟子任务；
+3. 外门及以上能进入事务堂；
+4. contribution 初始与增减唯一；
+5. 同时只能有一个 active assignment；
+6. 四类任务定义存在且来源于单一 data 层；
+7. 每类任务都有真实 worldDay 成本；
+8. 至少一个任务真实读取 inventory；
+9. 至少一个任务真实走 travel；
+10. 至少一个清剿任务真实进入 CombatEngine；
+11. 战斗失败 / 逃跑不会被错误算完成；
+12. 完成后奖励只能结算一次；
+13. 放弃后不能领取完成奖励；
+14. contribution / active assignment save reload 不丢；
+15. Session replay deterministic；
+16. R24 membership / teaching / access 不退化；
+17. R23 risk / territory 不退化；
+18. R22-FIX ordinary exploration 不退化；
+19. R20～R22 combat / poison / loot 不退化；
+20. Typecheck / Test / Build 全绿。
 
 ---
 
-# 九、本轮禁止
+# 十、本轮禁止
 
-- 不实现 R25 贡献数值循环；
-- 不做 R25 采药 / 巡山 / 护送 / 清剿任务；
 - 不做 R26 拜师；
-- 不做 R26 违规 / 处罚 / 叛宗；
-- 不做派系政治；
+- 不做违规 / 处罚；
+- 不做叛宗 / 通缉；
+- 不做宗门派系政治；
 - 不做多个宗门；
-- 不扩 NPC 全量模拟；
-- 不做宗门日常签到 / 每日任务；
-- 不重构整个 App；
-- 不顺手平衡 Combat / cultivation；
-- 不通过大量 flags 拼出第二套身份系统。
+- 不做每日 / 周常任务；
+- 不做完整贡献商城；
+- 不做内门 / 真传完整晋升；
+- 不做新 CombatEngine；
+- 不做新 travel engine；
+- 不做新 inventory；
+- 不把任务写回 V1.2 `FORMAL_EVENTS` 主循环。
 
 ---
 
-# 十、验收标准
+# 十一、验收标准
 
-R24 完成必须真正跑通：
+R25 完成必须真正跑通至少一条完整链：
 
 ```text
-非成员
-→ 看到合法青云宗入门入口
-→ 满足 / 不满足条件得到明确反馈
-→ 玩家主动决定是否加入
-→ 加入后唯一 GameState 写入宗门身份
-→ Character / 地点 UI 读取身份
-→ access selector 改变内部入口
+青云宗正式外门弟子
+→ 进入事务堂
+→ 接任务
+→ 前往真实地点 / 执行真实行动
+→ worldDay 推进
+→ 必要时进入 Combat / inventory / travel
+→ 满足目标
+→ 返回结算
+→ contribution + 正式奖励写入唯一 GameState
 → save / reload / replay 保持
 ```
 
@@ -295,4 +363,4 @@ npm run build
 
 全部通过。
 
-完成后更新 `HANDOFF.md`，立即停止，不在同轮开始 R25。
+完成后更新 `HANDOFF.md`，立即停止，不在同轮开始 R26。

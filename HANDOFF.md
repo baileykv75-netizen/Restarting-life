@@ -4,23 +4,16 @@
 
 ## 当前状态
 
-- **R23「危险判断 + 强大妖兽领地」实现已完成，等待最终 head CI 作为合并门槛。**
-- R00.1～R15：统一状态、出生 / 童年 / 成年、世界 / 知识 / 旅行 / 探索、子地点、沉脉石室、背包与装备完成。
-- R16～R17：修炼、功法、熟练度与改修完成。
-- R18：伤势与筑基完成。
-- R19：寿元、延寿、筑基后修炼、结丹与金丹完成。
-- R20：唯一正式 Combat runtime、beat、装备 / 物品 / 招式 / 逃跑、伤势 / 死亡完成。
-- R21：poison、治疗、伤势行动门禁、worldDay 毒性恶化完成。
-- R22：8 种妖兽、真实战利品、pending corpse loot、ordinary population pressure、30 日恢复、special / unique world truth 完成。
-- R22-FIX：普通野外探索已接入 R22 妖兽战斗；1 / 3 / 10 日探索会被真实 ordinary encounter 中断。
-- **R23：区域风险改为读取真实当前状态；寒潭鳞蟒 / 独角苍狼改为通过已知线索与明确领地入口进入正式 CombatEngine。**
-- R24 尚未实现。
+- R00.1～R23 已完成并在 `main`。
+- **R24「宗门加入与身份」实现完成；合并前只接受最终 head 的 Typecheck / Test / Build 全绿。**
+- 下一轮：R25「宗门贡献与任务」。
+- R25 不得反向重做 R24 membership；必须直接读取 R24 的正式宗门身份与权限。
 
 ---
 
 # 一、长期架构纪律
 
-继续保持：
+继续保持唯一链路：
 
 ```text
 React UI
@@ -29,385 +22,408 @@ React UI
 → 唯一 GameState
 → debug log / digest / replay
 → PersistentGame
-→ auto-save
+→ localStorage
 ```
 
-当前 authoritative truths：
-
-- `worldDay`：唯一世界时间；
-- inventory：R14；
-- equipment：R15；
-- cultivation / technique：R16～R17；
-- injury：R18；
-- lifespan：R19；
-- combat：R20；
-- poison / treatment：R21；
-- beast combat / loot / ecology：R22；
-- ordinary wilderness encounter：R22-FIX；
-- **risk assessment：R23 `riskAssessmentEngine.ts`，只读现有真源，不保存第二份“战力”；**
-- **strong territory：R23 `strongBeastTerritoryEngine.ts`，发现状态由已有 knowledge + exploredDays 派生。**
-
-禁止后续新增：
+禁止新增：
 
 ```text
 GameStateV2
-BeastCombatEngineV2
+第二套 faction / sect identity
 第二套 inventory
 第二套 world timer
-第二套 encounter RNG
-第二份 territory knowledge state
-手游式综合战力值
+第二套 CombatEngine
+UI 自己维护 rank / contribution 真值
 ```
 
----
-
-# 二、R22-FIX 已成立的成年野外主链
-
-```text
-地点
-→ 选择试探 / 巡探 / 深入
-→ worldDay 推进
-→ 子地点发现或 ordinary 妖兽中断
-→ CombatEngine
-→ injury / poison
-→ corpse loot
-→ inventory capacity 取舍
-→ 治疗 / 装备 / 修炼 / 返回
-→ ecology 随击杀和 worldDay 改变
-```
-
-ordinary random pool 仍固定：
-
-```text
-黑风山：青背狼 / 赤尾狐 / 铁甲猪 / 普通岩甲蜥
-灵溪谷：赤尾狐 / 碧水蛇
-万兽岭：青背狼 / 赤鬃山猿
-```
-
-R23 **没有**把以下强个体塞进 ordinary pool：
-
-```text
-cold_pool_scale_python
-one_horned_azure_wolf
-```
-
----
-
-# 三、R23 风险判断
-
-新增：
-
-```text
-src/core/riskAssessmentEngine.ts
-src/core/riskAssessmentEngine.test.ts
-```
-
-UI 不显示一个虚假的“战力 12345”。
-
-对区域与已知强敌只输出四档自然语言：
-
-```text
-大致可控
-需要谨慎
-明显危险
-极可能送命
-```
-
-后台只读取现有 authoritative 数据：
-
-- `getPlayerCombatStats()` 的 R20 境界 / 阶段 Combat 基线；
-- 已装备主武器及 `WEAPON_COMBAT`；
-- 已装备护甲及 `ARMOR_COMBAT`；
-- 护心镜；
-- 流云靴；
-- 已启用身法；
-- `light_foot` 的真实逃跑倾向；
-- severe / meridian injury；
-- serious poison；
-- R22 ordinary population pressure；
-- **只有玩家已经确认的**强大妖兽领地信息。
-
-它不修改任何 R20 / R21 / R22 Combat 数值。
-
-### 已兑现的天赋
-
-- `danger_sense`：高风险时增加更明确的自然语言警告，**不暗加战力**；
-- `observant`：更早确认寒潭 / 强兽痕迹；
-- `beast_handler`：更早从万兽岭狼群行为中确认异常强个体领地；
-- `light_foot`：风险判断会识别它已有的撤离优势。
-
----
-
-# 四、R23 强大妖兽领地
-
-新增：
-
-```text
-src/types/territory.ts
-src/core/strongBeastTerritoryEngine.ts
-src/core/strongBeastTerritoryEngine.test.ts
-```
-
-没有新增第 9 种妖兽，也没有新增第二份 territory 存档。
-
-领地是否已经被角色确认，由：
-
-```text
-location knowledge
-+ exploredDays
-+ relevant talent
-```
-
-派生。
-
-## 4.1 灵溪谷深处寒潭
-
-普通角色：
-
-```text
-灵溪谷累计探索 >= 15 日
-→ 能确认寒潭这处高风险地点
-```
-
-`observant`：
-
-```text
-累计探索 >= 5 日
-→ 可更早从异常水道 / 鳞痕确认地点
-```
-
-### 本世鳞蟒真实存在且存活
-
-玩家只会在领地已确认后看到角色能实际观察到的：
-
-- 新鲜大型拖痕；
-- 被压倒的水草；
-- 水下沉重暗影；
-- “明显强于外围普通妖兽”的判断。
-
-玩家主动进入：
-
-```text
-ENTER_BEAST_TERRITORY lingxi_cold_pool
-→ resolveStrongBeastTerritoryEntry()
-→ existing resolveCombatStart()
-→ cold-pool-scale-python
-→ variant = special
-→ contextTags = ['cold-pool']
-```
-
-因此继续复用 R22 已有寒潭强化：
-
-```text
-damage ×1.10
-armorReduction +5pp
-player fleeChance -10pp
-```
-
-### 本世鳞蟒没有生成
-
-系统不会伪造一只。
-
-领地发现前 UI 不说“本世没有鳞蟒”；发现寒潭后也只显示“无法确认水下现在有什么”。
-
-玩家实际进入检查后：
-
-```text
-cold_pool_checked_empty = true
-```
-
-此时才把角色已经亲自确认的结果展示为：
-
-> 没有发现仍在活动的大型妖兽。
-
-这一事实经过 PersistentGame save / reload 专项测试，刷新后不会丢失。
-
-### 鳞蟒死亡
-
-继续读取 R22：
-
-```text
-alive = false
-lairCleared = true
-```
-
-领地 UI 转为 cleared，不再重复开战。
-
----
-
-# 五、独角苍狼领地
-
-普通角色：
-
-```text
-万兽岭累计探索 >= 15 日
-→ 确认狼群主动避让的一段山脊
-```
-
-`observant` 或 `beast_handler`：
-
-```text
-累计探索 >= 5 日
-→ 更早读懂大型爪痕 / 气味标记 / 狼群避让
-```
-
-玩家知道的是：
-
-> 有一个明显强于普通炼气妖兽的独占个体在这里活动。
-
-不会展示后台 instance id、HP、attack 或 loot table。
-
-主动进入：
-
-```text
-ENTER_BEAST_TERRITORY azure_wolf_range
-→ existing resolveCombatStart()
-→ one-horned-azure-wolf
-→ variant = unique
-```
-
-即使角色弱到极可能送命，只要世界规则允许，按钮仍可执行。
-
-独角苍狼死亡后继续读取 R22 world truth：
-
-```text
-alive = false
-万兽岭 greenback_wolf baseline = 1
-```
-
-R23 的领地描述随之变成：
-
-- 原先的强大个体已经死亡；
-- 青背狼重新向原领地活动；
-- 不再出现第二次 unique fight。
-
----
-
-# 六、WorldMap UI
-
-`WorldMapPanel` 现在同时区分：
-
-1. **客观区域危险**：地点静态世界定义；
-2. **以当前状态判断**：境界、装备、伤毒、身法、生态和已知威胁综合后的四档判断；
-3. **判断依据**：只展示角色自身和已经确认的信息；
-4. **已确认高风险地点**：寒潭 / 苍狼领地；
-5. **主动进入按钮**：明确提示高风险不会成为系统硬门禁。
-
-禁止泄露内容保持：
-
-- 未发现的 strong territory；
-- cold python generated / absent hidden flag；
-- unique instance id；
-- Boss 精确 HP / attack；
-- loot chance；
-- 后台 encounter roll。
-
----
-
-# 七、统一 Action / replay
-
-新增唯一玩家动作：
+R24 之后，青云宗正式身份的唯一结构化真源是：
 
 ```ts
-{ type: 'ENTER_BEAST_TERRITORY'; territoryId }
+GameState.sectMembership
 ```
 
-链路仍是：
-
-```text
-WorldMapPanel
-→ App.persistEnterTerritory()
-→ commandAndSave()
-→ SessionCommand { type: 'game-action' }
-→ GameAction ENTER_BEAST_TERRITORY
-→ strongBeastTerritoryEngine
-→ existing CombatEngine / world truth
-```
-
-没有 UI 直接改核心状态。
-
-显式领地进入已经覆盖 Session replay deterministic 测试。
+`identity.faction` 继续保留为旧系统兼容投影；正式宗门层级、加入时间、加入路径和权限不得再从零散 flags 猜测。
 
 ---
 
-# 八、R23 回归 / 验收覆盖
+# 二、R24 新增 authoritative membership
+
+新增：
+
+```text
+src/types/sect.ts
+src/core/sectMembershipEngine.ts
+src/core/sectMembershipEngine.test.ts
+src/components/QingyunSectPanel.tsx
+```
+
+`GameState` 新增 optional：
+
+```ts
+sectMembership?: {
+  sectId: 'qingyun'
+  rank: 'service' | 'outer' | 'inner' | 'true'
+  joinedDay: number
+  joinPath:
+    | 'regular-recruitment'
+    | 'clan-recommendation'
+    | 'steward-family'
+    | 'mortal-service'
+}
+```
+
+optional 是为了兼容 R24 之前的 schema-3 存档；本轮不提升 schemaVersion。
+
+正式加入后：
+
+- `sectMembership` 写入唯一宗门名籍事实；
+- `identity.faction` 同步为 `qingyun`，继续兼容现有 faction 条件；
+- Chronicle 写入一次 major 身份变化；
+- 不再显示重复入门按钮。
+
+旧存档不会因为升级版本自动获得 membership。
+
+---
+
+# 三、首版加入路径
+
+## 3.1 普通正式入门
+
+有灵根的成年角色，只要已经实际来到：
+
+```text
+qingyun_sect
+```
+
+即可看到公开招录条件并主动登记。
+
+首版不伪造隐藏随机考试；当前明确条件只有：
+
+- 成年；
+- 有灵根；
+- 本人实际来到青云宗。
+
+满足后正常入口统一成为：
+
+```text
+青云宗 · 外门
+joinPath = regular-recruitment
+```
+
+不加入不会阻断散修 / 家族 / 野外路线。
+
+## 3.2 家族引荐
+
+复用已经冻结的成年事实：
+
+```text
+adult_access:qingyun_family_recommendation
+adult_access:qingyun_clan_recruitment
+```
+
+谢家 / 陆家已有引荐渠道时，玩家仍需本人到青云宗完成登记。
+
+最终仍写同一个 membership：
+
+```text
+rank = outer
+joinPath = clan-recommendation
+```
+
+家族引荐只是减少入口阻力，不赠送内门 / 真传。
+
+## 3.3 青云宗执事家庭
+
+复用 `qingyun_steward_family` 已冻结成年入口。
+
+有灵根且已经选择正规招录渠道：
+
+```text
+qingyun_family_quarters
+→ 可办理正规登记
+→ rank = outer
+→ joinPath = steward-family
+```
+
+“出生在宗门家属区”不等于自动成为弟子。
+
+## 3.4 无灵根外围差事
+
+只允许已冻结的特殊路径：
+
+```text
+background = qingyun_steward_family
++ adult_path:qingyun_mortal_service
++ currentLocation = qingyun_family_quarters
+```
+
+登记为：
+
+```text
+rank = service
+joinPath = mortal-service
+```
+
+普通无灵根角色不能凭空通过公开招录成为修士弟子。
+
+---
+
+# 四、四层身份与权限
+
+唯一 selector：
+
+```ts
+getSectAccess(state)
+```
+
+它只读正式 `sectMembership`。
+
+## 非成员
+
+```text
+publicArea = true
+其余内部权限 = false
+```
+
+## 杂役
+
+```text
+outerRegistry = true
+serviceArea = true
+basicInternalResources = true
+basicTeaching = false
+discipleCultivationArea = false
+affairsHallEntry = false
+```
+
+## 外门
+
+在杂役基础上增加：
+
+```text
+basicTeaching = true
+discipleCultivationArea = true
+affairsHallEntry = true
+```
+
+## 内门
+
+增加：
+
+```text
+innerResources = true
+```
+
+## 真传
+
+增加：
+
+```text
+trueInheritance = true
+```
+
+R24 只保证四层结构与权限稳定可表达，不实现升阶流程。
+
+任何 R24 加入路径都只能得到：
+
+```text
+service
+或
+outer
+```
+
+不能出生即内门 / 真传。
+
+---
+
+# 五、宗门身份已经真实改变玩法
+
+R24 不是 CharacterPanel 多一行字。
+
+## 5.1 基础传功
+
+外门及以上在 `qingyun_sect` 可通过正式 GameAction：
+
+```text
+RECEIVE_QINGYUN_BASIC_TEACHING
+```
+
+领取已有正式功法：
+
+```text
+qingyuan_yinqi
+《青元引气诀》
+```
+
+结果直接进入现有：
+
+```text
+cultivation.knownTechniqueIds
+techniquePractice
+CultivationPanel
+```
+
+不会直接增加修为，不复制第二套功法系统。
+
+杂役和非成员不能领取。
+
+## 5.2 宗门灵脉环境
+
+正式外门加入会同步 `identity.faction = qingyun`，因此继续复用 R16 已有的青云宗修炼环境规则：
+
+```text
+非青云修士在青云宗 → 宗门外围 · 灵气普通
+青云正式弟子 → 可使用青云宗高灵气环境
+```
+
+专项测试已经验证加入前后同一功法的环境标签与实际修炼 gain 发生变化。
+
+R25 若继续扩展宗门资源，必须优先读取 `getSectAccess()`，不得只靠 faction 判断高阶权限。
+
+---
+
+# 六、UI
+
+`WorldMapPanel` 在真实地点显示宗门入口：
+
+```text
+qingyun_sect
+qingyun_family_quarters
+```
+
+新增 `QingyunSectPanel` 展示：
+
+- 当前是否在册；
+- 当前 rank；
+- 加入路径；
+- 已知入门条件；
+- 当前缺少条件；
+- 加入按钮；
+- 当前各类宗门入口是否可进入；
+- 传功堂基础传功入口。
+
+所有玩家文案保持世界内表达，不显示：
+
+- R24 / R25；
+- “开发中”；
+- debug；
+- “系统权限”；
+- 版本轮次说明。
+
+`CharacterPanel` 同步显示：
+
+```text
+青云宗 · 杂役 / 外门 / 内门 / 真传
+加入路径
+登记 worldDay
+```
+
+---
+
+# 七、GameAction / save / replay
+
+新增正式 GameAction：
+
+```text
+JOIN_QINGYUN_SECT
+RECEIVE_QINGYUN_BASIC_TEACHING
+```
+
+完整路径仍是：
+
+```text
+UI
+→ commandAndSave
+→ SessionCommand(game-action)
+→ applyGameAction
+→ sectMembershipEngine
+→ GameState
+→ debug log / state digest
+→ save
+```
+
+没有 UI 直接改状态。
 
 专项测试覆盖：
 
-1. 旧境界风险 anchor 不退化；
-2. 武器 / 护甲 / 护身法器 / 辅助法器 / 身法能改变风险判断；
-3. severe / meridian injury 与 serious poison 会提高风险；
-4. ordinary ecology pressure 会影响区域判断；
-5. unknown strong world truth 不在 UI selector 泄露；
-6. `observant` / `beast_handler` 更早识别对应领地；
-7. `danger_sense` 只增加警告，不暗改风险数值；
-8. cold python absent 不会凭空生成战斗；
-9. 实际检查空寒潭后结果可 save / reload；
-10. cold python live 正确带 `cold-pool` context；
-11. 极弱角色仍可主动进入高危领地；
-12. unique wolf dead 后不可再次开战；
-13. unique wolf dead 后领地状态改变；
-14. territory entry 走现有 Session / replay；
-15. R22-FIX ordinary encounter、R20/R21/R22、sunken-vein-core 既有回归继续由全量测试覆盖。
-
-PR #13 第一轮实现 CI #299 已通过 Typecheck + Test + Build；新增 save/reload 与最终文档收口后，**必须以 PR 最新 head 的最终 CI 为合并门槛。**
+1. 非成员不会自动加入；
+2. 普通入门条件可解释；
+3. 正常加入写 `sectMembership + faction + Chronicle`；
+4. 谢家 / 陆家引荐只改变 joinPath，不抬高 rank；
+5. 执事家庭正规路径最终写同一 membership；
+6. 无灵根只允许已冻结的外围差事路径成为杂役；
+7. 四种 rank 权限有真实差异；
+8. R24 入口绝不直接产生内门 / 真传；
+9. 外门可以领取《青元引气诀》，杂役不能；
+10. 加入前后青云宗修炼环境真实变化；
+11. membership save / reload 不丢；
+12. JOIN_QINGYUN_SECT 可 deterministic replay；
+13. 原有 R20～R23 tests 必须继续通过。
 
 ---
 
-# 九、R23 明确没有做
+# 八、明确没有做
 
-- R24 宗门加入 / 身份；
-- R25 贡献 / 宗门任务；
-- R26 拜师 / 违规 / 叛宗；
-- W02 兽群南迁；
-- 新妖兽；
-- 多怪队伍战；
-- 完整狩猎；
-- 完整采集；
-- 商店 / 出售；
-- 御兽；
-- Combat 数值重平衡；
-- 第二份 territory state。
+R24 没有实现：
+
+- 宗门贡献数值；
+- 采药 / 巡山 / 护送 / 清剿任务；
+- 贡献兑换；
+- 内门 / 真传晋升流程；
+- 拜师；
+- 师徒关系新系统；
+- 违规 / 处罚；
+- 叛宗 / 通缉；
+- 派系政治；
+- 第二宗门；
+- 宗门每日任务。
+
+这些不得被误判为 R24 遗漏；其中贡献与任务属于 R25，师承与身份后果属于 R26。
 
 ---
 
-# 十、下一轮：R24 宗门加入与身份
+# 九、下一轮 R25 的正确入口
 
-路线图唯一目标：
-
-> **实现最小宗门路线。**
-
-只进入：
+R25 必须从现有事实开始：
 
 ```text
-正常入门 / 少量特殊入门
-→ 杂役 / 外门 / 内门 / 真传身份
-→ 身份写入唯一 GameState
-→ 不同身份对应不同访问权限
+state.sectMembership
+→ getSectAccess(state).affairsHallEntry
+→ 宗门事务
+→ contribution
+→ 奖励 / 资源 / 身份推进条件
 ```
 
-R24 禁止提前做：
+不要重新判断“是不是青云宗弟子”。
 
-- R25 宗门贡献与任务闭环；
-- R26 拜师 / 违规 / 叛宗；
-- 多宗门；
-- 宗门派系政治。
-
-当前主线：
+R25 首版任务固定为路线图四类：
 
 ```text
-出生 / 童年 / 成年 ✅
-→ 世界 / 旅行 / 探索 ✅
-→ 背包 / 装备 ✅
-→ 修炼 / 筑基 / 金丹 ✅
-→ Combat / injury / poison ✅
-→ 妖兽 / 战利品 / ecology ✅
-→ ordinary wilderness encounter ✅
-→ 风险判断 / 强兽领地 ✅ R23
-→ 宗门加入与身份 ← R24 下一轮
-→ 宗门贡献 / 任务
-→ 拜师 / 违规 / 叛宗
-→ 炼丹 / 炼器 / 御兽
-→ NPC / 世界事件
-→ 《此世传》/ 重开
+采药
+巡山
+护送
+清剿
 ```
+
+设计原则：
+
+- 不是每日任务；
+- 每次任务必须消耗真实 worldDay；
+- 奖励必须进入现有 spirit stones / inventory / contribution；
+- 危险任务应尽量复用 R20 Combat、R21 health、R22 beasts；
+- 不新建第二任务世界或第二时间轴；
+- 不在 R25 提前做 R26 拜师 / 违规 / 叛宗。
+
+---
+
+# 十、合并纪律
+
+R24 只有在最终 PR head 同时满足：
+
+```text
+npm run typecheck
+npm test
+npm run build
+```
+
+全部成功后才允许合入 `main`。
