@@ -1,12 +1,22 @@
-import { COMBAT_MOVES, COMBAT_OPPONENTS, ARMOR_COMBAT, WEAPON_COMBAT, getCombatMove, getPlayerCombatStats } from '../data/combat'
+import {
+  COMBAT_MOVES,
+  COMBAT_OPPONENTS,
+  ARMOR_COMBAT,
+  WEAPON_COMBAT,
+  getCombatMove,
+  getPlayerCombatStats,
+  type CombatOpponentSpecialDefinition,
+} from '../data/combat'
 import { getItemDefinition } from '../data/items'
 import { getTechniqueById } from '../data/techniques'
+import type { BeastCombatContextTag, BeastEncounterVariant } from '../types/beast'
 import type { CombatAction, CombatOpponentId, CombatSource, CombatState, CombatStatusState, CombatTelegraph, CombatantRuntime } from '../types/combat'
 import type { GameState, Realm } from '../types/game'
+import { prepareBeastEncounter, settleBeastVictory } from './beastEngine'
 import { getEquippedItemId, resolveEquipItem } from './equipmentEngine'
 import { getInventoryQuantity, removeItem } from './inventoryEngine'
 import { addInjuries, addOrExtendCombatSevereInjury, getActiveInjuries, hasActiveInjury } from './injuryEngine'
-import { hasSeriousPoison } from './poisonEngine'
+import { hasSeriousPoison, resolveApplyPoisonCondition } from './poisonEngine'
 import { nextRandom, seedToState } from './rng'
 import { isTechniqueMoveUnlocked } from './techniqueEngine'
 
@@ -70,6 +80,14 @@ function isStatusActive(untilBeat: number | undefined, beat: number): boolean {
 
 function appendLog(combat: CombatState, message: string): CombatState {
   return { ...combat, log: [...combat.log, message].slice(-5) }
+}
+
+function hasCombatContext(combat: CombatState, tag: BeastCombatContextTag): boolean {
+  return combat.contextTags?.includes(tag) ?? false
+}
+
+function isColdPoolPython(combat: CombatState): boolean {
+  return combat.opponentId === 'cold-pool-scale-python' && hasCombatContext(combat, 'cold-pool')
 }
 
 function playerWeaponId(state: GameState): string | null {
@@ -142,6 +160,7 @@ export function getPlayerFleePreview(state: GameState): FleePreview | null {
   injuryPenalty = Math.max(-20, injuryPenalty)
   if (injuryPenalty !== 0) modifiers.push({ label: '当前伤势', percent: injuryPenalty })
   if (opponent.fleeHook !== 0) modifiers.push({ label: `${opponent.name}追击`, percent: opponent.fleeHook })
+  if (isColdPoolPython(combat)) modifiers.push({ label: '寒潭水势', percent: -10 })
   const chance = clamp(50 + modifiers.reduce((sum, item) => sum + item.percent, 0), 10, 90)
   return { chance, modifiers }
 }
@@ -190,6 +209,8 @@ export function getCombatStatusLabels(combatant: CombatantRuntime, beat: number)
   if (isStatusActive(status.stoneArmorUntilBeat, beat)) labels.push('石甲')
   if (isStatusActive(status.protectiveTalismanUntilBeat, beat)) labels.push('护身符')
   if (isStatusActive(status.lightnessTalismanUntilBeat, beat)) labels.push('轻身符')
+  if (isStatusActive(status.guardedUntilBeat, beat)) labels.push('护身')
+  if (isStatusActive(status.damageBoostUntilBeat, beat)) labels.push('狼啸')
   if (status.enraged) labels.push('狂暴')
   return labels
 }
@@ -211,6 +232,7 @@ function temporaryDefenseMultiplier(status: CombatStatusState, beat: number): { 
   if (isStatusActive(status.waterScreenUntilBeat, beat)) { reduction += 0.35; delete consumed.waterScreenUntilBeat }
   if (isStatusActive(status.stoneArmorUntilBeat, beat)) reduction += 0.2
   if (isStatusActive(status.protectiveTalismanUntilBeat, beat)) { reduction += 0.45; delete consumed.protectiveTalismanUntilBeat }
+  if (isStatusActive(status.guardedUntilBeat, beat)) reduction += 0.2
   return { multiplier: 1 - Math.min(0.55, reduction), consumed }
 }
 
@@ -222,7 +244,8 @@ function applyDamageToOpponent(combat: CombatState, rawDamage: number, armorPene
   if (combat.player.statuses.enraged) raw *= 1.2
   if (target.statuses.enraged) raw *= 1.1
   const opponent = COMBAT_OPPONENTS[combat.opponentId]
-  const armor = clamp(opponent.armorReduction - armorPenetration, 0, 0.35)
+  const terrainArmor = isColdPoolPython(combat) ? 0.05 : 0
+  const armor = clamp(opponent.armorReduction + terrainArmor - armorPenetration, 0, 0.35)
   let damage = Math.max(0, Math.round(raw * (1 - armor)))
   const defense = temporaryDefenseMultiplier(target.statuses, combat.beat)
   target = { ...target, statuses: defense.consumed }
@@ -238,6 +261,8 @@ function applyDamageToPlayer(state: GameState, combat: CombatState, rawDamage: n
   let raw = exposed.damage
   if (combat.opponent.statuses.enraged) raw *= 1.2
   if (target.statuses.enraged) raw *= 1.1
+  if (isStatusActive(combat.opponent.statuses.damageBoostUntilBeat, combat.beat)) raw *= 1.15
+  if (isColdPoolPython(combat)) raw *= 1.1
   const armor = clamp(playerArmorReduction(state) - armorPenetration, 0, 0.35)
   let damage = Math.max(0, Math.round(raw * (1 - armor)))
   const defense = temporaryDefenseMultiplier(target.statuses, combat.beat)
@@ -293,14 +318,38 @@ function applyPostCombatInjury(state: GameState, combat: CombatState): GameState
   return state
 }
 
+function applyPendingPoisonExposures(state: GameState, combat: CombatState): GameState {
+  let next = state
+  const exposures = combat.pendingPoisonExposures?.bishui_venom ?? 0
+  for (let index = 0; index < exposures; index += 1) {
+    next = resolveApplyPoisonCondition(next, 'bishui_venom').state
+  }
+  return next
+}
+
 function finishSurvivingCombat(state: GameState, combat: CombatState, result: 'victory' | 'player-fled' | 'opponent-fled'): GameState {
   let next = applyPostCombatInjury(state, combat)
+  next = applyPendingPoisonExposures(next, combat)
+
   if (result === 'victory' && combat.source === 'sunken-vein-core' && next.secretRealm) {
     next = {
       ...next,
       secretRealm: {
         sunkenVeinChamber: { ...next.secretRealm.sunkenVeinChamber, encounter: 'victory' },
       },
+    }
+  } else if (result === 'victory') {
+    const opponent = COMBAT_OPPONENTS[combat.opponentId]
+    if (opponent.beastId) {
+      next = settleBeastVictory(next, {
+        beastId: opponent.beastId,
+        beastName: opponent.name,
+        battleId: combat.battleId,
+        locationId: combat.locationId,
+        variant: combat.encounterVariant ?? 'ordinary',
+        ...(combat.beastInstanceId ? { instanceId: combat.beastInstanceId } : {}),
+        ...(combat.contextTags ? { contextTags: combat.contextTags } : {}),
+      })
     }
   }
   return withoutCombat(next)
@@ -316,67 +365,224 @@ function finishDeath(state: GameState, combat: CombatState): GameState {
   return dead
 }
 
-function initialTelegraphForNextBeat(opponentId: CombatOpponentId, nextBeat: number, combat: CombatState): CombatTelegraph | null {
-  const opponent = COMBAT_OPPONENTS[opponentId]
-  if (opponentId === 'ordinary-loose-cultivator') {
-    if (nextBeat % 3 !== 0) return null
-    if (combat.opponentFireTalismanAvailable) return { id: 'enemy-fire-talisman', label: '散修摸出一张火符', multiplier: 1.45, movementRequired: false, heavy: false, kind: 'item' }
-    if (combat.opponent.currentQi >= 12) return { id: 'enemy-firebolt', label: '散修开始凝聚火弹', multiplier: 1.35, movementRequired: false, heavy: false, kind: 'spell' }
-    return null
-  }
-  return opponent.special && nextBeat % 3 === 0 ? { ...opponent.special } : null
+function humanTelegraphForBeat(combat: CombatState): CombatTelegraph | null {
+  if (combat.opponentId !== 'ordinary-loose-cultivator' || combat.beat % 3 !== 0) return null
+  if (combat.opponentFireTalismanAvailable) return { id: 'enemy-fire-talisman', label: '散修摸出一张火符', multiplier: 1.45, movementRequired: false, heavy: false, kind: 'item' }
+  if (combat.opponent.currentQi >= 12) return { id: 'enemy-firebolt', label: '散修开始凝聚火弹', multiplier: 1.35, movementRequired: false, heavy: false, kind: 'spell' }
+  return null
+}
+
+function specialReadyBeat(combat: CombatState, special: CombatOpponentSpecialDefinition): number {
+  return combat.opponentSpecialReadyBeat?.[special.id] ?? special.initialBeat
+}
+
+function selectOpponentSpecial(combat: CombatState): CombatTelegraph | null {
+  const opponent = COMBAT_OPPONENTS[combat.opponentId]
+  const special = opponent.specials?.find((candidate) => specialReadyBeat(combat, candidate) <= combat.beat)
+  return special ? { ...special } : null
 }
 
 function setNextTelegraph(combat: CombatState): CombatState {
-  return { ...combat, telegraph: initialTelegraphForNextBeat(combat.opponentId, combat.beat, combat) }
+  if (combat.telegraph) return combat
+  const telegraph = humanTelegraphForBeat(combat) ?? selectOpponentSpecial(combat)
+  return { ...combat, telegraph }
 }
 
-function resolveEnemyFlee(state: GameState, combat: CombatState): { state: GameState; combat: CombatState; fled: boolean } {
+function setSpecialCooldown(combat: CombatState, telegraph: CombatTelegraph): CombatState {
+  const cooldown = telegraph.cooldown
+  if (cooldown === undefined) return combat
+  return {
+    ...combat,
+    opponentSpecialReadyBeat: {
+      ...(combat.opponentSpecialReadyBeat ?? {}),
+      [telegraph.id]: combat.beat + cooldown,
+    },
+  }
+}
+
+function getEnemyFleeChance(state: GameState, combat: CombatState): number {
   const opponent = COMBAT_OPPONENTS[combat.opponentId]
+  if (opponent.lowHealthFleeChance !== undefined) return opponent.lowHealthFleeChance
   const modifier = realmDifferenceModifier(opponent.realm, opponent.stage, state.cultivation.realm, state.cultivation.stage)
-  const chance = clamp(50 + modifier, 10, 90)
+  return clamp(50 + modifier, 10, 90) / 100
+}
+
+function resolveEnemyFlee(state: GameState, combat: CombatState): { combat: CombatState; fled: boolean } {
+  const opponent = COMBAT_OPPONENTS[combat.opponentId]
   const roll = nextRandom(combat.rngState)
   let nextCombat = { ...combat, rngState: roll.nextState }
-  const fled = roll.value < chance / 100
+  const fled = roll.value < getEnemyFleeChance(state, combat)
   if (!fled) {
-    nextCombat = { ...nextCombat, opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, retreatingUntilBeat: combat.beat + 1 } } }
+    nextCombat = {
+      ...nextCombat,
+      opponent: {
+        ...nextCombat.opponent,
+        statuses: { ...nextCombat.opponent.statuses, retreatingUntilBeat: combat.beat + 1 },
+      },
+    }
     nextCombat = appendLog(nextCombat, `${opponent.name}试图退走，但没能脱离交锋。`)
   }
-  return { state, combat: nextCombat, fled }
+  return { combat: nextCombat, fled }
+}
+
+function specialActionName(telegraph: CombatTelegraph): string {
+  const labels: Readonly<Record<string, string>> = {
+    pounce: '扑击',
+    charge: '冲撞',
+    'venom-strike': '毒袭',
+    'tail-sweep': '扫尾',
+    'charged-smash': '蓄力砸击',
+    constrict: '缠杀',
+    'cold-breath': '寒息',
+    'wind-pounce': '裂风扑杀',
+  }
+  return labels[telegraph.id] ?? telegraph.label
+}
+
+function resolveTelegraphedEnemyAction(state: GameState, combat: CombatState): { combat: CombatState; opponentFled: boolean } {
+  const opponent = COMBAT_OPPONENTS[combat.opponentId]
+  const telegraph = combat.telegraph
+  if (!telegraph) return { combat, opponentFled: false }
+
+  let nextCombat = combat
+  if (isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat) && telegraph.movementRequired) {
+    nextCombat = setSpecialCooldown({ ...nextCombat, telegraph: null }, telegraph)
+    nextCombat = appendLog(nextCombat, `${opponent.name}被束缚，${specialActionName(telegraph)}被打断。`)
+    return { combat: nextCombat, opponentFled: false }
+  }
+
+  if (telegraph.effect === 'escape') {
+    const flee = resolveEnemyFlee(state, { ...nextCombat, telegraph: null })
+    nextCombat = flee.combat
+    if (flee.fled) return { combat: appendLog(nextCombat, `${opponent.name}抓住空隙脱离了战斗。`), opponentFled: true }
+    return { combat: nextCombat, opponentFled: false }
+  }
+
+  if (telegraph.effect === 'guard-self') {
+    nextCombat = setSpecialCooldown({
+      ...nextCombat,
+      telegraph: null,
+      opponent: {
+        ...nextCombat.opponent,
+        statuses: { ...nextCombat.opponent.statuses, guardedUntilBeat: nextCombat.beat + 2 },
+      },
+    }, telegraph)
+    return { combat: appendLog(nextCombat, `${opponent.name}屈身护住要害，接下来两拍减伤提高。`), opponentFled: false }
+  }
+
+  if (telegraph.effect === 'damage-boost') {
+    nextCombat = setSpecialCooldown({
+      ...nextCombat,
+      telegraph: null,
+      opponent: {
+        ...nextCombat.opponent,
+        statuses: { ...nextCombat.opponent.statuses, damageBoostUntilBeat: nextCombat.beat + 3 },
+      },
+    }, telegraph)
+    return { combat: appendLog(nextCombat, `${opponent.name}长啸震谷，接下来三拍攻势更凶。`), opponentFled: false }
+  }
+
+  if (telegraph.id === 'enemy-firebolt') {
+    nextCombat = { ...nextCombat, opponent: { ...nextCombat.opponent, currentQi: nextCombat.opponent.currentQi - 12 } }
+  }
+  if (telegraph.id === 'enemy-fire-talisman') {
+    nextCombat = { ...nextCombat, opponentFireTalismanAvailable: false }
+  }
+
+  const hit = applyDamageToPlayer(state, { ...nextCombat, telegraph: null }, opponent.baseAttack * telegraph.multiplier, 0, telegraph.heavy)
+  nextCombat = setSpecialCooldown(hit.combat, telegraph)
+  const actionName = telegraph.id.startsWith('enemy-') ? telegraph.label : specialActionName(telegraph)
+  nextCombat = appendLog(nextCombat, `${opponent.name}${telegraph.id.startsWith('enemy-') ? '使用' : '施展'}${actionName}，造成 ${hit.damage} 点伤害。`)
+
+  if (telegraph.effect === 'expose-self') {
+    nextCombat = {
+      ...nextCombat,
+      opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, exposed: true } },
+    }
+  }
+  if (telegraph.effect === 'bishui-poison-exposure' && hit.damage > 0) {
+    nextCombat = {
+      ...nextCombat,
+      pendingPoisonExposures: {
+        ...(nextCombat.pendingPoisonExposures ?? {}),
+        bishui_venom: (nextCombat.pendingPoisonExposures?.bishui_venom ?? 0) + 1,
+      },
+    }
+  }
+  if (telegraph.effect === 'bind-player' && hit.damage > 0) {
+    nextCombat = {
+      ...nextCombat,
+      player: { ...nextCombat.player, statuses: { ...nextCombat.player.statuses, boundUntilBeat: nextCombat.beat + 1 } },
+    }
+  }
+  if (telegraph.effect === 'slow-player' && hit.damage > 0) {
+    nextCombat = {
+      ...nextCombat,
+      player: { ...nextCombat.player, statuses: { ...nextCombat.player.statuses, slowedUntilBeat: nextCombat.beat + 2 } },
+    }
+  }
+  return { combat: nextCombat, opponentFled: false }
 }
 
 function resolveEnemyPhase(state: GameState, combat: CombatState): { state: GameState; combat: CombatState; opponentFled: boolean } {
   const opponent = COMBAT_OPPONENTS[combat.opponentId]
   let nextCombat = combat
-  if (opponent.lowHealthBehavior === 'enrage' && !nextCombat.opponent.statuses.enraged && nextCombat.opponent.currentHP <= nextCombat.opponent.maxHP * (opponent.lowHealthRatio ?? 0)) {
-    nextCombat = appendLog({ ...nextCombat, opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, enraged: true } } }, `${opponent.name}进入狂暴。`)
-  }
-  if (opponent.lowHealthBehavior === 'flee' && nextCombat.opponent.currentHP <= nextCombat.opponent.maxHP * (opponent.lowHealthRatio ?? 0) && !isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat)) {
-    const flee = resolveEnemyFlee(state, nextCombat)
-    if (flee.fled) return { state: flee.state, combat: appendLog(flee.combat, `${opponent.name}脱离了战斗。`), opponentFled: true }
-    return { state: flee.state, combat: flee.combat, opponentFled: false }
+
+  if (nextCombat.telegraph) {
+    const resolved = resolveTelegraphedEnemyAction(state, nextCombat)
+    return { state, combat: resolved.combat, opponentFled: resolved.opponentFled }
   }
 
-  const telegraph = nextCombat.telegraph
-  if (telegraph) {
-    if (isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat) && telegraph.movementRequired) {
-      nextCombat = appendLog(nextCombat, `${opponent.name}被束缚，${telegraph.label}被打断。`)
-      return { state, combat: { ...nextCombat, telegraph: null }, opponentFled: false }
-    }
-    const raw = opponent.baseAttack * telegraph.multiplier
-    const armorPen = 0
-    if (telegraph.id === 'enemy-firebolt') {
-      nextCombat = { ...nextCombat, opponent: { ...nextCombat.opponent, currentQi: nextCombat.opponent.currentQi - 12 } }
-    }
-    if (telegraph.id === 'enemy-fire-talisman') {
-      nextCombat = { ...nextCombat, opponentFireTalismanAvailable: false }
-    }
-    const hit = applyDamageToPlayer(state, { ...nextCombat, telegraph: null }, raw, armorPen, telegraph.heavy)
-    nextCombat = appendLog(hit.combat, `${opponent.name}${telegraph.id.startsWith('enemy-') ? '使用' : '施展'}${telegraph.label}，造成 ${hit.damage} 点伤害。`)
-    if (opponent.id === 'adult-rock-lizard' && telegraph.id === 'tail-sweep') {
-      nextCombat = { ...nextCombat, opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, exposed: true } } }
-    }
+  const lowHealthTriggered = opponent.lowHealthBehavior &&
+    !nextCombat.opponent.statuses.lowHealthResolved &&
+    nextCombat.opponent.currentHP <= nextCombat.opponent.maxHP * (opponent.lowHealthRatio ?? 0)
+
+  if (lowHealthTriggered && opponent.lowHealthBehavior === 'enrage') {
+    nextCombat = appendLog({
+      ...nextCombat,
+      opponent: {
+        ...nextCombat.opponent,
+        statuses: { ...nextCombat.opponent.statuses, enraged: true, lowHealthResolved: true },
+      },
+    }, `${opponent.name}进入狂暴。`)
+  }
+
+  if (lowHealthTriggered && opponent.lowHealthBehavior === 'escape-telegraph' && !isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat)) {
+    nextCombat = appendLog({
+      ...nextCombat,
+      opponent: {
+        ...nextCombat.opponent,
+        statuses: { ...nextCombat.opponent.statuses, lowHealthResolved: true },
+      },
+      telegraph: {
+        id: 'urgent-escape',
+        label: '后退观察，随时准备急遁',
+        multiplier: 0,
+        movementRequired: true,
+        heavy: false,
+        kind: 'physical',
+        effect: 'escape',
+      },
+    }, `${opponent.name}突然拉开距离，正在寻找脱身空隙。`)
     return { state, combat: nextCombat, opponentFled: false }
+  }
+
+  if (lowHealthTriggered && opponent.lowHealthBehavior === 'flee') {
+    const secretRockCannotFlee = nextCombat.source === 'sunken-vein-core' && nextCombat.opponentId === 'adult-rock-lizard'
+    if (secretRockCannotFlee) {
+      nextCombat = {
+        ...nextCombat,
+        opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, lowHealthResolved: true } },
+      }
+    } else if (!isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat)) {
+      nextCombat = {
+        ...nextCombat,
+        opponent: { ...nextCombat.opponent, statuses: { ...nextCombat.opponent.statuses, lowHealthResolved: true } },
+      }
+      const flee = resolveEnemyFlee(state, nextCombat)
+      if (flee.fled) return { state, combat: appendLog(flee.combat, `${opponent.name}脱离了战斗。`), opponentFled: true }
+      return { state, combat: flee.combat, opponentFled: false }
+    }
   }
 
   if (isStatusActive(nextCombat.opponent.statuses.boundUntilBeat, nextCombat.beat)) {
@@ -478,12 +684,13 @@ function resolvePlayerItem(state: GameState, combat: CombatState, itemId: string
   }
   if (itemId === 'spirit_breaking_awl') {
     const targetStatuses = next.opponent.statuses
-    const hasGuard = isStatusActive(targetStatuses.waterScreenUntilBeat, combat.beat) || isStatusActive(targetStatuses.stoneArmorUntilBeat, combat.beat) || isStatusActive(targetStatuses.protectiveTalismanUntilBeat, combat.beat)
+    const hasGuard = isStatusActive(targetStatuses.waterScreenUntilBeat, combat.beat) || isStatusActive(targetStatuses.stoneArmorUntilBeat, combat.beat) || isStatusActive(targetStatuses.protectiveTalismanUntilBeat, combat.beat) || isStatusActive(targetStatuses.guardedUntilBeat, combat.beat)
     if (hasGuard) {
       const statuses = { ...targetStatuses, exposed: true }
       delete statuses.waterScreenUntilBeat
       delete statuses.stoneArmorUntilBeat
       delete statuses.protectiveTalismanUntilBeat
+      delete statuses.guardedUntilBeat
       next = { ...next, opponent: { ...next.opponent, statuses } }
       return { state: removed.state, combat: appendLog(next, '破灵锥撕开了对方的临时防护，使其暴露。') }
     }
@@ -517,6 +724,7 @@ function startPrerequisite(state: GameState, opponentId: CombatOpponentId, sourc
   if (state.status !== 'playing') return 'GAME_ENDED'
   if (state.lifeStage !== 'adult') return 'COMBAT_REQUIRES_ADULT'
   if (state.combat) return 'COMBAT_ALREADY_ACTIVE'
+  if (state.pendingBeastLoot) return 'BEAST_LOOT_PENDING'
   if (!COMBAT_OPPONENTS[opponentId]) return 'UNKNOWN_COMBAT_OPPONENT'
   if (state.events.currentEventId !== null) return 'EVENT_PENDING'
   if (source === 'sunken-vein-core') {
@@ -527,27 +735,47 @@ function startPrerequisite(state: GameState, opponentId: CombatOpponentId, sourc
   return undefined
 }
 
-export function resolveCombatStart(state: GameState, opponentId: CombatOpponentId, source: CombatSource): CombatMutationResult {
+export function resolveCombatStart(
+  state: GameState,
+  opponentId: CombatOpponentId,
+  source: CombatSource,
+  contextTags: readonly BeastCombatContextTag[] = [],
+  requestedVariant?: BeastEncounterVariant,
+): CombatMutationResult {
   const prerequisite = startPrerequisite(state, opponentId, source)
   if (prerequisite) return rejected(state, prerequisite)
   const opponent = COMBAT_OPPONENTS[opponentId]
-  const playerStats = getPlayerCombatStats(state.cultivation.realm, state.cultivation.stage)
-  const hpMultiplier = hasActiveInjury(state, 'severe') ? 0.7 : hasSeriousPoison(state) ? 0.85 : 1
-  const qiMultiplier = hasActiveInjury(state, 'meridian') ? 0.65 : 1
+  let workingState = state
+  let encounterVariant: BeastEncounterVariant | undefined = requestedVariant
+  let beastInstanceId: string | undefined
+
+  if (source !== 'sunken-vein-core' && opponent.beastId) {
+    const prepared = prepareBeastEncounter(state, opponent.beastId, state.world.currentLocationId, requestedVariant)
+    if (!prepared.applied) return rejected(state, prepared.reason ?? 'BEAST_ENCOUNTER_UNAVAILABLE')
+    workingState = prepared.state
+    encounterVariant = prepared.variant
+    beastInstanceId = prepared.instanceId
+  } else if (source === 'sunken-vein-core') {
+    encounterVariant = 'special'
+  }
+
+  const playerStats = getPlayerCombatStats(workingState.cultivation.realm, workingState.cultivation.stage)
+  const hpMultiplier = hasActiveInjury(workingState, 'severe') ? 0.7 : hasSeriousPoison(workingState) ? 0.85 : 1
+  const qiMultiplier = hasActiveInjury(workingState, 'meridian') ? 0.65 : 1
   const playerMaxHP = Math.max(1, Math.floor(playerStats.maxHP * hpMultiplier))
   const playerMaxQi = Math.max(0, Math.floor(playerStats.maxQi * qiMultiplier))
-  const mainRoll = nextRandom(state.rngState)
-  const combatSeed = seedToState(`${state.runSeed}:r20-combat:${mainRoll.nextState}:${source}:${opponentId}`)
+  const mainRoll = nextRandom(workingState.rngState)
+  const combatSeed = seedToState(`${workingState.runSeed}:r20-combat:${mainRoll.nextState}:${source}:${opponentId}`)
   let combat: CombatState = {
-    battleId: `${state.runId}:combat:${opponentId}:${state.worldDay}:${mainRoll.nextState}`,
+    battleId: `${workingState.runId}:combat:${opponentId}:${workingState.worldDay}:${mainRoll.nextState}`,
     source,
     opponentId,
-    locationId: state.world.currentLocationId,
+    locationId: workingState.world.currentLocationId,
     beat: 1,
     rngState: combatSeed,
     player: { currentHP: playerMaxHP, maxHP: playerMaxHP, currentQi: playerMaxQi, maxQi: playerMaxQi, baseAttack: playerStats.baseAttack, nextBasicAttackBeat: 1, statuses: {} },
     opponent: { currentHP: opponent.maxHP, maxHP: opponent.maxHP, currentQi: opponent.maxQi, maxQi: opponent.maxQi, baseAttack: opponent.baseAttack, nextBasicAttackBeat: 1, statuses: {} },
-    configuredMoveKeys: getConfiguredMoveKeys(state),
+    configuredMoveKeys: getConfiguredMoveKeys(workingState),
     moveReadyBeat: {},
     qiPillsUsed: 0,
     heartGuardUsed: false,
@@ -557,9 +785,14 @@ export function resolveCombatStart(state: GameState, opponentId: CombatOpponentI
     telegraph: null,
     maxPlayerHitTaken: 0,
     log: [`遭遇${opponent.name}。`],
+    contextTags: [...contextTags],
+    ...(encounterVariant ? { encounterVariant } : {}),
+    ...(beastInstanceId ? { beastInstanceId } : {}),
+    opponentSpecialReadyBeat: {},
+    pendingPoisonExposures: {},
   }
-  let nextState: GameState = { ...state, rngState: mainRoll.nextState, combat }
-  const openingWeapon = playerWeaponId(state)
+  let nextState: GameState = { ...workingState, rngState: mainRoll.nextState, combat }
+  const openingWeapon = playerWeaponId(workingState)
   if (openingWeapon === 'green_bamboo_spirit_bow') {
     const weapon = WEAPON_COMBAT[openingWeapon]
     const hit = applyDamageToOpponent(combat, combat.player.baseAttack * (weapon.rangedOpeningMultiplier ?? 1.15), 0)
@@ -637,6 +870,7 @@ export function getCombatOpponentName(opponentId: CombatOpponentId): string {
 
 export function getCombatOpponentRealmLabel(opponentId: CombatOpponentId): string {
   const opponent = COMBAT_OPPONENTS[opponentId]
+  if (opponent.realmLabel) return opponent.realmLabel
   if (opponent.realm === 'qi') return `炼气${opponent.stage}层量级`
   if (opponent.realm === 'foundation') return `筑基${opponent.stage}阶段量级`
   if (opponent.realm === 'golden_core') return '金丹量级'

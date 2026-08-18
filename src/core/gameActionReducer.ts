@@ -1,6 +1,7 @@
 import { getWorldLocationById } from '../data/worldLocations'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/game'
 import type { GameAction, GameFlagValue } from '../types/gameAction'
+import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
 import { advanceWorldTime } from './worldEngine'
@@ -52,11 +53,19 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
       return resolveSublocationInitialization(state)
     }
     case 'START_COMBAT': {
-      const result = resolveCombatStart(state, action.opponentId, action.source)
+      const result = resolveCombatStart(state, action.opponentId, action.source, action.contextTags, action.encounterVariant)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'COMBAT_ACTION': {
       const result = resolveCombatAction(state, action.action)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'CLAIM_BEAST_LOOT': {
+      const result = resolveBeastLootClaim(state, action.itemId, action.quantity)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'ABANDON_BEAST_LOOT': {
+      const result = resolveBeastLootAbandon(state)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'SET_LOCATION_KNOWLEDGE': {

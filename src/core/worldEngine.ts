@@ -1,4 +1,5 @@
 import type { GameState } from '../types/game'
+import { resolveBeastEcologyRecovery } from './beastEngine'
 import { resolveNaturalDeath } from './lifespanEngine'
 import { getNextPoisonMilestoneDay, hasActivePoison, resolvePoisonMilestonesAtCurrentDay } from './poisonEngine'
 import { advanceTimeDays } from './timeEngine'
@@ -8,13 +9,18 @@ export interface WorldAdvanceResult {
   elapsedDays: number
 }
 
+function settleWorldDaySystems(state: GameState): GameState {
+  return resolveBeastEcologyRecovery(state)
+}
+
 export function advanceWorldTime(state: GameState, days: number): WorldAdvanceResult {
   if (state.status !== 'playing') return { state, elapsedDays: 0 }
 
-  // Preserve the exact pre-R21 path for every old state that has no active poison.
+  // Preserve the exact pre-R21 path for old health states while allowing R22
+  // ecology to aggregate from the same authoritative worldDay afterwards.
   if (!hasActivePoison(state)) {
-    const advanced = advanceTimeDays(state, days)
-    return { state: resolveNaturalDeath(advanced), elapsedDays: days }
+    const advanced = resolveNaturalDeath(advanceTimeDays(state, days))
+    return { state: settleWorldDaySystems(advanced), elapsedDays: days }
   }
 
   let current = state
@@ -43,5 +49,5 @@ export function advanceWorldTime(state: GameState, days: number): WorldAdvanceRe
     if (current.status !== 'playing') break
   }
 
-  return { state: current, elapsedDays }
+  return { state: settleWorldDaySystems(current), elapsedDays }
 }
