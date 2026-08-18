@@ -1,3 +1,4 @@
+import type { BeastId } from '../types/beast'
 import type { Realm } from '../types/game'
 import type { CombatOpponentId, CombatTelegraph } from '../types/combat'
 
@@ -33,11 +34,17 @@ export interface CombatMoveDefinition {
   element?: 'fire'
 }
 
+export interface CombatOpponentSpecialDefinition extends CombatTelegraph {
+  cooldown: number
+  initialBeat: number
+}
+
 export interface CombatOpponentDefinition {
   id: CombatOpponentId
   name: string
   realm: Realm
   stage: number
+  realmLabel?: string
   maxHP: number
   maxQi: number
   baseAttack: number
@@ -46,10 +53,12 @@ export interface CombatOpponentDefinition {
   basicLabel: string
   basicMultiplier: number
   beast: boolean
+  beastId?: BeastId
   fleeHook: number
-  special?: CombatTelegraph
-  lowHealthBehavior?: 'flee' | 'enrage'
+  specials?: readonly CombatOpponentSpecialDefinition[]
+  lowHealthBehavior?: 'flee' | 'enrage' | 'escape-telegraph'
   lowHealthRatio?: number
+  lowHealthFleeChance?: number
   weaponItemId?: string
 }
 
@@ -108,19 +117,56 @@ export function getCombatMove(techniqueId: string, moveId: string): CombatMoveDe
 export const COMBAT_OPPONENTS: Readonly<Record<CombatOpponentId, CombatOpponentDefinition>> = {
   'greenback-wolf': {
     id: 'greenback-wolf', name: '青背狼', realm: 'qi', stage: 2, maxHP: 105, maxQi: 0, baseAttack: 12,
-    armorReduction: 0, basicInterval: 1, basicLabel: '撕咬', basicMultiplier: 1, beast: true, fleeHook: -8,
-    special: { id: 'pounce', label: '扑击', multiplier: 1.6, movementRequired: true, heavy: false, kind: 'physical' },
-    lowHealthBehavior: 'flee', lowHealthRatio: 0.25,
+    armorReduction: 0, basicInterval: 1, basicLabel: '撕咬', basicMultiplier: 1, beast: true, beastId: 'greenback_wolf', fleeHook: -8,
+    specials: [{ id: 'pounce', label: '伏低身体，准备扑击', multiplier: 1.6, movementRequired: true, heavy: false, kind: 'physical', cooldown: 2, initialBeat: 3 }],
+    lowHealthBehavior: 'flee', lowHealthRatio: 0.25, lowHealthFleeChance: 0.65,
+  },
+  'redtail-fox': {
+    id: 'redtail-fox', name: '赤尾狐', realm: 'qi', stage: 2, maxHP: 90, maxQi: 0, baseAttack: 11,
+    armorReduction: 0, basicInterval: 1, basicLabel: '撕咬', basicMultiplier: 0.9, beast: true, beastId: 'redtail_fox', fleeHook: 5,
+    lowHealthBehavior: 'escape-telegraph', lowHealthRatio: 0.55, lowHealthFleeChance: 0.85,
+  },
+  'ironhide-boar': {
+    id: 'ironhide-boar', name: '铁甲猪', realm: 'qi', stage: 3, maxHP: 150, maxQi: 0, baseAttack: 15,
+    armorReduction: 0.18, basicInterval: 1, basicLabel: '顶咬', basicMultiplier: 1, beast: true, beastId: 'ironhide_boar', fleeHook: 0,
+    specials: [{ id: 'charge', label: '刨地低头，准备冲撞', multiplier: 1.8, movementRequired: true, heavy: true, kind: 'physical', effect: 'expose-self', cooldown: 3, initialBeat: 3 }],
+  },
+  'bishui-snake': {
+    id: 'bishui-snake', name: '碧水蛇', realm: 'qi', stage: 3, maxHP: 125, maxQi: 0, baseAttack: 14,
+    armorReduction: 0.04, basicInterval: 1, basicLabel: '咬击', basicMultiplier: 0.9, beast: true, beastId: 'bishui_snake', fleeHook: 0,
+    specials: [{ id: 'venom-strike', label: '昂首蓄势，毒腺明显鼓起', multiplier: 1.25, movementRequired: false, heavy: false, kind: 'physical', effect: 'bishui-poison-exposure', cooldown: 2, initialBeat: 3 }],
+    lowHealthBehavior: 'flee', lowHealthRatio: 0.2, lowHealthFleeChance: 0.4,
   },
   'adult-rock-lizard': {
     id: 'adult-rock-lizard', name: '成年岩甲蜥', realm: 'qi', stage: 4, maxHP: 155, maxQi: 0, baseAttack: 16,
-    armorReduction: 0.22, basicInterval: 1, basicLabel: '咬击', basicMultiplier: 1, beast: true, fleeHook: 5,
-    special: { id: 'tail-sweep', label: '扫尾', multiplier: 1.7, movementRequired: false, heavy: false, kind: 'physical' },
+    armorReduction: 0.22, basicInterval: 1, basicLabel: '咬击', basicMultiplier: 1, beast: true, beastId: 'rock_armored_lizard', fleeHook: 5,
+    specials: [{ id: 'tail-sweep', label: '抬起粗尾，准备扫击', multiplier: 1.7, movementRequired: false, heavy: false, kind: 'physical', effect: 'expose-self', cooldown: 3, initialBeat: 3 }],
+    lowHealthBehavior: 'flee', lowHealthRatio: 0.2, lowHealthFleeChance: 0.35,
   },
   'red-maned-ape': {
     id: 'red-maned-ape', name: '赤鬃山猿', realm: 'qi', stage: 8, maxHP: 210, maxQi: 0, baseAttack: 26,
-    armorReduction: 0.08, basicInterval: 1, basicLabel: '重拳', basicMultiplier: 1, beast: true, fleeHook: -5,
-    special: { id: 'charged-smash', label: '蓄力砸击', multiplier: 2, movementRequired: true, heavy: true, kind: 'physical' },
+    armorReduction: 0.08, basicInterval: 1, basicLabel: '重拳', basicMultiplier: 1, beast: true, beastId: 'red_maned_ape', fleeHook: -5,
+    specials: [
+      { id: 'charged-smash', label: '举臂蓄力，准备砸击', multiplier: 2, movementRequired: true, heavy: true, kind: 'physical', cooldown: 3, initialBeat: 3 },
+      { id: 'ape-guard', label: '屈身护胸，准备硬接攻势', multiplier: 0, movementRequired: false, heavy: false, kind: 'physical', effect: 'guard-self', cooldown: 4, initialBeat: 4 },
+    ],
+    lowHealthBehavior: 'enrage', lowHealthRatio: 0.3,
+  },
+  'cold-pool-scale-python': {
+    id: 'cold-pool-scale-python', name: '寒潭鳞蟒', realm: 'foundation', stage: 2, realmLabel: '筑基前期～中期量级', maxHP: 300, maxQi: 0, baseAttack: 46,
+    armorReduction: 0.12, basicInterval: 1, basicLabel: '蟒尾横击', basicMultiplier: 1, beast: true, beastId: 'cold_pool_scale_python', fleeHook: 0,
+    specials: [
+      { id: 'constrict', label: '盘身收紧，准备缠杀', multiplier: 1.45, movementRequired: true, heavy: false, kind: 'physical', effect: 'bind-player', cooldown: 3, initialBeat: 3 },
+      { id: 'cold-breath', label: '喉部泛白，寒气正在聚集', multiplier: 1.6, movementRequired: false, heavy: false, kind: 'spell', effect: 'slow-player', cooldown: 3, initialBeat: 4 },
+    ],
+  },
+  'one-horned-azure-wolf': {
+    id: 'one-horned-azure-wolf', name: '独角苍狼', realm: 'foundation', stage: 2, realmLabel: '筑基中期量级', maxHP: 340, maxQi: 0, baseAttack: 52,
+    armorReduction: 0.1, basicInterval: 1, basicLabel: '撕咬', basicMultiplier: 1, beast: true, beastId: 'one_horned_azure_wolf', fleeHook: -12,
+    specials: [
+      { id: 'wind-pounce', label: '压低前身，风声在爪下聚起', multiplier: 1.9, movementRequired: true, heavy: true, kind: 'physical', cooldown: 3, initialBeat: 3 },
+      { id: 'wolf-howl', label: '仰首蓄气，低沉狼啸将起', multiplier: 0, movementRequired: false, heavy: false, kind: 'physical', effect: 'damage-boost', cooldown: 4, initialBeat: 4 },
+    ],
     lowHealthBehavior: 'enrage', lowHealthRatio: 0.3,
   },
   'ordinary-loose-cultivator': {
