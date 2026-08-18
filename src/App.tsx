@@ -155,6 +155,12 @@ function App() {
         const initializedInventory = commandAndSave(window.localStorage, working, { type: 'initialize-inventory' })
         if (!initializedInventory.applied) { setNotice(initializedInventory.reason ?? '本世背包无法初始化'); return }
         working = initializedInventory.persistent
+        currentState = working.currentSession?.state
+      }
+      if (currentState && currentState.flags.wilderness_encounters_initialized !== true) {
+        const initializedEncounters = commandAndSave(window.localStorage, working, { type: 'game-action', action: { type: 'SET_FLAG', key: 'wilderness_encounters_initialized', value: true } })
+        if (!initializedEncounters.applied) { setNotice(initializedEncounters.reason ?? '本世野外遭遇无法初始化'); return }
+        working = initializedEncounters.persistent
       }
       const result = commandAndSave(window.localStorage, working, { type: 'explore-region', days })
       if (!result.applied) { setNotice(result.reason ?? '当前无法探索'); return }
