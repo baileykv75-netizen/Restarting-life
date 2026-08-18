@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ActionPanel } from './components/ActionPanel'
 import { AdultEntryPanel } from './components/AdultEntryPanel'
 import { ArchivePanel } from './components/ArchivePanel'
+import { BeastLootPanel } from './components/BeastLootPanel'
 import { BirthSelectionPanel } from './components/BirthSelectionPanel'
 import { CharacterPanel } from './components/CharacterPanel'
 import { ChildhoodPanel } from './components/ChildhoodPanel'
@@ -34,6 +35,7 @@ import './adult-entry.css'
 import './world-map.css'
 import './secret-realm.css'
 import './inventory.css'
+import './beast-loot.css'
 import './equipment.css'
 import './cultivation.css'
 import './foundation.css'
@@ -184,6 +186,8 @@ function App() {
     stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
   } else if (state.combat) {
     stageContent = <CombatPanel state={state} onAction={(action) => persistCommand({ type: 'game-action', action: { type: 'COMBAT_ACTION', action } })} />
+  } else if (state.pendingBeastLoot) {
+    stageContent = <BeastLootPanel state={state} onClaim={(itemId, quantity) => persistCommand({ type: 'game-action', action: { type: 'CLAIM_BEAST_LOOT', itemId, quantity } })} onAbandon={() => persistCommand({ type: 'game-action', action: { type: 'ABANDON_BEAST_LOOT' } })} />
   } else if (state.secretRealm?.sunkenVeinChamber.active) {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
