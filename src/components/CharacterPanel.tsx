@@ -6,6 +6,7 @@ import { TALENTS, getTalentById } from '../data/talents'
 import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
 import { getEquippedItemId, EQUIPMENT_SLOTS } from '../core/equipmentEngine'
 import { getCharacterDisplayName } from '../core/nameEngine'
+import { formatQingyunJoinPath, formatSectRank } from '../core/sectMembershipEngine'
 import type { StatModifiers } from '../types/content'
 import type { EquipmentSlot } from '../types/equipment'
 import type { GameState } from '../types/game'
@@ -38,6 +39,7 @@ export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
   const spiritBonus = getRealmStatBonus(state, 'spiritSense')
   const effectiveSpiritSense = getEffectiveStat(state, 'spiritSense')
   const displayName = getCharacterDisplayName(state.identity.name, state.runSeed)
+  const qingyunMembership = state.sectMembership?.sectId === 'qingyun' ? state.sectMembership : null
 
   return (
     <aside className="panel character-panel" aria-label="人物状态">
@@ -54,6 +56,14 @@ export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
         <div><dt>下品灵石</dt><dd>{state.resources.spiritStones} 枚</dd></div>
         <div><dt>修为</dt><dd>{state.resources.cultivation}</dd></div>
       </dl>
+
+      {qingyunMembership && <div className="subsection sect-identity-subsection">
+        <p className="subsection-title">宗门身份</p>
+        <div className="trait-card">
+          <strong>青云宗 · {formatSectRank(qingyunMembership.rank)}</strong>
+          <p>{formatQingyunJoinPath(qingyunMembership.joinPath)}入门 · 第 {qingyunMembership.joinedDay} 日登记。</p>
+        </div>
+      </div>}
 
       {state.equipment && <div className="subsection equipment-subsection">
         <p className="subsection-title">装备</p>
