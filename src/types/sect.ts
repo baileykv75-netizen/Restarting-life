@@ -13,6 +13,7 @@ export interface SectAccess {
   publicArea: true
   outerRegistry: boolean
   serviceArea: boolean
+  basicInternalResources: boolean
   basicTeaching: boolean
   discipleCultivationArea: boolean
   affairsHallEntry: boolean
