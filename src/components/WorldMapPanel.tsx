@@ -9,6 +9,7 @@ import type { ExplorationDuration } from '../types/exploration'
 import type { GameState } from '../types/game'
 import type { StrongBeastTerritoryId } from '../types/territory'
 import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
+import { QingyunSectPanel } from './QingyunSectPanel'
 
 const TYPE_LABELS: Record<WorldLocationType, string> = {
   'mortal-settlement': '凡俗聚落', 'cultivation-market': '修仙坊市', sect: '宗门', 'clan-estate': '家族据点', wilderness: '野外区域', 'fixed-entry': '固定入口',
@@ -24,9 +25,11 @@ interface WorldMapPanelProps {
   onExplore: (days: ExplorationDuration) => void
   onEnterSecretRealm: () => void
   onEnterStrongTerritory: (territoryId: StrongBeastTerritoryId) => void
+  onJoinQingyunSect: () => void
+  onReceiveQingyunBasicTeaching: () => void
 }
 
-export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory }: WorldMapPanelProps) {
+export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   if (!current) {
@@ -65,6 +68,8 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
       <p className="story-text">{current.description}</p>
       {parent && getLocationKnowledgeStatus(state, parent.id) !== 'unknown' && <p className="world-location-parent">所属区域 · <strong>{getLocationKnowledgeStatus(state, parent.id) === 'rumored' ? `传闻中的${parent.name}` : parent.name}</strong></p>}
       <p className="world-location-adjacent">已知相邻 · {adjacent.length > 0 ? adjacent.map(({ location, status }) => status === 'rumored' ? `传闻中的${location!.name}` : location!.name).join('、') : '暂无'}</p>
+
+      {(current.id === 'qingyun_sect' || current.id === 'qingyun_family_quarters') && <QingyunSectPanel state={state} onJoin={onJoinQingyunSect} onReceiveBasicTeaching={onReceiveQingyunBasicTeaching} />}
 
       {current.type === 'wilderness' && currentAssessment && <div className="region-exploration-section">
         <div className="region-exploration-heading"><div><p className="subsection-title">区域探索</p><strong>{getExplorationStageLabel(explorationStage)}</strong></div><span>累计 {exploredDays} 天</span></div>
