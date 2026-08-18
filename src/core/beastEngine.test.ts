@@ -6,10 +6,11 @@ import type { BeastId } from '../types/beast'
 import type { GameState } from '../types/game'
 import type { PersistentGame } from '../types/persistence'
 import { loadPersistentGame, savePersistentGame, type StorageLike } from '../store/saveRepository'
+import { materializeBeastEcology, getBeastPopulationKey, prepareBeastEncounter, resolveBeastLoot, resolveBeastLootAbandon, resolveBeastLootClaim, settleBeastVictory } from './beastEngine'
+import { getPlayerFleePreview } from './combatEngine'
 import { applyGameAction } from './gameActionReducer'
 import { createInitialGameState } from './gameState'
 import { addItem, resolveInventoryInitialization } from './inventoryEngine'
-import { materializeBeastEcology, getBeastPopulationKey, prepareBeastEncounter, resolveBeastLoot, resolveBeastLootAbandon, resolveBeastLootClaim, settleBeastVictory } from './beastEngine'
 import { resolveApplyPoisonCondition } from './poisonEngine'
 import { seedToState } from './rng'
 import { advanceWorldTime } from './worldEngine'
@@ -21,7 +22,7 @@ class MemoryStorage implements StorageLike {
   removeItem(key: string) { this.values.delete(key) }
 }
 
-const BEAST_IDS: readonly BeastId[] = [
+const BEAST_IDS: BeastId[] = [
   'greenback_wolf', 'redtail_fox', 'ironhide_boar', 'bishui_snake',
   'rock_armored_lizard', 'red_maned_ape', 'cold_pool_scale_python', 'one_horned_azure_wolf',
 ]
@@ -201,7 +202,7 @@ describe('R22 canonical beasts, loot and ecology', () => {
 
   it('keeps old states without beast ecology legal and deep-clones R22 runtime through save/reload', () => {
     expect(createInitialGameState({ runSeed: 'pre-r22' }).beastEcology).toBeUndefined()
-    let state = settleBeastVictory(adultState('r22-save'), {
+    const state = settleBeastVictory(adultState('r22-save'), {
       beastId: 'greenback_wolf', beastName: '青背狼', battleId: 'save-battle', locationId: 'blackwind_mountain', variant: 'ordinary',
     })
     const persistent: PersistentGame = {
@@ -318,8 +319,7 @@ describe('R22 beast combat integration', () => {
     const base = makePythonAvailable({ ...adultState('r22-cold', 'lingxi_valley'), cultivation: { realm: 'foundation', stage: 4 } })
     let dry = start(base, 'cold-pool-scale-python')
     let wet = start(base, 'cold-pool-scale-python', ['cold-pool'])
-    const dryFlee = import('./combatEngine').then(() => 0)
-    void dryFlee
+    expect(getPlayerFleePreview(dry)!.chance - getPlayerFleePreview(wet)!.chance).toBe(10)
     const beforeDry = dry.combat!.opponent.currentHP
     const beforeWet = wet.combat!.opponent.currentHP
     dry = applyGameAction(dry, { type: 'COMBAT_ACTION', action: { type: 'basic' } }).state
