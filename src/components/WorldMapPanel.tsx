@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<WorldLocationType, string> = {
 }
 const DANGER_LABELS: Record<WorldDanger, string> = { safe: '安全', low: '较低', moderate: '一般', high: '较高', extreme: '危险' }
 const QI_LABELS: Record<QiDensity, string> = { none: '几乎无', thin: '稀薄', low: '较低', medium: '中等', high: '浓郁' }
+const EXPLORATION_LABELS: Record<ExplorationDuration, string> = { 1: '试探 · 1天', 3: '巡探 · 3天', 10: '深入 · 10天' }
 
 interface WorldMapPanelProps {
   state: GameState
@@ -63,9 +64,9 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
       {current.type === 'wilderness' && currentRisk && <div className="region-exploration-section">
         <div className="region-exploration-heading"><div><p className="subsection-title">区域探索</p><strong>{getExplorationStageLabel(explorationStage)}</strong></div><span>累计 {exploredDays} 天</span></div>
         <div className="region-risk-grid"><div><span>客观危险</span><strong>{DANGER_LABELS[current.danger]}</strong></div><div><span>以你当前状态</span><strong>{getRegionRiskLabel(currentRisk)}</strong></div></div>
-        <p className="muted">持续探索会增加你对这片区域的了解，也可能逐步确认本世已经存在的子地点；尚未确认的内容不会提前显示。</p>
-        <div className="exploration-options">{EXPLORATION_DURATIONS.map((days) => <button className="exploration-option" key={days} onClick={() => onExplore(days)} type="button">探索 {days} 天</button>)}</div>
-        {explorationStage === 'surveyed' && <p className="region-surveyed-note">这片固定区域已经基本探明。继续探索仍会消耗时间，但不会出现第五个熟悉阶段。</p>}
+        <p className="muted">探索时间越长，你越可能发现子地点，也越可能在行动结束前撞上此地活动的普通妖兽。遭遇会中断本次探索；是否继续硬拼，可以到战斗中再判断。</p>
+        <div className="exploration-options">{EXPLORATION_DURATIONS.map((days) => <button className="exploration-option" key={days} onClick={() => onExplore(days)} type="button">{EXPLORATION_LABELS[days]}</button>)}</div>
+        {explorationStage === 'surveyed' && <p className="region-surveyed-note">这片固定区域已经基本探明。继续探索仍会消耗时间，也仍可能遇上这里活动的妖兽，但不会出现第五个熟悉阶段。</p>}
         {visibleSublocations.length > 0 && <div className="sublocation-section"><p className="subsection-title">已确认子地点</p><div className="sublocation-list">{visibleSublocations.map((runtime) => <div className="sublocation-item" key={runtime.id}><strong>{getSublocationDiscoveryText(runtime.archetype)}</strong><span>{runtime.deepConfirmed ? '你已经进入并深入确认过这里。' : `你已经确认它存在于${current.name}。内部内容尚未展开。`}</span></div>)}</div></div>}
         {sunkenVein?.discovered && <div className="sunken-vein-entry"><p className="subsection-title">已确认地下遗迹</p><h3>沉脉石室</h3><p>{sunkenVein.cleared ? '这组沿旧灵脉修建的地下石室已经被你泄压并取走核心资源。遗迹仍可返回查看，但本世不会重新刷新。' : '旧矿深处存在一组与矿工支护完全不同的青灰石室。入口已经确认，可以实际进入。'}</p><button className={sunkenVein.cleared ? 'secondary-button' : 'primary-button'} onClick={onEnterSecretRealm} type="button">{sunkenVein.cleared ? '再次进入查看' : '进入沉脉石室'}</button></div>}
       </div>}
