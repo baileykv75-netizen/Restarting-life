@@ -1,10 +1,13 @@
 import { getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
 import { getLocationKnowledgeStatus, getVisibleWorldConnections, getVisibleWorldLocations } from '../core/locationKnowledgeEngine'
-import { EXPLORATION_DURATIONS, getCurrentRegionRisk, getExplorationStage, getExplorationStageLabel, getRegionExploredDays, getRegionRiskLabel } from '../core/regionExplorationEngine'
+import { EXPLORATION_DURATIONS, getExplorationStage, getExplorationStageLabel, getRegionExploredDays, getRegionRiskLabel } from '../core/regionExplorationEngine'
+import { getOpponentRiskAssessment, getRegionRiskAssessment } from '../core/riskAssessmentEngine'
+import { getVisibleStrongBeastTerritories } from '../core/strongBeastTerritoryEngine'
 import { getSublocationDiscoveryText, getVisibleSublocations } from '../core/sublocationEngine'
 import { getDirectTravelOptions, getFastTravelOptions } from '../core/travelEngine'
 import type { ExplorationDuration } from '../types/exploration'
 import type { GameState } from '../types/game'
+import type { StrongBeastTerritoryId } from '../types/territory'
 import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
 
 const TYPE_LABELS: Record<WorldLocationType, string> = {
@@ -20,9 +23,10 @@ interface WorldMapPanelProps {
   onFastTravel: (destinationId: string) => void
   onExplore: (days: ExplorationDuration) => void
   onEnterSecretRealm: () => void
+  onEnterStrongTerritory: (territoryId: StrongBeastTerritoryId) => void
 }
 
-export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm }: WorldMapPanelProps) {
+export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   if (!current) {
@@ -42,8 +46,9 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
   const fastTravel = getFastTravelOptions(state).filter((option) => option.routeIds.length > 1)
   const exploredDays = current.type === 'wilderness' ? getRegionExploredDays(state, current.id) : 0
   const explorationStage = getExplorationStage(exploredDays)
-  const currentRisk = current.type === 'wilderness' ? getCurrentRegionRisk(state, current.danger) : null
+  const currentAssessment = current.type === 'wilderness' ? getRegionRiskAssessment(state, current.id, current.danger) : null
   const visibleSublocations = current.type === 'wilderness' ? getVisibleSublocations(state, current.id) : []
+  const strongTerritories = current.type === 'wilderness' ? getVisibleStrongBeastTerritories(state, current.id) : []
   const sunkenVein = current.id === 'blackwind_mountain' ? state.secretRealm?.sunkenVeinChamber : undefined
 
   return <section className="story-card world-map-card">
@@ -61,12 +66,29 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
       {parent && getLocationKnowledgeStatus(state, parent.id) !== 'unknown' && <p className="world-location-parent">所属区域 · <strong>{getLocationKnowledgeStatus(state, parent.id) === 'rumored' ? `传闻中的${parent.name}` : parent.name}</strong></p>}
       <p className="world-location-adjacent">已知相邻 · {adjacent.length > 0 ? adjacent.map(({ location, status }) => status === 'rumored' ? `传闻中的${location!.name}` : location!.name).join('、') : '暂无'}</p>
 
-      {current.type === 'wilderness' && currentRisk && <div className="region-exploration-section">
+      {current.type === 'wilderness' && currentAssessment && <div className="region-exploration-section">
         <div className="region-exploration-heading"><div><p className="subsection-title">区域探索</p><strong>{getExplorationStageLabel(explorationStage)}</strong></div><span>累计 {exploredDays} 天</span></div>
-        <div className="region-risk-grid"><div><span>客观危险</span><strong>{DANGER_LABELS[current.danger]}</strong></div><div><span>以你当前状态</span><strong>{getRegionRiskLabel(currentRisk)}</strong></div></div>
+        <div className="region-risk-grid"><div><span>客观危险</span><strong>{DANGER_LABELS[current.danger]}</strong></div><div><span>以你当前状态</span><strong>{getRegionRiskLabel(currentAssessment.risk)}</strong></div></div>
+        {currentAssessment.signals.length > 0 && <div className="risk-signal-list" aria-label="当前风险判断依据">{currentAssessment.signals.slice(0, 4).map((signal) => <span key={signal}>{signal}</span>)}</div>}
+        <p className="muted">风险判断会读取你现在的境界、伤势、中毒、装备、身法与已经确认的区域威胁。它只帮助你判断，不会替你禁止进入危险地区。</p>
         <p className="muted">探索时间越长，你越可能发现子地点，也越可能在行动结束前撞上此地活动的普通妖兽。遭遇会中断本次探索；是否继续硬拼，可以到战斗中再判断。</p>
         <div className="exploration-options">{EXPLORATION_DURATIONS.map((days) => <button className="exploration-option" key={days} onClick={() => onExplore(days)} type="button">{EXPLORATION_LABELS[days]}</button>)}</div>
         {explorationStage === 'surveyed' && <p className="region-surveyed-note">这片固定区域已经基本探明。继续探索仍会消耗时间，也仍可能遇上这里活动的妖兽，但不会出现第五个熟悉阶段。</p>}
+
+        {strongTerritories.length > 0 && <div className="strong-territory-section">
+          <p className="subsection-title">已确认的高风险地点</p>
+          <div className="strong-territory-list">{strongTerritories.map((territory) => {
+            const territoryAssessment = territory.opponentId ? getOpponentRiskAssessment(state, territory.opponentId) : currentAssessment
+            return <div className={`strong-territory-card ${territory.status}`} key={territory.id}>
+              <div className="strong-territory-heading"><div><strong>{territory.name}</strong><span>{territory.status === 'cleared' ? '领地已变化' : territory.status === 'empty-confirmed' ? '已经查明' : '高风险地点'}</span></div><em>{getRegionRiskLabel(territoryAssessment.risk)}</em></div>
+              <p>{territory.clue}</p>
+              <p className="territory-warning">判断 · {territory.warning}</p>
+              {territoryAssessment.signals.length > 0 && territory.canEnter && <small>{territoryAssessment.signals.slice(0, 2).join('；')}</small>}
+              {territory.canEnter && territory.entryLabel && <div className="territory-entry-row"><button className="primary-button" onClick={() => onEnterStrongTerritory(territory.id)} type="button">{territory.entryLabel}</button><span>系统不会因为风险高而锁住这个选择。</span></div>}
+            </div>
+          })}</div>
+        </div>}
+
         {visibleSublocations.length > 0 && <div className="sublocation-section"><p className="subsection-title">已确认子地点</p><div className="sublocation-list">{visibleSublocations.map((runtime) => <div className="sublocation-item" key={runtime.id}><strong>{getSublocationDiscoveryText(runtime.archetype)}</strong><span>{runtime.deepConfirmed ? '你已经进入并深入确认过这里。' : `你已经确认它存在于${current.name}。内部内容尚未展开。`}</span></div>)}</div></div>}
         {sunkenVein?.discovered && <div className="sunken-vein-entry"><p className="subsection-title">已确认地下遗迹</p><h3>沉脉石室</h3><p>{sunkenVein.cleared ? '这组沿旧灵脉修建的地下石室已经被你泄压并取走核心资源。遗迹仍可返回查看，但本世不会重新刷新。' : '旧矿深处存在一组与矿工支护完全不同的青灰石室。入口已经确认，可以实际进入。'}</p><button className={sunkenVein.cleared ? 'secondary-button' : 'primary-button'} onClick={onEnterSecretRealm} type="button">{sunkenVein.cleared ? '再次进入查看' : '进入沉脉石室'}</button></div>}
       </div>}
