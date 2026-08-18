@@ -1,4 +1,5 @@
 import type { AdultEntryProgress } from './adultEntry'
+import type { BeastEcologyState, PendingBeastLoot } from './beast'
 import type { ChildhoodProgress } from './childhood'
 import type { ChronicleEntry } from './chronicle'
 import type { CombatState } from './combat'
@@ -51,6 +52,10 @@ export interface GameState {
   combat?: CombatState
   /** Optional for R05-R20 compatibility; materialized only when a real poison condition is applied. */
   poison?: PoisonState
+  /** Optional for R05-R21 compatibility; materialized only when beast world truth is first needed. */
+  beastEcology?: BeastEcologyState
+  /** Optional corpse/ground remainder after an R22 beast victory; this is not owned inventory. */
+  pendingBeastLoot?: PendingBeastLoot
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
