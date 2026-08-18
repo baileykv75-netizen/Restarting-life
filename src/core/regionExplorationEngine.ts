@@ -9,7 +9,7 @@ import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { hasSeriousPoison } from './poisonEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
-import { resolveWildernessEncounter } from './wildernessEncounterEngine'
+import { planWildernessEncounter, startWildernessEncounter } from './wildernessEncounterEngine'
 
 export const EXPLORATION_DURATIONS: readonly ExplorationDuration[] = [1, 3, 10]
 
@@ -140,7 +140,9 @@ export function resolveRegionExploration(state: GameState, days: number): Region
 
   const previousExploredDays = getRegionExploredDays(state, current.id)
   const stageBefore = getExplorationStage(previousExploredDays)
-  const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days })
+  const encounterPlan = planWildernessEncounter(state, current.id, previousExploredDays, days)
+  const elapsedDays = encounterPlan.encountered ? (encounterPlan.encounterAfterDays ?? days) : days
+  const advanced = applyGameAction(state, { type: 'ADVANCE_TIME', days: elapsedDays })
   if (!advanced.applied) return rejected(state, days, advanced.reason ?? 'TIME_ADVANCE_FAILED')
 
   if (advanced.state.status !== 'playing') {
@@ -158,7 +160,7 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     }
   }
 
-  const exploredDays = previousExploredDays + days
+  const exploredDays = previousExploredDays + elapsedDays
   const progressedState: GameState = {
     ...advanced.state,
     exploration: {
@@ -169,19 +171,20 @@ export function resolveRegionExploration(state: GameState, days: number): Region
     },
   }
   const discovery = discoverEligibleSublocations(progressedState, current.id, exploredDays)
-  const encounter = resolveWildernessEncounter(discovery.state, current.id, previousExploredDays, days)
+  const encounter = startWildernessEncounter(discovery.state, encounterPlan)
+  const interrupted = encounter.encountered
 
   return {
     state: encounter.state,
     applied: true,
-    completed: true,
+    completed: !interrupted,
     locationId: current.id,
-    days,
+    days: elapsedDays,
     previousExploredDays,
     exploredDays,
     stageBefore,
     stageAfter: getExplorationStage(exploredDays),
     discoveredSublocations: discovery.discovered,
-    ...(encounter.encountered && encounter.opponentId ? { encounteredOpponentId: encounter.opponentId } : {}),
+    ...(interrupted && encounter.opponentId ? { encounteredOpponentId: encounter.opponentId } : {}),
   }
 }
