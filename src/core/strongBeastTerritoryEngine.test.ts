@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GameState } from '../types/game'
+import type { PersistentGame } from '../types/persistence'
+import { loadPersistentGame, savePersistentGame, type StorageLike } from '../store/saveRepository'
 import { materializeBeastEcology } from './beastEngine'
 import { createInitialGameState } from './gameState'
 import { verifySessionReplay } from './replayEngine'
@@ -9,6 +11,13 @@ import {
   isStrongBeastTerritoryDiscovered,
   resolveStrongBeastTerritoryEntry,
 } from './strongBeastTerritoryEngine'
+
+class MemoryStorage implements StorageLike {
+  private values = new Map<string, string>()
+  getItem(key: string) { return this.values.get(key) ?? null }
+  setItem(key: string, value: string) { this.values.set(key, value) }
+  removeItem(key: string) { this.values.delete(key) }
+}
 
 function territoryState(
   seed: string,
@@ -68,6 +77,26 @@ describe('R23 strong beast territories', () => {
     expect(entered.state.combat).toBeUndefined()
     expect(entered.state.flags.cold_pool_checked_empty).toBe(true)
     expect(getVisibleStrongBeastTerritories(entered.state, 'lingxi_valley')[0]?.status).toBe('empty-confirmed')
+  })
+
+  it('persists an actually checked empty cold pool across save and reload', () => {
+    const seed = findColdPoolSeed(false)
+    const entered = resolveStrongBeastTerritoryEntry(territoryState(seed, 'lingxi_valley', 15), 'lingxi_cold_pool')
+    expect(entered.applied).toBe(true)
+    const persistent: PersistentGame = {
+      schemaVersion: 3,
+      phase: 'life',
+      currentSession: { state: entered.state, debugLog: [], pendingResult: null, pendingAction: null },
+      pendingBirthSelection: null,
+      archives: [],
+      meta: { totalRuns: 1 },
+    }
+    const storage = new MemoryStorage()
+    savePersistentGame(storage, persistent)
+    const loaded = loadPersistentGame(storage)?.currentSession?.state
+    expect(loaded?.flags.cold_pool_checked_empty).toBe(true)
+    expect(loaded && getVisibleStrongBeastTerritories(loaded, 'lingxi_valley')[0]?.status).toBe('empty-confirmed')
+    expect(loaded?.combat).toBeUndefined()
   })
 
   it('starts the existing CombatEngine with cold-pool context when the python really exists', () => {
