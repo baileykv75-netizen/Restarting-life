@@ -5,7 +5,7 @@ import { createInitialGameState } from './gameState'
 import { verifySessionReplay } from './replayEngine'
 import { resolveRegionExploration } from './regionExplorationEngine'
 import { createGameSession, executeSessionCommand } from './sessionEngine'
-import { getOrdinaryWildernessEncounterPool, resolveWildernessEncounter } from './wildernessEncounterEngine'
+import { getOrdinaryWildernessEncounterPool, planWildernessEncounter, resolveWildernessEncounter } from './wildernessEncounterEngine'
 
 function wildernessState(seed: string, locationId = 'blackwind_mountain'): GameState {
   const base = createInitialGameState({ runSeed: seed })
@@ -26,8 +26,8 @@ function wildernessState(seed: string, locationId = 'blackwind_mountain'): GameS
 function findEncounter(locationId: string, days: 1 | 3 | 10 = 10) {
   for (let index = 0; index < 200; index += 1) {
     const state = wildernessState(`r22-fix-${locationId}-${index}`, locationId)
-    const result = resolveWildernessEncounter(state, locationId, 0, days)
-    if (result.encountered) return { state, result }
+    const plan = planWildernessEncounter(state, locationId, 0, days)
+    if (plan.encountered) return { state, plan }
   }
   throw new Error(`Unable to find deterministic encounter seed for ${locationId}`)
 }
@@ -99,20 +99,23 @@ describe('R22-FIX wilderness encounter loop', () => {
     expect(result.reason).toBe('ORDINARY_BEASTS_DEPLETED')
   })
 
-  it('turns a real exploration into the existing CombatEngine after time/progress resolve', () => {
-    const { state } = findEncounter('lingxi_valley', 10)
+  it('lets a beast encounter interrupt a long exploration on a deterministic day and enters the existing CombatEngine immediately', () => {
+    const { state, plan } = findEncounter('lingxi_valley', 10)
     const result = resolveRegionExploration(state, 10)
+    expect(plan.encounterAfterDays).toBeGreaterThanOrEqual(1)
+    expect(plan.encounterAfterDays).toBeLessThanOrEqual(10)
     expect(result.applied).toBe(true)
-    expect(result.completed).toBe(true)
-    expect(result.state.worldDay).toBe(state.worldDay + 10)
-    expect(result.exploredDays).toBe(10)
-    expect(result.encounteredOpponentId).toBeDefined()
+    expect(result.completed).toBe(false)
+    expect(result.days).toBe(plan.encounterAfterDays)
+    expect(result.state.worldDay).toBe(state.worldDay + plan.encounterAfterDays!)
+    expect(result.exploredDays).toBe(plan.encounterAfterDays)
+    expect(result.encounteredOpponentId).toBe(plan.opponentId)
     expect(result.state.combat?.source).toBe('field')
     expect(result.state.combat?.encounterVariant).toBe('ordinary')
     expect(getOrdinaryWildernessEncounterPool('lingxi_valley').map((entry) => entry.opponentId)).toContain(result.state.combat?.opponentId)
   })
 
-  it('keeps an encounter-bearing explore command deterministic through Session replay', () => {
+  it('keeps an encounter-bearing interrupted explore command deterministic through Session replay', () => {
     let completed = null as ReturnType<typeof executeSessionCommand> | null
     for (let index = 0; index < 200 && !completed; index += 1) {
       let session = createGameSession({ runSeed: `r22-fix-replay-${index}`, runId: `run-r22-fix-replay-${index}` })
@@ -132,6 +135,7 @@ describe('R22-FIX wilderness encounter loop', () => {
       if (explored.session.state.combat) completed = explored
     }
     expect(completed).not.toBeNull()
+    expect(completed!.session.pendingResult).toBeNull()
     expect(completed!.session.state.combat).toBeDefined()
     expect(verifySessionReplay(completed!.session)).toBe(true)
   })
