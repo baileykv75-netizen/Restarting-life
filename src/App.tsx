@@ -27,6 +27,7 @@ import type { TechniquePracticeDuration } from './core/techniqueEngine'
 import type { PlayerAction, SessionCommand } from './types/command'
 import type { ExplorationDuration } from './types/exploration'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
+import type { StrongBeastTerritoryId } from './types/territory'
 import { chooseBirthAndSave, clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
 import './experience-cleanup.css'
 import './birth-selection.css'
@@ -170,6 +171,29 @@ function App() {
       setNotice(caught instanceof Error ? caught.message : '本次探索未能保存')
     }
   }
+  function persistEnterTerritory(territoryId: StrongBeastTerritoryId) {
+    try {
+      const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'ENTER_BEAST_TERRITORY', territoryId } })
+      if (!result.applied) {
+        const message = result.reason === 'COLD_POOL_TERRITORY_CLEARED' || result.reason === 'AZURE_WOLF_TERRITORY_CLEARED'
+          ? '这处领地已经失去原先的强大个体。'
+          : result.reason === 'TERRITORY_NOT_DISCOVERED'
+            ? '你掌握的线索还不足以找到这处领地。'
+            : result.reason ?? '现在无法进入这处领地。'
+        setNotice(message)
+        return
+      }
+      const nextState = result.persistent.currentSession?.state
+      setGame(result.persistent)
+      if (territoryId === 'lingxi_cold_pool' && nextState?.flags.cold_pool_checked_empty === true && !nextState.combat) {
+        setNotice('你沿寒潭边缘和浅水处查了一遍。这里确实危险，但没有发现仍在活动的大型妖兽。')
+      } else {
+        setNotice(null)
+      }
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '进入领地时状态未能保存')
+    }
+  }
   function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
   function persistTechniquePractice(techniqueId: string, days: TechniquePracticeDuration) { persistCommand({ type: 'practice-technique-days', techniqueId, days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
@@ -198,7 +222,7 @@ function App() {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <>
-      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} />
+      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} />
       {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
       <FoundationBreakthroughPanel
         state={state}
