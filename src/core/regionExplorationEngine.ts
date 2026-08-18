@@ -8,6 +8,7 @@ import { applyGameAction } from './gameActionReducer'
 import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { hasSeriousPoison } from './poisonEngine'
+import { getRegionRiskAssessment } from './riskAssessmentEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
 import { planWildernessEncounter, startWildernessEncounter } from './wildernessEncounterEngine'
 
@@ -21,18 +22,10 @@ const EXPLORATION_STAGE_LABELS: Record<ExplorationStage, string> = {
 }
 
 const REGION_RISK_LABELS: Record<RegionRisk, string> = {
-  low: '较低',
-  manageable: '可控',
-  high: '较高',
-  extreme: '极高',
-}
-
-const DANGER_RANK: Record<WorldDanger, number> = {
-  safe: 0,
-  low: 1,
-  moderate: 2,
-  high: 3,
-  extreme: 4,
+  low: '大致可控',
+  manageable: '需要谨慎',
+  high: '明显危险',
+  extreme: '极可能送命',
 }
 
 export interface RegionExplorationResult {
@@ -66,23 +59,9 @@ export function getRegionRiskLabel(risk: RegionRisk): string {
   return REGION_RISK_LABELS[risk]
 }
 
-function characterRiskRank(state: GameState): number {
-  if (state.cultivation.realm === 'mortal') return 0
-  if (state.cultivation.realm === 'qi') {
-    if (state.cultivation.stage <= 3) return 1
-    if (state.cultivation.stage <= 6) return 2
-    return 3
-  }
-  if (state.cultivation.realm === 'foundation') return 4
-  return 5
-}
-
 export function getCurrentRegionRisk(state: GameState, danger: WorldDanger): RegionRisk {
-  const difference = DANGER_RANK[danger] - characterRiskRank(state)
-  if (difference >= 2) return 'extreme'
-  if (difference === 1) return 'high'
-  if (difference <= -2) return 'low'
-  return 'manageable'
+  const locationId = state.world.currentLocationId ?? ''
+  return getRegionRiskAssessment(state, locationId, danger).risk
 }
 
 export function isExplorableFixedRegion(locationId: string): boolean {
