@@ -4,22 +4,20 @@
 
 ## 当前状态
 
-- 当前开发主线：**C21「伤势 / 中毒 / 治疗内容冻结」已完成；下一轮执行 R21「伤势 / 中毒 / 治疗闭环」。**
-- R00.1～R04：迁移、唯一 GameState、Session / replay、V3 单档存档、V2 Game Shell 完成。
-- R05～R07：出生三选一、童年、成年 / 入道完成。
-- R08～R13：固定世界、地点知识、旅行、区域探索、随机子地点、首版秘境「沉脉石室」完成。
-- R14～R15：正式背包、储物袋、四槽装备完成。
+- 当前开发主线：**R21「伤势 / 中毒 / 治疗闭环」已完成；C22「妖兽 / 生态内容冻结」已完成；下一轮执行 R22「妖兽与战利品」。**
+- R00.1～R15：迁移、唯一 GameState、出生、童年、成年、世界、知识、旅行、探索、子地点、沉脉石室、背包与装备完成。
 - C16 / R16～R17：修炼内容、炼气修炼、功法 / 熟练 / 改修完成。
 - R18：authoritative injury runtime 与炼气→筑基完成。
 - C19 / R19：寿元、延寿、筑基后修炼、结丹与金丹完成。
 - C20 / R20：战斗数值冻结、唯一正式 Combat runtime、半自动 beat、装备 / 物品 / 招式 / 逃跑、伤势 / 死亡、save / replay、沉脉石室正式岩甲蜥战斗完成。
-- **C21：light / severe / meridian 行动影响、mild / serious poison、worldDay 恶化、止血散 / 清毒散 / 养脉丹精确治疗与死亡边界已冻结到 `V2_CONTENT_BIBLE.md` 第 38 节。**
-
-legacy Action/Event/Result/End 与 R13 旧概率岩甲蜥 resolver 仍只承担历史兼容；正式玩家战斗只走 R20 CombatEngine。
+- C21 / R21：injury action gates、optional poison runtime、worldDay 毒性恶化、三种治疗物、Combat health penalties、UI / save / replay 完成。
+- **C22：首版 8 种妖兽正式 combat data、真实战利品、妖丹 / 精血来源、ordinary population pressure、寒潭鳞蟒 special death、独角苍狼 unique death 与生态后果已经冻结到 `V2_CONTENT_BIBLE.md` 第 39 节。**
 
 ---
 
-# 一、继续保持的唯一状态纪律
+# 一、唯一状态与调度纪律
+
+继续保持：
 
 ```text
 UI / feature
@@ -39,363 +37,299 @@ UI / feature
 - injury：R18；
 - lifespan：R19；
 - combat：R20；
-- poison：**R21 新增时必须做 optional authoritative state，不得另建第二套伤势或 HP。**
+- poison / treatment：R21；
+- beast combat / loot / ecology：**R22 下一轮接入，必须复用现有 Combat / Inventory / worldDay，不得再建第二套敌人、背包或时间系统。**
 
-R20 已有 combat command gate：active `state.combat` 时只允许正式 `COMBAT_ACTION` 通过；R21 的治疗不能绕过该门禁在战斗内直接改长期状态。
-
----
-
-# 二、R18 injury 历史语义不可推翻
-
-现有 injury：
-
-```text
-light
-severe
-meridian
-```
-
-每条记录已有：
-
-```text
-startedDay
-recoveryDay
-```
-
-active 判定仍是：
-
-```text
-recoveryDay > worldDay
-```
-
-C21 的关键决定：**不建立第二个“累计静养天数”计时器。**
-
-安全休养只是主动推进 worldDay；治疗药通过缩短某条 injury 的 `recoveryDay` 起效。
-
-已有来源继续合法：
-
-- R20 普通 light：10 日；
-- R20 普通 severe：45 日；
-- 突破极端来源可以已有 90 日 severe / meridian；
-- 旧记录不补历史字段、不重写旧 command replay。
+legacy Action/Event/Result/End 与 R13 旧概率岩甲蜥 resolver 只做历史兼容；实际玩家战斗继续只走正式 CombatEngine。
 
 ---
 
-# 三、C21 三类 injury 最终职责
+# 二、R21 已完成
 
-## light
-
-- 旅行：允许；
-- wilderness 探索：允许；
-- 普通修炼：继续现有 `×0.90`；
-- 大境界突破：不单独硬锁，但继续已有可见负修正；
-- Combat：不改 maxHP / maxQi / baseAttack；
-- flee：继续 `-5pp`；
-- 普通活动不会恶化；
-- 普通战斗来源仍为 10 日。
-
-## severe
-
-- 正常节点旅行 / 寻医：允许；
-- 新开启 wilderness 系统探索：禁止；
-- 新进入秘境 / 明确高风险探索：禁止；
-- 已在不可回头地点时，必须允许离开 / 泄压 / 返回安全处，不能锁死；
-- 普通修炼：禁止；
-- 筑基 / 结丹：禁止；
-- Combat：允许，但开战时 `maxHP ×0.70`，向下取整；baseAttack 不变；
-- flee：继续 `-15pp`；
-- 普通安全旅行 / 休养不随机恶化；
-- 普通来源 45 日，明确极端来源可为 90 日。
-
-若已经 severe，又在一场新战斗结束时再次满足 R20 severe 判定：
+R21 提交链：
 
 ```text
-existing severe recoveryDay +15日
-但从当前 worldDay 算的剩余 severe 恢复时间最多90日
+d22fdeb9763c68a0aaa33d348a6c5bf03e0107ce  V2 R21: implement injury poison and treatment loop
+2c1699b...                                      R21 compatibility FIX
+61ce3101c0ce43004728394a3b054f6bbc465331  R21 regression / compatibility FIX
+3839ca9185703e6984faf282f464a6140853cf54  switch CURRENT_TASK to C22
 ```
 
-不新增 critical injury。
+R21 现有行为必须保留：
 
-## meridian
+### injury
 
-- 普通生活 / 旅行：允许；
-- wilderness 探索：本身不禁止；
-- 普通修炼：禁止；
-- 所有大境界突破：禁止；
-- Combat：`maxQi ×0.65`，向下取整；招式 Qi cost 不变；baseAttack 不变；
-- flee：继续 `-10pp`；
-- 普通走路 / 旅行不随机恶化；
-- 继续读取真实来源已有 recoveryDay。
+- `light / severe / meridian` 继续由 R18 `startedDay / recoveryDay` 唯一计时；
+- light：旅行 / wilderness 可做，修炼 ×0.90，Combat 不改 HP/Qi；
+- severe：禁止新 wilderness / 新秘境 / 修炼 / 突破；Combat maxHP ×0.70；
+- meridian：禁止修炼 / 突破；Combat maxQi ×0.65；
+- severe 与 serious poison 的 maxHP penalty 只取更强项，不相乘。
 
-### 组合规则
+### poison
 
-- severe `maxHP ×0.70` 与 serious poison `maxHP ×0.85` 同时存在时只取更强的 `×0.70`，不相乘；
-- meridian `maxQi ×0.65` 可以与 maxHP penalty 同时存在；
-- light 与 mild poison 都为修炼 `×0.90` 时只取最强单项，不叠成 `×0.81`；
-- R20 flee injury 合计仍最低只计到 `-20pp`。
-
----
-
-# 四、C21 poison runtime 已冻结
-
-首版只做：
+optional authoritative runtime：
 
 ```text
-mild → serious → death
+mild → 10日 → serious → 10日 → death
 ```
 
-canonical 碧水蛇 poison family：
+canonical first family：
 
 ```text
 bishui_venom
 ```
 
-每个 active poison family 至少保存：
+- 所有恶化统一由 `worldDay` milestone 驱动；
+- 长行动不能跨过 poison death 继续结算奖励；
+- Combat beat 内不做 poison DOT；
+- serious poison Combat maxHP ×0.85。
+
+### treatment
 
 ```text
-poisonId / family
-severity
-appliedDay
-nextWorsenDay
+zhixue_san   止血散：light -7日 / severe -5日，每条 injury 一次
+qingdu_san   清毒散：mild 清除；serious → mild +10日，再一包可清
+ yangmai_dan 养脉丹：meridian -30日，每条 injury 一次
 ```
 
-字段名可按现有风格调整，语义不可改。
-
-## 首次中毒
-
-```text
-mild
-appliedDay = current worldDay
-nextWorsenDay = current worldDay +10
-```
-
-## 同 family 再中毒
-
-- mild：立即升级 serious；`nextWorsenDay = current worldDay +10`；
-- serious：不叠第三层，也**不能刷新 / 延后死亡期限**。
-
-## worldDay 恶化
-
-```text
-mild 到期
-→ serious
-→ 再给10日
-
-serious 到期
-→ 非战斗死亡
-```
-
-因此一次未经处理的 mild 碧水蛇毒最长约 20 日后死亡；重复中毒可提前进入 serious。
-
-长行动跨多个 milestone 时必须按时间顺序处理；若死亡发生在动作中途，`worldDay` 停在真正死亡日，后续时间与奖励不再结算。
+使用真实 inventory；战斗中不可绕过 Combat gate 使用；无有效目标拒绝且不消耗。
 
 ---
 
-# 五、poison 对行动 / Combat 的影响
+# 三、C22 第 39 节：8 种妖兽正式 Combat data
 
-## mild
+canonical ids：
 
-- 旅行：允许；
-- wilderness 探索：允许；
-- 普通修炼：`×0.90`；
-- 筑基 / 结丹：禁止；
-- Combat：只显示中毒状态，不做每 beat DOT，不改 maxHP / maxQi。
+```text
+greenback_wolf           青背狼
+redtail_fox              赤尾狐
+ironhide_boar            铁甲猪
+bishui_snake             碧水蛇
+rock_armored_lizard      岩甲蜥
+red_maned_ape            赤鬃山猿
+cold_pool_scale_python   寒潭鳞蟒
+one_horned_azure_wolf    独角苍狼
+```
 
-## serious
+核心数值：
 
-- 正常旅行寻医：允许，但路上仍可能到死亡期限；
-- wilderness 系统探索 / 新秘境进入：禁止；
-- 普通修炼：禁止；
-- 筑基 / 结丹：禁止；
-- Combat：`maxHP ×0.85`，向下取整；
-- **不做每 beat poison DOT。**
+| 妖兽 | 量级 | HP | attack | armor | 核心机制 |
+|---|---|---:|---:|---:|---|
+| 青背狼 | 炼气2 | 105 | 12 | 0% | 扑击×1.60；低血量一次65%撤退；玩家逃跑-8pp |
+| 赤尾狐 | 炼气2 | 90 | 11 | 0% | HP≤55%急遁；预兆后85%脱离；玩家逃跑+5pp |
+| 铁甲猪 | 炼气3 | 150 | 15 | 18% | 冲撞×1.80；结算后自身暴露；不逃 |
+| 碧水蛇 | 炼气3 | 125 | 14 | 4% | 毒袭×1.25；真实伤害后记录 bishui exposure |
+| 成年岩甲蜥 | 炼气4 | 155 | 16 | 22% | 扫尾×1.70；自身暴露；普通个体可逃；秘境个体不逃 |
+| 赤鬃山猿 | 炼气8 | 210 | 26 | 8% | 砸击×2.00；护身；HP≤30%狂暴 |
+| 寒潭鳞蟒 | 筑基前～中 | 300 | 46 | 12% | 缠杀束缚 / 寒息迟缓；寒潭地形强化 |
+| 独角苍狼 | 筑基中 | 340 | 52 | 10% | 狼啸3拍增伤 / 裂风扑杀；低血量狂暴；unique不逃 |
 
-UI 必须显示距离下一次恶化 / 死亡还有多少 worldDays。
-
-安全休养不会清毒，只会推进 worldDay；使用 `recuperate-days` 前必须显示 poison 风险。
+青背狼、岩甲蜥、赤鬃山猿的 C20 核心数值不改，R22 必须锁住回归。
 
 ---
 
-# 六、三种治疗物精确效果
+# 四、碧水蛇 poison 正式接口
 
-R21 canonical item ids：
-
-```text
-zhixue_san   止血散
-qingdu_san   清毒散
-yangmai_dan  养脉丹
-```
-
-三种均：
-
-- 使用真实 inventory stack；
-- 使用本身不推进 worldDay；
-- active combat 中不可直接使用；
-- 没有有效治疗目标时拒绝且不消耗；
-- 已知无效目标要在消耗前拒绝。
-
-## 止血散
-
-对一个选定 active injury：
+C22 冻结：普通咬击不自动施毒；只有“毒袭”造成最终实际伤害 > 0 时：
 
 ```text
-light  → remaining recovery -7日
-severe → remaining recovery -5日
+pendingPoisonExposures.bishui_venom += 1
 ```
 
-如果缩短后到期，立即恢复。
+Combat beat 内不扣毒伤。
 
-- 不治 meridian；
-- 不治 poison；
-- 每条 injury record 最多受益一次。
-
-## 清毒散
-
-首版 `bishui_venom` 属于可治疗 common low-grade poison。
+战斗以玩家存活方式结束时，在清除 CombatState 前按 exposure 次数顺序调用 R21 poison resolver：
 
 ```text
-mild
-→ 1包直接清除
-
-serious
-→ 1包降为 mild
-→ nextWorsenDay = current worldDay +10
+clean +1 → mild
+clean +2 → serious
+mild +1 → serious
+serious + any → serious，且不刷新死亡期限
 ```
 
-降为 mild 后第 2 包可直接清除，因此 serious 低阶毒想当场彻底解决需要真实消耗 2 包。
-
-未知 / 高阶 poison 没有明确可治疗 tag 时，清毒散不可用且不消耗。
-
-## 养脉丹
-
-对一个选定 active meridian injury：
-
-```text
-remaining recovery -30日
-```
-
-如果缩短后到期，立即恢复。
-
-- 不治 light / severe / poison；
-- severe + meridian 同时存在时只处理 meridian；
-- 每条 meridian injury record 最多受益一次。
-
-典型：
-
-```text
-45日经脉伤 → 剩15日
-90日极端经脉伤 → 剩60日
-```
-
-一枚一阶中品丹药不能清空严重丹田 / 经脉损伤。
+玩家已 Combat HP=0 死亡时不再额外写长期 poison。
 
 ---
 
-# 七、治疗渠道边界
+# 五、真实战利品
 
-R21 只实现：
+共同规则：
 
-1. 自己用真实药；
-2. 既有 10 / 30 日安全休养。
+- 妖兽不掉灵石；
+- 不掉装备箱、随机词条、经验球；
+- 只掉真实身体材料；
+- 普通 Combat 不随机打坏皮 / 鳞 / 甲；
+- future explicit `damaged-carcass` 才能让皮鳞甲数量减半；
+- loot RNG seeded，save / replay 必须一致。
 
-休养只按时间自然推进，不额外 ×2 恢复。
+主要 canonical material ids：
 
-医者 / 青云宗 / 家族治疗只留 authoritative hook；实际谁能治、价格、地点、关系由后续 NPC / 宗门内容承载。R21 不造免费医生菜单。
+```text
+greenback_wolf_pelt
+greenback_wolf_fang
+redtail_fox_pelt
+redtail_fox_tail_fur
+ironhide_boar_hide
+ironhide_boar_tusk
+beast_bone
+bishui_venom_sac
+bishui_snake_gall
+bishui_snake_skin
+rock_lizard_carapace
+rock_lizard_mineral_crystal
+red_maned_ape_tendon
+low_grade_beast_essence
+immature_beast_core
+mature_first_tier_beast_core
+cold_pool_python_scale
+cold_pool_python_tendon
+cold_pool_python_cold_sac
+complete_second_tier_beast_core
+high_grade_beast_essence
+azure_wolf_pelt
+azure_wolf_horn
+```
+
+精确数量与条件以 Content Bible §39.6 为唯一真源。
+
+### C19 邪道结丹资源
+
+稳定 `complete_second_tier_beast_core + high_grade_beast_essence` 只来自：
+
+1. 本世生成并击杀的寒潭鳞蟒；
+2. 独角苍狼。
+
+低阶妖兽不得刷出二阶妖丹；赤鬃山猿强个体最多一阶成熟妖丹。
 
 ---
 
-# 八、死亡与恶化边界
+# 六、ordinary population pressure
 
-继续：
+ordinary respawnable：
+
+- 青背狼；
+- 赤尾狐；
+- 铁甲猪；
+- 碧水蛇；
+- 普通岩甲蜥；
+- 普通赤鬃山猿。
+
+每个 `region + species`：
 
 ```text
-Combat HP = 0 → 立即死亡
+populationPressure: 0 | 1 | 2 | 3
+baseline = 2
 ```
-
-R21 新的通用非战斗死亡：
 
 ```text
-serious poison 到达 death milestone → 死亡
+0 → 普通 encounter 不生成
+1 → encounter weight ×0.50
+2 → ×1.00
+3 → ×1.50
 ```
 
-severe **不会仅因日历流逝随机暴毙**。它的真实危险来自 maxHP penalty、行动限制、带伤再战、以及再次 severe 后延长恢复。
+玩家真实击杀 ordinary：
 
-未来某个明确事件若提前写清“带重伤执行可能致死”，再按该事件规则处理；R21 不做每走一天随机死亡。
+```text
+pressure = max(0, pressure -1)
+```
+
+每跨过 30 worldDays 聚合检查：
+
+```text
+pressure < baseline → +1
+pressure == baseline → 不变
+pressure > baseline → 不自动下降
+```
+
+这是其他个体重新进入区域，不是死去妖兽复活。
 
 ---
 
-# 九、R21 与 R22 边界
+# 七、special / unique world truth
 
-R21 负责 generic：
+## 寒潭鳞蟒
 
-```text
-injury action gates
-poison optional runtime
-worldDay poison milestones
-三个治疗物
-Combat injury/poison penalties
-UI
-Session / save / replay
-```
+- 非每世生成；
+- seeded 决定；
+- 生成后有稳定 instance id / alive；
+- 只在灵溪谷深处对应寒潭；
+- 死亡本世不刷新；
+- loot 一次；
+- lair-cleared；
+- 区域危险变化留 R23。
 
-R22 才负责：
+## 独角苍狼
 
-- 8 种妖兽正式 Combat data；
-- 碧水蛇正式攻击如何施加 `bishui_venom`；
-- 妖兽真实掉落；
-- 毒囊 / 妖丹 / 精血来源；
-- 普通妖兽刷新；
-- named / unique death；
-- 生态变化。
+- 首版每世存在 1 只 unique world-truth；
+- 玩家可能终生不知道 / 没遇见；
+- known/discovered 与 world truth 分离；
+- NPC / 世界事件未来也可处理它；
+- 死亡永久 `alive=false`，loot 一次；
+- Chronicle / 《此世传》资格；
+- E03 读取死亡事实；
+- 万兽岭青背狼 `baseline: 2 → 1`；当前 pressure 压到 `min(current,1)`；
+- R23 再把该事实换算成区域危险。
 
-R21 可以用 generic resolver / test action 验证 `bishui_venom`，但不得把碧水蛇提前做成正式野外敌人。
-
----
-
-# 十、R20 可依赖提交
-
-R20 主功能：
-
-```text
-8dfb65fbcbaacbd8201cf389694eaa6e8fe80dea
-```
-
-Combat command gate FIX：
-
-```text
-7e502ba01c0741172dcd85eb57ef35ed8c45b486
-```
-
-R20 最终交接 / C21 task：
-
-```text
-5a51f5cb20acdd03ff4b186e4f1be6211769eae7
-```
-
-R20 最终 CI 已绿；C21 本轮只改文档，不修改 `src/`。
+狼群不会灭绝，会恢复到新的 baseline=1。
 
 ---
 
-# 十一、仍待后续的内容缺口
+# 八、R22 必须注意的兼容点
 
-继续保留：
+1. **不要建立第二套 BeastCombatEngine。** 8 种妖兽必须扩展现有 CombatEngine / combat definitions。
+2. **Inventory 仍是唯一所有权真源。** loot 必须进入 R14 inventory。
+3. **容量不足不能回滚已经胜利的战斗。** R22 应使用明确 pending-loot / claim 语义，不能因为背包满了把敌人复活。
+4. **沉脉石室岩甲蜥不得重复掉两份身体材料。** 当前秘境已有 R13/R14 奖励链；`source = sunken-vein-core` 时，要么继续以秘境既有 claim 为 authoritative，要么做一次显式迁移，但绝不能 generic beast loot + secret realm reward 双发。
+5. poison exposure 在玩家胜利 / 玩家逃跑 / 妖兽逃跑时都要正确落入 R21 poison；Combat death 则不再写 poison。
+6. ordinary 30 日恢复必须进入现有 worldDay 时间推进，不做 React timer / 第二时钟。
+7. 寒潭鳞蟒 / 独角苍狼 world truth 与玩家知识分离；UI 不得提前泄露 hidden unique。
+8. R22 不修改 R23 的区域危险评分。
+
+---
+
+# 九、当前待办与边界
+
+`CURRENT_TASK.md` 下一轮必须是：
+
+> **V2 R22 - 妖兽与战利品**
+
+R22 只实现：
+
+```text
+§39 8种妖兽正式 Combat data
+→ telegraph / special / escape AI
+→ bishui poison exposure
+→ deterministic real loot
+→ inventory claim
+→ population pressure
+→ 30日恢复
+→ cold-pool python special state
+→ unique azure wolf death / once loot
+→ save / replay / UI
+```
+
+R23 才实现：
+
+- 区域危险读取正式 combat capability / population pressure；
+- 强大妖兽领地；
+- 独角苍狼死亡后的危险展示；
+- W02 等世界事件修改 pressure / baseline。
+
+远期仍保留：
 
 1. 8～12 个正式随机子地点模板；
-2. 如首版确实需要，再冻结第 2 个小秘境；
-3. 8～12 个重大机缘具体内容，C30 前补；
+2. 如首版确实需要，第 2 个小秘境；
+3. 8～12 个重大机缘具体内容；
 4. 30 个普通事件正式正文；
 5. 高阶功法、抱元丹、延寿物的真实世界获取入口；
-6. C22 / R22 妖兽全量 combat / 掉落 / 刷新 / unique death；
-7. R23 危险判断 / 强大妖兽领地。
-
-已关闭：
-
-- R20 战斗数值与双真源；
-- R21 开工前的 injury / poison / treatment 数值缺口。
+6. 宗门 / NPC / 关系深化；
+7. 炼丹 / 炼器 / 御兽职业闭环；
+8. 世界事件 / 邪修 / 黑市 / 通缉。
 
 ---
 
-# 十二、当前主线
+# 十、当前主线
 
 ```text
 出生 / 童年 / 成年 ✅
@@ -404,14 +338,10 @@ R20 最终 CI 已绿；C21 本轮只改文档，不修改 `src/`。
 → 背包 / 装备 ✅
 → 修炼 / 功法 / 筑基 ✅
 → 寿元 / 延寿 / 金丹 ✅
-→ C20 战斗数值 ✅
-→ R20 半自动战斗 ✅
-→ C21 伤势 / 中毒 / 治疗内容冻结 ✅
-→ R21 伤势 / 中毒 / 治疗 ← 下一轮
-→ C22 妖兽 / 生态内容冻结
-→ R22 妖兽与战利品
+→ C20 / R20 战斗 ✅
+→ C21 / R21 伤势 / poison / 治疗 ✅
+→ C22 妖兽 / 生态内容冻结 ✅
+→ R22 妖兽与战利品 ← 下一轮
 → R23 危险判断 / 强大妖兽领地
 → 宗门 / NPC / 职业 / 世界事件
 ```
-
-下一轮严格执行 `CURRENT_TASK.md` 的 R21，不提前做 R22。
