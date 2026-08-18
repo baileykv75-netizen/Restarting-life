@@ -1,33 +1,14 @@
-# 当前任务：V2 R23 - 危险判断 + 强大妖兽领地
+# 当前任务：V2 R24 - 宗门加入与身份
 
 ## 本轮唯一目标
 
-完成路线图规定的核心体验：
+实现路线图规定的最小宗门路线：
 
-> **我知道这里危险，但我仍可以进去。**
+> **玩家可以真正加入青云宗，并且“宗门身份”开始改变可访问的内容。**
 
-R22 / R22-FIX 已经让普通野外探索形成真实闭环：
+R23 已经完成成年野外的风险 / 强敌领地闭环。R24 不继续扩野外系统，而是让“加入宗门”从背景文字变成正式、可保存、可被后续 R25 / R26 读取的身份事实。
 
-```text
-区域探索
-→ ordinary beast encounter
-→ CombatEngine
-→ injury / poison
-→ corpse loot
-→ inventory / treatment
-→ ecology change
-```
-
-R23 不再重做这条链，而是在它之上补齐：
-
-```text
-world truth
-+ player knowledge
-+ 当前真实战斗能力
-→ 有用但不全知的危险判断
-→ 强大妖兽领地线索 / 入口
-→ 玩家自行决定进入或撤退
-```
+首版只做 **青云宗**。
 
 ---
 
@@ -35,288 +16,218 @@ world truth
 
 1. `AGENTS.md`
 2. `V2_GAME_DESIGN.md`
-   - 自由；
-   - 风险与收益；
-   - 未知感；
-   - 单局核心循环；
-   - 长行动与真死亡。
+   - 自由路线；
+   - 宗门 / 散修取舍；
+   - 世界因果；
+   - 一世感。
 3. `V2_CONTENT_BIBLE.md`
-   - 黑风山 / 灵溪谷 / 万兽岭；
-   - 妖兽内容；
-   - 寒潭鳞蟒；
-   - 独角苍狼；
-   - §37 Combat；
-   - §38 poison；
-   - §39 妖兽 / loot / ecology。
-4. `V2_GITHUB_ROADMAP.md` 的 R23。
-5. `HANDOFF.md`，特别是 R22-FIX 的 encounter / replay 兼容边界。
-6. 现有重点代码：
-   - `src/core/regionExplorationEngine.ts`
-   - `src/core/wildernessEncounterEngine.ts`
-   - `src/core/beastEngine.ts`
-   - `src/core/beastEcologySelectors.ts`
-   - `src/core/combatEngine.ts`
-   - `src/core/locationKnowledgeEngine.ts`
-   - `src/core/sublocationEngine.ts`
-   - `src/data/worldLocations.ts`
-   - `src/data/combat.ts`
-   - `src/components/WorldMapPanel.tsx`
+   - §3 青云宗与地方秩序；
+   - §3.3 五个核心部门；
+   - §3.4 弟子层级；
+   - 出身与成年入道相关内容。
+4. `V2_GITHUB_ROADMAP.md` 的 R24 / R25 / R26 边界。
+5. `HANDOFF.md`。
+6. 现有重点：
    - `src/types/game.ts`
-   - `src/types/beast.ts`
-   - 相关 R11 / R20 / R22 / R22-FIX tests。
+   - `src/data/backgrounds.ts`
+   - `src/data/adultEntries.ts`
+   - `src/core/adultEntryEngine.ts`
+   - `src/core/locationKnowledgeEngine.ts`
+   - `src/core/travelEngine.ts`
+   - `src/data/worldLocations.ts`
+   - `src/components/WorldMapPanel.tsx`
+   - `src/components/CharacterPanel.tsx`
+   - Session / GameAction / persistence / replay 相关代码。
 
 ---
 
-# 二、最高设计原则
+# 二、最高架构原则
 
-## 2.1 风险只负责帮助判断，不替玩家做决定
+## 2.1 不建立第二套角色身份
 
-系统可以明确提示：
-
-- 这里总体危险；
-- 以你现在的状态很危险；
-- 已知某种强大妖兽可能活动；
-- 某条路线 / 领地风险明显更高。
-
-但只要没有明确世界规则禁止进入，就不能因为“数值不够”直接锁死按钮。
-
-禁止：
+现有：
 
 ```text
-战力不足，无法进入
-等级不足，无法挑战
-推荐等级 XX，未达到不可进入
+GameState
+identity.faction
+background / adultEntry / tags / flags
 ```
 
-玩家允许明知危险仍然进去送死。
+R24 必须先审查这些字段，再做最小扩展。
 
-## 2.2 world truth 与 knowledge 必须继续分离
-
-隐藏事实不能因为后台存在就直接显示。
-
-尤其禁止 UI 在玩家未发现时泄露：
+如果需要结构化宗门运行态，可以增加一个 **optional、单一 authoritative** 的 membership 状态，但禁止：
 
 ```text
-本世寒潭鳞蟒已生成
-独角苍狼仍然存活
-独角苍狼就在万兽岭某坐标
-寒潭必有二阶妖丹
+SectGameStateV2
+第二份 faction
+UI 自己维护 rank
+用散乱 flags 同时表示多个互相矛盾的宗门身份
 ```
 
-危险提示只能读取角色已经合理获得的信息。
-
-## 2.3 不建立“综合战力 12345”
-
-R23 可以建立内部 risk comparison / capability selector，但不要把角色与敌人压成手游式战力数字展示。
-
-玩家看到的应是自然语言风险层级，例如：
+最终必须能唯一回答：
 
 ```text
-大致可控
-需要谨慎
-明显危险
-极可能送命
+是否属于青云宗？
+何时加入？
+通过什么路径加入？
+当前是杂役 / 外门 / 内门 / 真传中的哪一层？
+当前身份允许访问什么？
 ```
 
-后台可以读取真实 Combat stats、伤势、poison、装备、身法等，但 UI 不显示一个虚假的总战力值。
+## 2.2 一宗首版
+
+R24 只实现：
+
+```text
+qingyun
+```
+
+不得为了“可扩展”顺手生成第二宗、魔宗、完整宗门框架平台。
+
+## 2.3 身份必须改变选择
+
+宗门身份不能只是 CharacterPanel 多一行文字。
+
+至少需要真实改变：
+
+- 某些青云宗内部入口是否可用；
+- 基础传功 / 修炼资源的访问权限；
+- 后续 R25 任务 / 贡献和 R26 师承 / 违规可读取统一身份。
+
+R24 可以只建立**权限与入口**，不提前实现 R25 的贡献兑换和任务内容。
 
 ---
 
-# 三、区域危险与角色风险
+# 三、青云宗正式定位
 
-当前 R11 `getCurrentRegionRisk()` 主要使用：
+首版沿用 Content Bible：
+
+> 地方正道宗门，优势是稳定功法、修炼环境、师承、任务、丹药、法器与保护；代价是身份、规矩与义务。
+
+弟子层级固定：
 
 ```text
-固定 WorldDanger
-- 角色境界粗分
+杂役 → 外门 → 内门 → 真传
 ```
 
-R23 应在不破坏旧 world definition 的前提下，把判断升级为更接近真实当前状态。
+含义：
 
-至少考虑：
+- 杂役：正式宗门体系中的最低身份；
+- 外门：正常正式弟子入口；
+- 内门：更高权限，需要后续条件推进；
+- 真传：高层身份，**不能因出身直接赠送**。
 
-- 当前境界 / 阶段；
-- R20 玩家 Combat HP / Qi / baseAttack 基线；
-- severe / meridian injury；
-- serious poison；
-- 已装备武器 / 护甲 / 支援法器；
-- 已启用身法 / 相关真实 combat hook；
-- 当前区域 ordinary ecology pressure；
-- **已经被玩家知道的**强大妖兽 presence / territory information。
-
-注意：
-
-- 不重新发明装备数值；
-- 不调整 R20 / R22 combat balance；
-- risk selector 只读现有 authoritative truth。
+R24 不需要把四层晋升玩法全部做完，但 state / permission 结构必须能稳定承载它们。
 
 ---
 
-# 四、信息层级
+# 四、加入路径
 
-危险信息必须区分：
+至少实现两类：
 
-## 4.1 客观区域危险
+## 4.1 正常入门
 
-描述区域整体环境，例如：
+面向普通成年角色的正式入口。
 
-```text
-安全
-较低
-一般
-较高
-危险
-```
+要求：
 
-可在 R23 读取已知 ecology / 已知 strong territory 后进行有限动态修正，但不要把所有细节塞进一个等级。
+- 必须存在真实世界入口，而不是 debug 按钮；
+- 玩家能看到入门所需的已知条件；
+- 满足后主动选择加入；
+- 不满足时说明缺什么，但不要伪造隐藏随机判定；
+- 加入后写入 authoritative membership / faction；
+- Chronicle 记录一次重要身份变化。
 
-## 4.2 角色自身判断
-
-表达：
-
-> “以我现在的状态，进去大概是什么感觉？”
-
-应该受到伤势 / poison / 当前装备等实时影响。
-
-例如同一个角色：
+正常入口首版优先从：
 
 ```text
-健康 + 完整装备 → 需要谨慎
-重伤 → 明显危险
-严重中毒 → 极可能送命
+青云宗 / 青云行馆 / 已有成年入道机会
 ```
 
-## 4.3 已知威胁
+中复用现有地点与成年内容，不新增无来源地点。
 
-只有角色确实得到线索后，才显示类似：
+## 4.2 少量特殊入门
 
-```text
-近期有人在深处发现大型蛇类活动痕迹。
-这里存在明显强于外围妖兽的领地痕迹。
-猎户确认某一带狼群会主动避让一个更强个体。
-```
+只读取 **现有已冻结出身 / 成年入口 / 已有关系或事实**。
 
-不直接把后台 instance id / HP / loot table 暴露给玩家。
+例如修仙家庭、宗门相关成年入口若已经明确给出更直接渠道，可以减少普通流程；但：
+
+- 不自行创造大批特殊关系；
+- 不因为强出身直接给真传；
+- 特殊入门最终也写入同一 membership state。
 
 ---
 
-# 五、强大妖兽领地
+# 五、身份与权限
 
-R23 首版只处理已经存在的两类 special / unique：
+R24 至少建立一个纯 selector，等价于：
 
-```text
-cold_pool_scale_python
-one_horned_azure_wolf
+```ts
+getSectAccess(state)
 ```
 
-不新增第 9 种妖兽。
+它只读当前正式宗门身份，回答可访问的最小权限。
 
-## 5.1 寒潭鳞蟒
+首版至少区分：
 
-R22 已有 world truth：
+## 非宗门成员
 
-```text
-generated
-instanceId
-alive
-lootClaimed
-lairCleared
-```
+- 只能访问对外公开内容；
+- 不能把传功堂 / 内部修炼资源当公共商店。
 
-R23 负责建立玩家侧的：
+## 杂役
 
-```text
-线索 / knowledge
-→ 寒潭类地点或领地入口
-→ 危险提示
-→ 玩家确认进入
-→ START_COMBAT cold_pool_scale_python + cold-pool context
-```
+- 外院登记 / 杂役区域；
+- 极基础内部资源；
+- 不自动获得内门级传承。
 
-若本世没有生成鳞蟒：
+## 外门
 
-- 不得伪造一只；
-- 地点可以存在，但对应强敌内容必须按 world truth 处理；
-- UI 不能提前告诉玩家“本世没生成”。
+- 正式弟子基础权限；
+- 可访问基础传功入口；
+- 为 R25 宗门事务 / 贡献建立真实入口。
 
-死亡后 `lairCleared` 与现有 world truth 必须继续生效。
+## 内门
 
-## 5.2 独角苍狼
+- 更高内部资源权限字段存在；
+- R24 不必提前填满所有高级内容。
 
-R22 已有唯一 world truth：
+## 真传
 
-```text
-uniqueId
-instanceId
-alive
-lootClaimed
-```
+- 最高首版身份字段可表达；
+- R24 不提供“出生即真传”捷径。
 
-R23 负责建立合理的发现链：
-
-```text
-狼群 / 足迹 / 传闻 / 兽巢等已知信息
-→ 确认存在强大个体领地
-→ 风险提示
-→ 玩家主动进入
-→ START_COMBAT one-horned-azure-wolf
-```
-
-独角苍狼死亡后：
-
-- 不刷新；
-- 已有 R22 baseline 2→1 后果继续保持；
-- 领地 UI / 描述必须能读取死亡事实并变化；
-- 不在 R23 额外实现完整世界事件链。
+权限必须是 selector / rule，而不是 UI hardcode。
 
 ---
 
-# 六、与 R22-FIX encounter 的边界
+# 六、自由路线必须保留
 
-普通探索继续只随机遇到 ordinary pool：
+加入青云宗是选择，不是主线强制。
 
-```text
-黑风山：青背狼 / 赤尾狐 / 铁甲猪 / 普通岩甲蜥
-灵溪谷：赤尾狐 / 碧水蛇
-万兽岭：青背狼 / 赤鬃山猿
-```
-
-R23 禁止把寒潭鳞蟒 / 独角苍狼直接塞回 ordinary random pool。
-
-强大个体必须通过：
+玩家必须仍可以：
 
 ```text
-knowledge / territory / explicit entry
+不加入
+→ 继续散修 / 家族 / 野外路线
 ```
 
-进入玩家路径。
-
-这样才能让：
-
-> “我知道那边可能有东西，而且很危险，我还是决定进去。”
-
-成为真实选择，而不是随机抽中 Boss。
+R24 禁止因为宗门系统上线，就把所有修仙角色自动改成青云弟子。
 
 ---
 
 # 七、UI 最小要求
 
-`WorldMapPanel` / 对应 territory UI 至少需要让玩家看懂：
+玩家至少能看懂：
 
-1. 区域客观危险；
-2. 以当前角色状态判断的风险；
-3. 当前已知的主要威胁 / 线索；
-4. 进入强大妖兽领地的动作；
-5. 进入前的自然语言风险警告；
-6. 玩家仍然可以确认进入。
+1. 自己当前是否属于青云宗；
+2. 当前身份层级；
+3. 已知入门条件；
+4. 加入后最直接的权限变化；
+5. 不加入仍可继续游戏；
+6. 已经加入后不再显示重复入门按钮。
 
-不要显示：
-
-- 精确 Boss HP；
-- 精确攻击力；
-- 精确 loot chance；
-- hidden generated/alive flag；
-- SSR / 推荐战力 / 红色战力差数字。
+CharacterPanel / 世界地点可选择最小必要改动，不做完整宗门主页美术重构。
 
 ---
 
@@ -324,52 +235,54 @@ knowledge / territory / explicit entry
 
 至少覆盖：
 
-1. R22-FIX ordinary exploration encounter 不退化；
-2. 1 / 3 / 10 日探索仍可被普通 encounter 中断；
-3. old replay compatibility 不退化；
-4. risk judgement 对伤势 / poison / equipment 的变化有真实响应；
-5. 高风险不会无理由 hard block；
-6. unknown strong beast truth 不泄露；
-7. discovered territory 才显示可进入入口；
-8. cold-pool python absent world truth 不会凭空开战；
-9. cold-pool combat 正确带 `cold-pool` context；
-10. unique wolf 死亡后不可再次开战；
-11. unique wolf death 后领地状态可变化；
-12. sunken-vein-core 兼容不退化；
-13. save / reload / replay deterministic；
-14. Typecheck / Test / Build 全绿。
+1. 非成员不会被自动加入；
+2. 正常入门条件可解释；
+3. 满足条件后可正式加入；
+4. 特殊入门读取现有真实背景 / 成年事实；
+5. 所有路径最终写入同一 membership truth；
+6. `identity.faction` 与 membership 不矛盾；
+7. 四种 rank 可被合法表达；
+8. 真传不能由出生直接免费授予；
+9. 不同 rank 的 access selector 有真实差异；
+10. 加入宗门写 Chronicle；
+11. 加入后刷新 / save reload 身份不丢；
+12. Session replay deterministic；
+13. R22-FIX ordinary exploration 不退化；
+14. R23 risk / territory 不退化；
+15. R20～R22 combat / poison / loot 回归不退化；
+16. Typecheck / Test / Build 全绿。
 
 ---
 
 # 九、本轮禁止
 
-- 不实现 R24 宗门；
-- 不做 NPC 全量系统；
-- 不做 W02 兽群南迁；
-- 不新增妖兽；
-- 不做多怪实时队伍战；
-- 不做完整狩猎系统；
-- 不做完整采集系统；
-- 不做商店 / 出售；
-- 不做御兽；
-- 不改 R20 / R22 Combat 数值；
-- 不改 R21 poison 数值；
-- 不建立综合战力面板；
-- 不让 UI 泄露 hidden special / unique world truth。
+- 不实现 R25 贡献数值循环；
+- 不做 R25 采药 / 巡山 / 护送 / 清剿任务；
+- 不做 R26 拜师；
+- 不做 R26 违规 / 处罚 / 叛宗；
+- 不做派系政治；
+- 不做多个宗门；
+- 不扩 NPC 全量模拟；
+- 不做宗门日常签到 / 每日任务；
+- 不重构整个 App；
+- 不顺手平衡 Combat / cultivation；
+- 不通过大量 flags 拼出第二套身份系统。
 
 ---
 
 # 十、验收标准
 
-R23 完成必须满足：
+R24 完成必须真正跑通：
 
 ```text
-玩家看到有意义的危险信息
-→ 知道某个已发现领地非常危险
-→ 系统不替玩家做决定
-→ 玩家仍可主动进入
-→ 进入后复用现有正式 CombatEngine
-→ 胜负 / 伤毒 / loot / world truth 全沿用现有链
+非成员
+→ 看到合法青云宗入门入口
+→ 满足 / 不满足条件得到明确反馈
+→ 玩家主动决定是否加入
+→ 加入后唯一 GameState 写入宗门身份
+→ Character / 地点 UI 读取身份
+→ access selector 改变内部入口
+→ save / reload / replay 保持
 ```
 
 并且：
@@ -382,4 +295,4 @@ npm run build
 
 全部通过。
 
-完成后更新 `HANDOFF.md`，立即停止，不在同轮开始 R24。
+完成后更新 `HANDOFF.md`，立即停止，不在同轮开始 R25。
