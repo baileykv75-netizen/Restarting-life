@@ -112,7 +112,17 @@ export function startWildernessEncounter(state: GameState, plan: WildernessEncou
       reason: started.reason ?? 'WILDERNESS_COMBAT_START_FAILED',
     }
   }
-  return { state: started.state, ...plan }
+  if (!started.state.combat || plan.encounterAfterDays === undefined) return { state: started.state, ...plan }
+  return {
+    state: {
+      ...started.state,
+      combat: {
+        ...started.state.combat,
+        log: [`本次探索进行到第 ${plan.encounterAfterDays} 天时，前路被妖兽截断。`, ...started.state.combat.log].slice(-5),
+      },
+    },
+    ...plan,
+  }
 }
 
 export function resolveWildernessEncounter(
