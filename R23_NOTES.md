@@ -1,1 +1,0 @@
-R23 stays limited to state-aware danger judgement and explicit strong-beast territory entry. It does not add R24 sect systems, new beasts, shops, hunting, gathering, NPC simulation, W02 migration, or combat rebalance.
