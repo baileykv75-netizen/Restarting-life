@@ -8,7 +8,7 @@ interface QingyunSectPanelProps {
 }
 
 function AccessRow({ enabled, label, note }: { enabled: boolean; label: string; note: string }) {
-  return <div className={`sect-access-row ${enabled ? 'enabled' : 'locked'}`}><div><strong>{label}</strong><span>{note}</span></div><em>{enabled ? '可访问' : '未开放'}</em></div>
+  return <div className={`sect-access-row ${enabled ? 'enabled' : 'locked'}`}><div><strong>{label}</strong><span>{note}</span></div><em>{enabled ? '可进入' : '暂不可进入'}</em></div>
 }
 
 export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: QingyunSectPanelProps) {
@@ -25,25 +25,25 @@ export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: Qing
 
     {!membership && <div className="sect-join-card">
       <strong>{offer.routeLabel}</strong>
-      <p>加入宗门是可选路线。不加入不会阻止你继续走散修、家族或野外路线。</p>
+      <p>你可以在这里争取宗门身份，也可以转身离开，继续走散修、家族或野外的路。</p>
       <div className="sect-condition-list">{offer.conditions.map((entry) => <span key={entry}>条件 · {entry}</span>)}{offer.missing.map((entry) => <span className="missing" key={entry}>尚缺 · {entry}</span>)}</div>
-      {offer.available && offer.targetRank && <button className="primary-button" onClick={onJoin} type="button">主动加入青云宗 · {formatSectRank(offer.targetRank)}</button>}
+      {offer.available && offer.targetRank && <button className="primary-button" onClick={onJoin} type="button">登记入宗 · {formatSectRank(offer.targetRank)}</button>}
     </div>}
 
     {membership && <>
       <div className="sect-access-list">
-        <AccessRow enabled={access.outerRegistry} label="外院登记" note="名籍、身份与后续宗门事务的基础入口。" />
+        <AccessRow enabled={access.outerRegistry} label="外院" note="查验名籍、身份与宗门内部登记。" />
         <AccessRow enabled={access.serviceArea} label="杂役与外围区域" note="宗门日常运转所需的外围区域。" />
-        <AccessRow enabled={access.basicTeaching} label="基础传功" note="正式弟子可领取青云宗基础传承。" />
-        <AccessRow enabled={access.discipleCultivationArea} label="弟子修炼区域" note="在青云宗修炼时可使用宗门灵脉环境。" />
-        <AccessRow enabled={access.affairsHallEntry} label="事务堂入口" note="R25 将从这里接入贡献与宗门事务，本轮只确认身份权限。" />
-        <AccessRow enabled={access.innerResources} label="内门资源" note="需要内门身份；R24 不提供晋升捷径。" />
-        <AccessRow enabled={access.trueInheritance} label="真传传承" note="真传身份不能由出生或普通入门直接获得。" />
+        <AccessRow enabled={access.basicTeaching} label="传功堂基础传授" note="正式弟子可领取青云宗基础功法。" />
+        <AccessRow enabled={access.discipleCultivationArea} label="弟子修炼区域" note="正式弟子可借宗门灵脉环境修炼。" />
+        <AccessRow enabled={access.affairsHallEntry} label="事务堂" note="你已有进入事务堂办理弟子事务的资格。" />
+        <AccessRow enabled={access.innerResources} label="内门资源区域" note="只有内门及以上弟子才可进入。" />
+        <AccessRow enabled={access.trueInheritance} label="核心传承" note="只有真传弟子才有资格接触。" />
       </div>
 
       {locationId === 'qingyun_sect' && access.basicTeaching && <div className="sect-teaching-card">
         <strong>传功堂 · 基础传授</strong>
-        <p>{knownQingyuan ? '你已经掌握《青元引气诀》的基础行气次序。' : '外门及以上弟子可以领取《青元引气诀》的基础传授。这不是额外修为，只是获得真实可练的功法。'}</p>
+        <p>{knownQingyuan ? '你已经掌握《青元引气诀》的基础行气次序。' : '外门及以上弟子可以领取《青元引气诀》的基础传授。传功只授行气法门，不会凭空增加修为。'}</p>
         {!knownQingyuan && <button className="secondary-button" onClick={onReceiveBasicTeaching} type="button">领取《青元引气诀》基础传授</button>}
       </div>}
     </>}
