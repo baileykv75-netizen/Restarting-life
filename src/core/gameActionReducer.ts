@@ -3,6 +3,7 @@ import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/gam
 import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
+import { resolveStrongBeastTerritoryEntry } from './strongBeastTerritoryEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
 import { advanceWorldTime } from './worldEngine'
 
@@ -54,6 +55,10 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     }
     case 'START_COMBAT': {
       const result = resolveCombatStart(state, action.opponentId, action.source, action.contextTags, action.encounterVariant)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'ENTER_BEAST_TERRITORY': {
+      const result = resolveStrongBeastTerritoryEntry(state, action.territoryId)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'COMBAT_ACTION': {
