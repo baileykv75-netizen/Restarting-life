@@ -10,7 +10,7 @@ import type { InventoryState } from './inventory'
 import type { LifespanState } from './lifespan'
 import type { PoisonState } from './poison'
 import type { SecretRealmState } from './secretRealm'
-import type { SectMembershipState } from './sect'
+import type { SectMembershipState, SectProgressState } from './sect'
 import type { SublocationState } from './sublocation'
 
 export type GameStatus = 'playing' | 'dead' | 'won'
@@ -59,6 +59,8 @@ export interface GameState {
   pendingBeastLoot?: PendingBeastLoot
   /** Optional for pre-R24 schema-3 saves. R24+ writes the sole authoritative formal sect membership here. */
   sectMembership?: SectMembershipState
+  /** Optional for pre-R25 schema-3 saves. Contribution and the one active sect assignment live here. */
+  sectProgress?: SectProgressState
   identity: { name: string; birthDay: number; backgroundId: string; spiritRootId: string; physiqueIds: string[]; talentIds: string[]; faction: Faction }
   stats: { constitution: number; comprehension: number; spiritSense: number; mentality: number; luck: number }
   resources: { spiritStones: number; cultivation: number }
