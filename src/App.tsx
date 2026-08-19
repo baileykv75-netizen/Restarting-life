@@ -26,7 +26,9 @@ import { getAvailableChoices } from './core/eventEngine'
 import type { TechniquePracticeDuration } from './core/techniqueEngine'
 import type { PlayerAction, SessionCommand } from './types/command'
 import type { ExplorationDuration } from './types/exploration'
+import type { GameAction } from './types/gameAction'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
+import type { SectAssignmentId } from './types/sect'
 import type { StrongBeastTerritoryId } from './types/territory'
 import { chooseBirthAndSave, clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
 import './experience-cleanup.css'
@@ -34,6 +36,7 @@ import './birth-selection.css'
 import './childhood.css'
 import './adult-entry.css'
 import './world-map.css'
+import './sect-assignment.css'
 import './secret-realm.css'
 import './inventory.css'
 import './beast-loot.css'
@@ -45,6 +48,16 @@ import './combat.css'
 interface InitialViewState { game: PersistentGame; error: string | null }
 function readInitialGame(): InitialViewState { try { return { game: loadGame(window.localStorage), error: null } } catch (error) { return { game: createEmptyPersistentGame(), error: error instanceof Error ? error.message : '本地存档无法读取' } } }
 function ResultPanel({ result, onContinue }: { result: ResolvedOutcome; onContinue: () => void }) { return <section className="story-card result-card"><p className="story-kicker">结果</p><h2>{result.title}</h2>{result.narrative && <p className="story-text result-narrative">{result.narrative}</p>}{result.changes.length > 0 && <><div className="result-divider" /><p className="subsection-title">变化</p><div className="result-changes">{result.changes.map((change, index) => <div className={`result-change ${change.tone}`} key={`${change.label}-${index}`}><span>{change.label}</span><strong>{change.value}</strong></div>)}</div></>}{result.consequence && <p className="consequence-note">后续 · {result.consequence}</p>}<button className="primary-button result-continue" onClick={onContinue} type="button">继续</button></section> }
+function sectAssignmentError(reason?: string): string {
+  if (reason === 'SECT_ASSIGNMENT_INVENTORY_FULL') return '背包没有足够空位装下这次采到的药材。先整理背包再开始。'
+  if (reason === 'SEVERE_INJURY_BLOCKS_SECT_WORK') return '你现在伤得太重，不适合连续三日采药。'
+  if (reason === 'SERIOUS_POISON_BLOCKS_SECT_WORK') return '当前中毒状态还没有处理，继续在谷中采药风险太高。'
+  if (reason === 'SECT_CULL_TARGET_CURRENTLY_DEPLETED') return '这片山段近期已经找不到足以核实的青背狼踪迹。'
+  if (reason === 'SECT_ASSIGNMENT_REQUIRED_ITEMS_MISSING') return '交差时需要把任务要求的药材一并交回。'
+  if (reason === 'SECT_ASSIGNMENT_OBJECTIVE_INCOMPLETE') return '这桩事务的目标还没有真正完成。'
+  if (reason === 'SECT_ASSIGNMENT_WRONG_LOCATION') return '这里不是这桩事务要求前往的地点。'
+  return reason ?? '这桩事务现在无法继续。'
+}
 const initialViewState = readInitialGame()
 
 function App() {
@@ -214,6 +227,20 @@ function App() {
       setNotice(caught instanceof Error ? caught.message : '基础传功未能保存')
     }
   }
+  function persistSectGameAction(action: GameAction, successNotice: string) {
+    try {
+      const result = commandAndSave(window.localStorage, game, { type: 'game-action', action })
+      if (!result.applied) { setNotice(sectAssignmentError(result.reason)); return }
+      setGame(result.persistent)
+      setNotice(result.persistent.currentSession?.state.combat ? null : successNotice)
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : '这桩事务的进度未能保存')
+    }
+  }
+  function persistAcceptSectAssignment(assignmentId: SectAssignmentId) { persistSectGameAction({ type: 'ACCEPT_SECT_ASSIGNMENT', assignmentId }, '任务牌已经领下。目的地与交结要求都记在地图上的事务记录里。') }
+  function persistPerformSectAssignment() { persistSectGameAction({ type: 'PERFORM_SECT_ASSIGNMENT' }, '这一步已经办完；若目标已经完成，回青云宗事务堂交结即可。') }
+  function persistSettleSectAssignment() { persistSectGameAction({ type: 'SETTLE_SECT_ASSIGNMENT' }, '事务已经交结，贡献与灵石报酬都已入账。') }
+  function persistAbandonSectAssignment() { persistSectGameAction({ type: 'ABANDON_SECT_ASSIGNMENT' }, '你把这桩事务放弃了。本世事务堂不会再次把同一桩差事挂给你。') }
   function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
   function persistTechniquePractice(techniqueId: string, days: TechniquePracticeDuration) { persistCommand({ type: 'practice-technique-days', techniqueId, days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
@@ -242,7 +269,7 @@ function App() {
     stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <>
-      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} />
+      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} onAcceptSectAssignment={persistAcceptSectAssignment} onPerformSectAssignment={persistPerformSectAssignment} onSettleSectAssignment={persistSettleSectAssignment} onAbandonSectAssignment={persistAbandonSectAssignment} />
       {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
       <FoundationBreakthroughPanel
         state={state}

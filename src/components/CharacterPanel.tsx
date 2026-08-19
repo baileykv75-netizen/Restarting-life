@@ -6,6 +6,7 @@ import { TALENTS, getTalentById } from '../data/talents'
 import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
 import { getEquippedItemId, EQUIPMENT_SLOTS } from '../core/equipmentEngine'
 import { getCharacterDisplayName } from '../core/nameEngine'
+import { getSectContribution } from '../core/sectAssignmentEngine'
 import { formatQingyunJoinPath, formatSectRank } from '../core/sectMembershipEngine'
 import type { StatModifiers } from '../types/content'
 import type { EquipmentSlot } from '../types/equipment'
@@ -62,6 +63,7 @@ export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
         <div className="trait-card">
           <strong>青云宗 · {formatSectRank(qingyunMembership.rank)}</strong>
           <p>{formatQingyunJoinPath(qingyunMembership.joinPath)}入门 · 第 {qingyunMembership.joinedDay} 日登记。</p>
+          <div className="trait-effects"><span>宗门贡献 {getSectContribution(state)}</span></div>
         </div>
       </div>}
 

@@ -7,9 +7,11 @@ import { getSublocationDiscoveryText, getVisibleSublocations } from '../core/sub
 import { getDirectTravelOptions, getFastTravelOptions } from '../core/travelEngine'
 import type { ExplorationDuration } from '../types/exploration'
 import type { GameState } from '../types/game'
+import type { SectAssignmentId } from '../types/sect'
 import type { StrongBeastTerritoryId } from '../types/territory'
 import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
 import { QingyunSectPanel } from './QingyunSectPanel'
+import { SectAssignmentPanel } from './SectAssignmentPanel'
 
 const TYPE_LABELS: Record<WorldLocationType, string> = {
   'mortal-settlement': '凡俗聚落', 'cultivation-market': '修仙坊市', sect: '宗门', 'clan-estate': '家族据点', wilderness: '野外区域', 'fixed-entry': '固定入口',
@@ -27,9 +29,13 @@ interface WorldMapPanelProps {
   onEnterStrongTerritory: (territoryId: StrongBeastTerritoryId) => void
   onJoinQingyunSect: () => void
   onReceiveQingyunBasicTeaching: () => void
+  onAcceptSectAssignment: (assignmentId: SectAssignmentId) => void
+  onPerformSectAssignment: () => void
+  onSettleSectAssignment: () => void
+  onAbandonSectAssignment: () => void
 }
 
-export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching }: WorldMapPanelProps) {
+export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching, onAcceptSectAssignment, onPerformSectAssignment, onSettleSectAssignment, onAbandonSectAssignment }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   if (!current) {
@@ -70,6 +76,7 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
       <p className="world-location-adjacent">已知相邻 · {adjacent.length > 0 ? adjacent.map(({ location, status }) => status === 'rumored' ? `传闻中的${location!.name}` : location!.name).join('、') : '暂无'}</p>
 
       {(current.id === 'qingyun_sect' || current.id === 'qingyun_family_quarters') && <QingyunSectPanel state={state} onJoin={onJoinQingyunSect} onReceiveBasicTeaching={onReceiveQingyunBasicTeaching} />}
+      <SectAssignmentPanel state={state} onAccept={onAcceptSectAssignment} onPerform={onPerformSectAssignment} onSettle={onSettleSectAssignment} onAbandon={onAbandonSectAssignment} />
 
       {current.type === 'wilderness' && currentAssessment && <div className="region-exploration-section">
         <div className="region-exploration-heading"><div><p className="subsection-title">区域探索</p><strong>{getExplorationStageLabel(explorationStage)}</strong></div><span>累计 {exploredDays} 天</span></div>

@@ -3,6 +3,13 @@ import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/gam
 import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
+import {
+  refreshSectAssignmentAfterCombat,
+  resolveAbandonSectAssignment,
+  resolveAcceptSectAssignment,
+  resolvePerformSectAssignment,
+  resolveSettleSectAssignment,
+} from './sectAssignmentEngine'
 import { resolveJoinQingyunSect, resolveReceiveQingyunBasicTeaching } from './sectMembershipEngine'
 import { resolveStrongBeastTerritoryEntry } from './strongBeastTerritoryEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
@@ -70,9 +77,26 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
       const result = resolveReceiveQingyunBasicTeaching(state)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
+    case 'ACCEPT_SECT_ASSIGNMENT': {
+      const result = resolveAcceptSectAssignment(state, action.assignmentId)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'PERFORM_SECT_ASSIGNMENT': {
+      const result = resolvePerformSectAssignment(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'SETTLE_SECT_ASSIGNMENT': {
+      const result = resolveSettleSectAssignment(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'ABANDON_SECT_ASSIGNMENT': {
+      const result = resolveAbandonSectAssignment(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
     case 'COMBAT_ACTION': {
       const result = resolveCombatAction(state, action.action)
-      return { state: result.state, applied: result.applied, reason: result.reason }
+      const refreshed = result.applied ? refreshSectAssignmentAfterCombat(state, result.state) : result.state
+      return { state: refreshed, applied: result.applied, reason: result.reason }
     }
     case 'CLAIM_BEAST_LOOT': {
       const result = resolveBeastLootClaim(state, action.itemId, action.quantity)

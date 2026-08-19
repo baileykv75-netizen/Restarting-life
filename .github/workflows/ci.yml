@@ -21,7 +21,10 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        # npm currently has an Arborist peer-tree crash (`edgesOut`) on this
+        # dependency set. R25 does not change dependencies; bypass peer-tree
+        # placement in CI so the actual typecheck/test/build gates can run.
+        run: npm install --legacy-peer-deps
 
       - name: Typecheck
         run: npm run typecheck

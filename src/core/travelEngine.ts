@@ -4,6 +4,7 @@ import type { GameState } from '../types/game'
 import type { WorldLocationDefinition, WorldRouteDefinition } from '../types/world'
 import { applyGameAction } from './gameActionReducer'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
+import { refreshSectAssignmentAfterTravel } from './sectAssignmentEngine'
 
 const TRAVERSED_ROUTE_PREFIX = 'route_traversed:'
 
@@ -75,7 +76,9 @@ export function resolveTravel(state: GameState, destinationId: string): TravelRe
 
   const located = applyGameAction(advanced.state, { type: 'SET_CURRENT_LOCATION', locationId: destinationId })
   if (!located.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: located.reason, routeIds: [] }
-  return { state: markRouteTraversed(located.state, route.id), applied: true, arrived: true, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
+  const traversed = markRouteTraversed(located.state, route.id)
+  const assignmentRefreshed = refreshSectAssignmentAfterTravel(traversed, true, destinationId)
+  return { state: assignmentRefreshed, applied: true, arrived: true, travelDays: route.travelDays, destinationId, routeIds: [route.id] }
 }
 
 interface PathCandidate { locationId: string; travelDays: number; routeIds: string[] }
@@ -126,7 +129,8 @@ export function resolveFastTravel(state: GameState, destinationId: string): Trav
   if (advanced.state.status !== 'playing') return { state: advanced.state, applied: true, arrived: false, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
   const located = applyGameAction(advanced.state, { type: 'SET_CURRENT_LOCATION', locationId: destinationId })
   if (!located.applied) return { state, applied: false, arrived: false, travelDays: 0, reason: located.reason, routeIds: [] }
-  return { state: located.state, applied: true, arrived: true, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
+  const assignmentRefreshed = refreshSectAssignmentAfterTravel(located.state, true, destinationId)
+  return { state: assignmentRefreshed, applied: true, arrived: true, travelDays: path.travelDays, destinationId, routeIds: path.routeIds }
 }
 
 export function getTraversedRoutes(state: GameState): WorldRouteDefinition[] {
