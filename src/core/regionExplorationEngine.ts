@@ -9,6 +9,7 @@ import { hasActiveInjury } from './injuryEngine'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { hasSeriousPoison } from './poisonEngine'
 import { getRegionRiskAssessment } from './riskAssessmentEngine'
+import { refreshSectAssignmentAfterExploration } from './sectAssignmentEngine'
 import { discoverEligibleSublocations } from './sublocationEngine'
 import { planWildernessEncounter, startWildernessEncounter } from './wildernessEncounterEngine'
 
@@ -151,10 +152,11 @@ export function resolveRegionExploration(state: GameState, days: number): Region
   }
   const discovery = discoverEligibleSublocations(progressedState, current.id, exploredDays)
   const encounter = startWildernessEncounter(discovery.state, encounterPlan)
+  const assignmentRefreshed = refreshSectAssignmentAfterExploration(encounter.state, current.id, elapsedDays)
   const interrupted = encounter.encountered
 
   return {
-    state: encounter.state,
+    state: assignmentRefreshed,
     applied: true,
     completed: !interrupted,
     locationId: current.id,
