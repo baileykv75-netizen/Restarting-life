@@ -181,6 +181,30 @@
   line-height: 1.55;
 }
 
+.sect-subnav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.sect-subnav button {
+  padding: 8px 10px;
+  border: 1px solid rgba(181, 201, 188, .14);
+  border-radius: 9px;
+  background: rgba(255,255,255,.02);
+  color: #9ca69f;
+  cursor: pointer;
+  font-size: .73rem;
+}
+
+.sect-subnav button.active,
+.sect-subnav button:hover {
+  border-color: rgba(181, 201, 188, .34);
+  background: rgba(181, 201, 188, .075);
+  color: #ddd9cf;
+}
+
 .compactible-panel .panel-expand-button {
   width: 100%;
   margin-top: 12px;
