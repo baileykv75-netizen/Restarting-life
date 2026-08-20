@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { getCultivationTechniqueById, getTechniqueById, techniqueSupportsRealm, type TechniqueDefinition } from '../data/techniques'
 import { getWorldLocationById } from '../data/worldLocations'
 import {
@@ -33,6 +34,7 @@ const CATEGORY_LABEL: Readonly<Record<TechniqueDefinition['category'], string>> 
 }
 
 export function CultivationPanel({ state, onSelectTechnique, onChangeMainTechnique, onSetAuxiliaryTechnique, onPracticeTechnique, onCultivate }: CultivationPanelProps) {
+  const [expanded, setExpanded] = useState(false)
   if (!state.cultivation.practiceInitialized) return null
   const known = (state.cultivation.knownTechniqueIds ?? []).map((id) => getTechniqueById(id)).filter((entry): entry is TechniqueDefinition => Boolean(entry))
   const mainTechniques = known.filter((entry) => entry.category === 'main')
@@ -43,88 +45,72 @@ export function CultivationPanel({ state, onSelectTechnique, onChangeMainTechniq
   const techniqueSystemReady = state.cultivation.techniqueSystemInitialized === true
   const realmComplete = isQiNineComplete(state) || isFoundationComplete(state)
 
-  return (
-    <section className="cultivation-panel" aria-label="修炼">
-      <div className="cultivation-heading">
-        <div><p className="story-kicker">修炼</p><h2>{formatCultivationRealm(state.cultivation.realm, state.cultivation.stage)} · {formatCultivationProgress(state.resources.cultivation)}</h2></div>
-        <span className="cultivation-location">{location?.name ?? '当前位置未确定'}{oneDayPreview ? `｜${oneDayPreview.environmentLabel}` : ''}</span>
-      </div>
+  return <section className={`cultivation-panel compactible-card ${expanded ? 'expanded' : 'collapsed'}`} aria-label="修炼">
+    <div className="cultivation-heading">
+      <div><p className="story-kicker">修炼</p><h2>{formatCultivationRealm(state.cultivation.realm, state.cultivation.stage)} · {formatCultivationProgress(state.resources.cultivation)}</h2></div>
+      <span className="cultivation-location">{location?.name ?? '当前位置未确定'}{oneDayPreview ? `｜${oneDayPreview.environmentLabel}` : ''}</span>
+    </div>
+    <div className="cultivation-summary-row">
+      <span>{main ? `主修 · ${main.name}` : '尚未确定主修功法'}</span>
+      <button className="panel-expand-button" onClick={() => setExpanded((value) => !value)} type="button">{expanded ? '收起修炼' : '展开修炼'}</button>
+    </div>
 
+    {expanded && <div className="panel-expanded-content">
       {state.identity.spiritRootId === 'none' ? (
         <p className="cultivation-note">你没有普通吐纳所需的灵根，现有基础功法无法让灵气在体内形成周天。</p>
       ) : known.length === 0 ? (
         <p className="cultivation-note">你还没有一门真正可以开始吐纳的主修功法。</p>
-      ) : (
-        <>
-          <div className="cultivation-techniques">
-            <p className="subsection-title">主修功法</p>
-            {mainTechniques.map((technique) => {
-              const selected = state.cultivation.mainTechniqueId === technique.id
-              const proficiency = techniqueSystemReady ? getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id)) : null
-              const definition = getCultivationTechniqueById(technique.id)
-              const cultivationReady = Boolean(definition && techniqueSupportsRealm(definition, state.cultivation.realm))
-              const changePreview = techniqueSystemReady && state.cultivation.mainTechniqueId && !selected ? getMainTechniqueChangePreview(state, technique.id) : null
-              return (
-                <div className={`cultivation-technique-card ${selected ? 'selected' : ''}`} key={technique.id}>
-                  <div className="cultivation-technique-line">
-                    <div><strong>{technique.name}</strong><span>{proficiency ? `熟练度：${proficiency}` : '已掌握'}</span></div>
-                    {selected ? <span className="technique-status">当前主修</span>
-                      : !state.cultivation.mainTechniqueId && cultivationReady ? <button className="text-button" onClick={() => onSelectTechnique(technique.id)} type="button">设为主修</button>
-                      : changePreview ? <button className="text-button" onClick={() => onChangeMainTechnique(technique.id)} type="button">改修</button>
-                      : null}
-                  </div>
-                  {changePreview && (
-                    <p className="technique-cost">改修需 {changePreview.adaptationDays} 日；当前小阶段修为预计损失 {(changePreview.cultivationLossRatio * 100).toFixed(0)}%（{changePreview.cultivationLossPoints} 点）。{changePreview.permanentLifespanPenaltyYears ? ` 首次转入还会永久减少 ${changePreview.permanentLifespanPenaltyYears} 年寿元，结算后最大寿元为 ${changePreview.effectiveMaxLifespanYearsAfter} 年。` : ''}</p>
-                  )}
-                  {definition && !cultivationReady && <p className="technique-cost">这门功法不覆盖当前境界，无法继续承担主修运转。</p>}
-                  {!definition && <p className="technique-cost">你掌握的这一部分还不足以作为当前可执行主修运转。</p>}
-                </div>
-              )
-            })}
-          </div>
-
-          {state.cultivation.realm === 'golden_core' ? (
-            <p className="cultivation-note complete">当前首版修炼闭环已经达到金丹层级。</p>
-          ) : main && realmComplete ? (
-            <p className="cultivation-note complete">{state.cultivation.realm === 'qi' ? '炼气九层已经圆满。普通吐纳已经停止，接下来需要准备筑基。' : '筑基已经圆满。普通修炼已经停止，接下来需要准备结丹。'}</p>
-          ) : main && oneDayPreview ? (
-            <>
-              <div className="cultivation-factors">
-                <p className="subsection-title">当前效率来源</p>
-                <div className="cultivation-factor-list">{oneDayPreview.factors.map((factor) => <span key={factor.label}>{factor.label} ×{factor.multiplier.toFixed(2)}</span>)}</div>
+      ) : <>
+        <div className="cultivation-techniques">
+          <p className="subsection-title">主修功法</p>
+          {mainTechniques.map((technique) => {
+            const selected = state.cultivation.mainTechniqueId === technique.id
+            const proficiency = techniqueSystemReady ? getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id)) : null
+            const definition = getCultivationTechniqueById(technique.id)
+            const cultivationReady = Boolean(definition && techniqueSupportsRealm(definition, state.cultivation.realm))
+            const changePreview = techniqueSystemReady && state.cultivation.mainTechniqueId && !selected ? getMainTechniqueChangePreview(state, technique.id) : null
+            return <div className={`cultivation-technique-card ${selected ? 'selected' : ''}`} key={technique.id}>
+              <div className="cultivation-technique-line">
+                <div><strong>{technique.name}</strong><span>{proficiency ? `熟练度：${proficiency}` : '已掌握'}</span></div>
+                {selected ? <span className="technique-status">当前主修</span>
+                  : !state.cultivation.mainTechniqueId && cultivationReady ? <button className="text-button" onClick={() => onSelectTechnique(technique.id)} type="button">设为主修</button>
+                  : changePreview ? <button className="text-button" onClick={() => onChangeMainTechnique(technique.id)} type="button">改修</button>
+                  : null}
               </div>
-              <div className="cultivation-actions">
-                {CULTIVATION_DURATIONS.map((days) => {
-                  const preview = calculateCultivationPreview(state, main.id, days)
-                  return <button className="secondary-button cultivation-action" disabled={!preview} key={days} onClick={() => onCultivate(days)} type="button"><strong>修炼 {days} 日</strong><span>{preview ? `预计推进约 ${(preview.gain / 10).toFixed(1)}%` : '当前无法修炼'}</span></button>
-                })}
-              </div>
-            </>
-          ) : main && state.cultivation.realm === 'foundation' ? (
-            <p className="cultivation-note">当前主修不足以继续筑基阶段修炼。你必须先真正获得并改修一门覆盖筑基阶段的传承。</p>
-          ) : mainTechniques.length > 0 && !state.cultivation.mainTechniqueId ? (
-            <p className="cultivation-note">先从已掌握且覆盖当前境界的功法中选择一门作为当前主修。</p>
-          ) : (
-            <p className="cultivation-note">你掌握的内容里还没有可以承担当前境界修炼的主修功法。</p>
-          )}
-
-          {techniqueSystemReady && auxiliaryTechniques.length > 0 && (
-            <div className="technique-auxiliary-section">
-              <p className="subsection-title">辅修与术法</p>
-              {auxiliaryTechniques.map((technique) => {
-                const enabled = (state.cultivation.auxiliaryTechniqueIds ?? []).includes(technique.id)
-                const proficiency = getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id))
-                return <article className="technique-auxiliary-card" key={technique.id}>
-                  <div className="cultivation-technique-line"><div><strong>{technique.name}</strong><span>{CATEGORY_LABEL[technique.category]} · {proficiency}</span></div><button className="text-button" onClick={() => onSetAuxiliaryTechnique(technique.id, !enabled)} type="button">{enabled ? '取消辅修' : '列为辅修'}</button></div>
-                  <p>{technique.description}</p>
-                  {technique.moves && technique.moves.length > 0 && <div className="technique-moves">{technique.moves.map((move) => { const unlocked = isTechniqueMoveUnlocked(state, technique.id, move); return <span key={move.id}>{move.name} · {unlocked ? '已掌握' : `${getProficiencyLabel(move.requiredProficiency ?? 'entry')}后掌握`}</span> })}</div>}
-                  <div className="technique-practice-actions">{TECHNIQUE_PRACTICE_DURATIONS.map((days) => <button className="secondary-button" key={days} onClick={() => onPracticeTechnique(technique.id, days)} type="button">练 {days} 日</button>)}</div>
-                </article>
-              })}
+              {changePreview && <p className="technique-cost">改修需 {changePreview.adaptationDays} 日；当前小阶段修为预计损失 {(changePreview.cultivationLossRatio * 100).toFixed(0)}%（{changePreview.cultivationLossPoints} 点）。{changePreview.permanentLifespanPenaltyYears ? ` 首次转入还会永久减少 ${changePreview.permanentLifespanPenaltyYears} 年寿元，结算后最大寿元为 ${changePreview.effectiveMaxLifespanYearsAfter} 年。` : ''}</p>}
+              {definition && !cultivationReady && <p className="technique-cost">这门功法不覆盖当前境界，无法继续承担主修运转。</p>}
+              {!definition && <p className="technique-cost">你掌握的这一部分还不足以作为当前可执行主修运转。</p>}
             </div>
-          )}
-        </>
-      )}
-    </section>
-  )
+          })}
+        </div>
+
+        {state.cultivation.realm === 'golden_core' ? <p className="cultivation-note complete">你已经踏入金丹层级。</p>
+          : main && realmComplete ? <p className="cultivation-note complete">{state.cultivation.realm === 'qi' ? '炼气九层已经圆满。普通吐纳已经停止，接下来需要准备筑基。' : '筑基已经圆满。普通修炼已经停止，接下来需要准备结丹。'}</p>
+          : main && oneDayPreview ? <>
+            <div className="cultivation-factors"><p className="subsection-title">当前效率来源</p><div className="cultivation-factor-list">{oneDayPreview.factors.map((factor) => <span key={factor.label}>{factor.label} ×{factor.multiplier.toFixed(2)}</span>)}</div></div>
+            <div className="cultivation-actions">{CULTIVATION_DURATIONS.map((days) => {
+              const preview = calculateCultivationPreview(state, main.id, days)
+              return <button className="secondary-button cultivation-action" disabled={!preview} key={days} onClick={() => onCultivate(days)} type="button"><strong>修炼 {days} 日</strong><span>{preview ? `预计推进约 ${(preview.gain / 10).toFixed(1)}%` : '当前无法修炼'}</span></button>
+            })}</div>
+          </>
+          : main && state.cultivation.realm === 'foundation' ? <p className="cultivation-note">当前主修不足以继续筑基阶段修炼。你需要先获得并改修一门覆盖筑基阶段的传承。</p>
+          : mainTechniques.length > 0 && !state.cultivation.mainTechniqueId ? <p className="cultivation-note">先从已掌握且覆盖当前境界的功法中选择一门作为当前主修。</p>
+          : <p className="cultivation-note">你掌握的内容里还没有可以承担当前境界修炼的主修功法。</p>}
+
+        {techniqueSystemReady && auxiliaryTechniques.length > 0 && <div className="technique-auxiliary-section">
+          <p className="subsection-title">辅修与术法</p>
+          {auxiliaryTechniques.map((technique) => {
+            const enabled = (state.cultivation.auxiliaryTechniqueIds ?? []).includes(technique.id)
+            const proficiency = getProficiencyLabel(getTechniqueProficiencyStage(state, technique.id))
+            return <article className="technique-auxiliary-card" key={technique.id}>
+              <div className="cultivation-technique-line"><div><strong>{technique.name}</strong><span>{CATEGORY_LABEL[technique.category]} · {proficiency}</span></div><button className="text-button" onClick={() => onSetAuxiliaryTechnique(technique.id, !enabled)} type="button">{enabled ? '取消辅修' : '列为辅修'}</button></div>
+              <p>{technique.description}</p>
+              {technique.moves && technique.moves.length > 0 && <div className="technique-moves">{technique.moves.map((move) => { const unlocked = isTechniqueMoveUnlocked(state, technique.id, move); return <span key={move.id}>{move.name} · {unlocked ? '已掌握' : `${getProficiencyLabel(move.requiredProficiency ?? 'entry')}后掌握`}</span> })}</div>}
+              <div className="technique-practice-actions">{TECHNIQUE_PRACTICE_DURATIONS.map((days) => <button className="secondary-button" key={days} onClick={() => onPracticeTechnique(technique.id, days)} type="button">练 {days} 日</button>)}</div>
+            </article>
+          })}
+        </div>}
+      </>}
+    </div>}
+  </section>
 }
