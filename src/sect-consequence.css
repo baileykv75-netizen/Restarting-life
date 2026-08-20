@@ -1,0 +1,40 @@
+.sect-consequence-section { margin-top: 18px; padding: 16px; border: 1px solid rgba(181,201,188,.16); border-radius: 12px; background: rgba(255,255,255,.018); }
+.sect-consequence-heading, .mastership-heading, .violation-record > div { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.sect-consequence-heading .subsection-title { margin: 0 0 4px; }
+.sect-consequence-heading h3 { margin: 0; color: #ded9ce; font-size: 1rem; }
+.sect-consequence-heading > span, .mastership-heading em { color: #bcae98; font-size: .72rem; font-style: normal; font-weight: 700; }
+.mastership-card, .discipline-card, .betrayal-card, .former-sect-card, .violation-history { margin-top: 13px; padding: 13px; border: 1px solid rgba(181,201,188,.14); border-radius: 10px; background: rgba(0,0,0,.1); }
+.mastership-card > .subsection-title, .discipline-card > .subsection-title, .betrayal-card > .subsection-title, .violation-history > .subsection-title { margin: 0 0 8px; }
+.mastership-heading strong, .mastership-heading span { display: block; }
+.mastership-heading strong { color: #ded9ce; font-size: .92rem; }
+.mastership-heading span { margin-top: 3px; color: #8f9993; font-size: .7rem; }
+.mastership-card p, .mentor-offer p, .discipline-card p, .betrayal-card p, .former-sect-card p, .violation-record p { color: #aaa9a0; font-size: .79rem; line-height: 1.6; }
+.mastership-benefit { padding: 8px 10px; border-radius: 8px; background: rgba(181,201,188,.04); }
+.mentor-offer-list, .discipline-action-list, .violation-history { display: grid; gap: 10px; }
+.mentor-offer { padding: 12px; border: 1px solid rgba(181,201,188,.14); border-radius: 9px; }
+.mentor-offer.unavailable { opacity: .74; border-style: dashed; }
+.mentor-missing { display: grid; gap: 4px; margin: 9px 0; }
+.mentor-missing span { color: #9f8f82; font-size: .71rem; }
+.discipline-action { padding: 11px; border: 1px solid rgba(181,201,188,.13); border-radius: 9px; background: rgba(255,255,255,.012); }
+.discipline-action.heavy, .betrayal-card { border-color: rgba(173,104,94,.28); background: rgba(118,54,49,.055); }
+.discipline-action > div { display: flex; justify-content: space-between; gap: 10px; }
+.discipline-action strong { color: #d8d3c8; font-size: .84rem; }
+.discipline-action span { color: #b98f87; font-size: .68rem; }
+.discipline-action small { color: #8f9993; }
+.danger-button { border: 1px solid rgba(185,106,95,.42); border-radius: 8px; padding: 9px 13px; background: rgba(116,45,39,.22); color: #d9b0a8; cursor: pointer; }
+.danger-button:hover { background: rgba(116,45,39,.32); }
+.betray-confirm { padding: 11px; border-radius: 9px; background: rgba(86,38,34,.22); }
+.betray-confirm > strong { color: #d5aaa2; }
+.betray-confirm > div { display: flex; gap: 10px; align-items: center; }
+.former-sect-card { border-color: rgba(154,143,127,.25); }
+.former-sect-card > strong { color: #d2cbc0; }
+.violation-record { padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,.018); }
+.violation-record strong { color: #cfc8bd; font-size: .78rem; }
+.violation-record span { color: #8f9993; font-size: .68rem; }
+.violation-record p { margin: 5px 0 0; }
+.former-membership-summary { border-color: rgba(154,143,127,.25); }
+@media (max-width: 760px) {
+  .sect-consequence-heading, .mastership-heading, .discipline-action > div, .violation-record > div { display: block; }
+  .sect-consequence-heading > span, .mastership-heading em, .discipline-action span, .violation-record span { display: block; margin-top: 5px; }
+  .betray-confirm > div { flex-wrap: wrap; }
+}

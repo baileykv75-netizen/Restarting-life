@@ -1,7 +1,7 @@
 import type { BeastCombatContextTag, BeastEncounterVariant } from './beast'
 import type { CombatAction, CombatOpponentId, CombatSource } from './combat'
 import type { GameState, LifeStage, LocationKnowledgeStatus } from './game'
-import type { SectAssignmentId } from './sect'
+import type { QingyunMasterNpcId, SectAssignmentId, SectViolationId } from './sect'
 import type { StrongBeastTerritoryId } from './territory'
 
 export type GameFlagValue = GameState['flags'][string]
@@ -35,6 +35,10 @@ export type GameAction =
   | { type: 'PERFORM_SECT_ASSIGNMENT' }
   | { type: 'SETTLE_SECT_ASSIGNMENT' }
   | { type: 'ABANDON_SECT_ASSIGNMENT' }
+  | { type: 'ACCEPT_QINGYUN_MASTER'; masterNpcId: QingyunMasterNpcId }
+  | { type: 'RECEIVE_MASTER_GUIDANCE' }
+  | { type: 'COMMIT_SECT_VIOLATION'; violationId: SectViolationId }
+  | { type: 'BETRAY_QINGYUN_SECT' }
   | { type: 'COMBAT_ACTION'; action: CombatAction }
   | { type: 'CLAIM_BEAST_LOOT'; itemId: string; quantity: number }
   | { type: 'ABANDON_BEAST_LOOT' }

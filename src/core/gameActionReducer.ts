@@ -10,6 +10,12 @@ import {
   resolvePerformSectAssignment,
   resolveSettleSectAssignment,
 } from './sectAssignmentEngine'
+import {
+  resolveAcceptQingyunMaster,
+  resolveBetrayQingyunSect,
+  resolveCommitSectViolation,
+  resolveReceiveMasterGuidance,
+} from './sectConsequenceEngine'
 import { resolveJoinQingyunSect, resolveReceiveQingyunBasicTeaching } from './sectMembershipEngine'
 import { resolveStrongBeastTerritoryEntry } from './strongBeastTerritoryEngine'
 import { resolveSublocationInitialization } from './sublocationEngine'
@@ -91,6 +97,22 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     }
     case 'ABANDON_SECT_ASSIGNMENT': {
       const result = resolveAbandonSectAssignment(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'ACCEPT_QINGYUN_MASTER': {
+      const result = resolveAcceptQingyunMaster(state, action.masterNpcId)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'RECEIVE_MASTER_GUIDANCE': {
+      const result = resolveReceiveMasterGuidance(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'COMMIT_SECT_VIOLATION': {
+      const result = resolveCommitSectViolation(state, action.violationId)
+      return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'BETRAY_QINGYUN_SECT': {
+      const result = resolveBetrayQingyunSect(state)
       return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'COMBAT_ACTION': {

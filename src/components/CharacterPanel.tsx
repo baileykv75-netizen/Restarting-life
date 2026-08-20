@@ -7,7 +7,8 @@ import { getEffectiveStat, getRealmStatBonus } from '../core/effectiveStats'
 import { getEquippedItemId, EQUIPMENT_SLOTS } from '../core/equipmentEngine'
 import { getCharacterDisplayName } from '../core/nameEngine'
 import { getSectContribution } from '../core/sectAssignmentEngine'
-import { formatQingyunJoinPath, formatSectRank } from '../core/sectMembershipEngine'
+import { formatQingyunMasterName } from '../core/sectConsequenceEngine'
+import { formatQingyunJoinPath, formatSectExitReason, formatSectRank, isActiveQingyunMember } from '../core/sectMembershipEngine'
 import type { StatModifiers } from '../types/content'
 import type { EquipmentSlot } from '../types/equipment'
 import type { GameState } from '../types/game'
@@ -41,6 +42,7 @@ export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
   const effectiveSpiritSense = getEffectiveStat(state, 'spiritSense')
   const displayName = getCharacterDisplayName(state.identity.name, state.runSeed)
   const qingyunMembership = state.sectMembership?.sectId === 'qingyun' ? state.sectMembership : null
+  const activeQingyun = isActiveQingyunMember(state)
 
   return (
     <aside className="panel character-panel" aria-label="人物状态">
@@ -61,9 +63,11 @@ export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
       {qingyunMembership && <div className="subsection sect-identity-subsection">
         <p className="subsection-title">宗门身份</p>
         <div className="trait-card">
-          <strong>青云宗 · {formatSectRank(qingyunMembership.rank)}</strong>
+          <strong>{activeQingyun ? '青云宗' : '曾属青云宗'} · {formatSectRank(qingyunMembership.rank)}</strong>
           <p>{formatQingyunJoinPath(qingyunMembership.joinPath)}入门 · 第 {qingyunMembership.joinedDay} 日登记。</p>
-          <div className="trait-effects"><span>宗门贡献 {getSectContribution(state)}</span></div>
+          {!activeQingyun && qingyunMembership.exitReason && <p>{formatSectExitReason(qingyunMembership.exitReason)} · 第 {qingyunMembership.endedDay ?? state.worldDay} 日。</p>}
+          {qingyunMembership.mastership && <p>{qingyunMembership.mastership.status === 'active' ? '师父' : '原师父'} · {formatQingyunMasterName(qingyunMembership.mastership.masterNpcId)}</p>}
+          <div className="trait-effects"><span>宗门贡献 {getSectContribution(state)}</span>{(qingyunMembership.violations?.length ?? 0) > 0 && <span>正式违规 {qingyunMembership.violations!.length} 条</span>}</div>
         </div>
       </div>}
 

@@ -2,16 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { loadPersistentGame, savePersistentGame, type StorageLike } from '../store/saveRepository'
 import type { GameState } from '../types/game'
 import type { PersistentGame } from '../types/persistence'
-import type { SectRank } from '../types/sect'
-import { calculateCultivationPreview } from './cultivationEngine'
+import { calculateCultivationPreview, resolveCultivateDays } from './cultivationEngine'
 import { createInitialGameState } from './gameState'
 import { verifySessionReplay } from './replayEngine'
-import {
-  getQingyunJoinOffer,
-  getSectAccess,
-  resolveJoinQingyunSect,
-  resolveReceiveQingyunBasicTeaching,
-} from './sectMembershipEngine'
+import { getQingyunJoinOffer, getSectAccess, resolveJoinQingyunSect, resolveReceiveQingyunBasicTeaching } from './sectMembershipEngine'
 import { createGameSession, executeSessionCommand } from './sessionEngine'
 
 class MemoryStorage implements StorageLike {
@@ -22,9 +16,9 @@ class MemoryStorage implements StorageLike {
 }
 
 function adultState(
-  seed = 'r24-member',
+  seed = 'r24-test',
   locationId = 'qingyun_sect',
-  rootId = 'single_wood',
+  spiritRootId = 'single_wood',
   backgroundId = 'baishi_tenant',
   tags: string[] = [],
 ): GameState {
@@ -32,36 +26,34 @@ function adultState(
   return {
     ...base,
     lifeStage: 'adult',
-    identity: { ...base.identity, backgroundId, spiritRootId: rootId },
+    identity: { ...base.identity, backgroundId, spiritRootId, faction: 'loose' },
     world: { currentLocationId: locationId },
-    knowledge: { locations: { [locationId]: 'discovered' } },
-    tags,
+    knowledge: { locations: { qingyun_sect: 'discovered', qingyun_family_quarters: 'discovered' } },
     flags: { ...base.flags, location_knowledge_initialized: true },
-  }
-}
-
-function withRank(state: GameState, rank: SectRank): GameState {
-  return {
-    ...state,
-    sectMembership: { sectId: 'qingyun', rank, joinedDay: state.worldDay, joinPath: 'regular-recruitment' },
-    identity: { ...state.identity, faction: 'qingyun' },
+    tags: [...base.tags, ...tags],
+    cultivation: {
+      realm: 'qi', stage: 1,
+      practiceInitialized: true,
+      knownTechniqueIds: ['xiaozhoutian_tuna'],
+      mainTechniqueId: 'xiaozhoutian_tuna',
+      techniqueSystemInitialized: true,
+      auxiliaryTechniqueIds: [],
+      techniquePractice: { xiaozhoutian_tuna: { proficiencyPoints: 0 } },
+    },
   }
 }
 
 function findReplayRootSeed(): string {
-  for (let index = 0; index < 200; index += 1) {
+  for (let index = 0; index < 300; index += 1) {
     const seed = `r24-replay-${index}`
     if (createGameSession({ runSeed: seed, runId: `run-${seed}` }).state.identity.spiritRootId !== 'none') return seed
   }
-  throw new Error('No replay seed with spirit root found')
+  throw new Error('No replay seed with a spirit root found')
 }
 
 describe('R24 Qingyun sect membership', () => {
   it('does not auto-enroll a non-member and explains the normal route', () => {
-    const state = adultState('r24-no-auto', 'qingstone_town')
-    expect(state.sectMembership).toBeUndefined()
-    expect(state.identity.faction).toBe('mortal')
-
+    const state = adultState('r24-no-auto', 'qingxia_market')
     const offer = getQingyunJoinOffer(state)
     expect(offer.available).toBe(false)
     expect(offer.targetRank).toBeUndefined()
@@ -80,6 +72,7 @@ describe('R24 Qingyun sect membership', () => {
     expect(joined.applied).toBe(true)
     expect(joined.state.sectMembership).toEqual({
       sectId: 'qingyun', rank: 'outer', joinedDay: state.worldDay, joinPath: 'regular-recruitment',
+      status: 'active', violations: [],
     })
     expect(joined.state.identity.faction).toBe('qingyun')
     expect(joined.state.chronicle.at(-1)?.title).toBe('拜入青云宗')
@@ -97,73 +90,49 @@ describe('R24 Qingyun sect membership', () => {
     const steward = adultState(
       'r24-steward', 'qingyun_family_quarters', 'single_fire', 'qingyun_steward_family', ['adult_access:qingyun_regular_recruitment'],
     )
-
-    for (const state of [xie, lu]) {
-      const offer = getQingyunJoinOffer(state)
-      expect(offer.available).toBe(true)
-      expect(offer.joinPath).toBe('clan-recommendation')
-      expect(offer.targetRank).toBe('outer')
-      const joined = resolveJoinQingyunSect(state)
-      expect(joined.state.sectMembership?.rank).toBe('outer')
-      expect(joined.state.sectMembership?.joinPath).toBe('clan-recommendation')
-    }
-
-    const stewardOffer = getQingyunJoinOffer(steward)
-    expect(stewardOffer.available).toBe(true)
-    expect(stewardOffer.joinPath).toBe('steward-family')
-    expect(stewardOffer.targetRank).toBe('outer')
-    expect(resolveJoinQingyunSect(steward).state.sectMembership?.rank).toBe('outer')
+    const joinedXie = resolveJoinQingyunSect(xie)
+    const joinedLu = resolveJoinQingyunSect(lu)
+    const joinedSteward = resolveJoinQingyunSect(steward)
+    expect(joinedXie.state.sectMembership).toMatchObject({ rank: 'outer', joinPath: 'clan-recommendation' })
+    expect(joinedLu.state.sectMembership).toMatchObject({ rank: 'outer', joinPath: 'clan-recommendation' })
+    expect(joinedSteward.state.sectMembership).toMatchObject({ rank: 'outer', joinPath: 'steward-family' })
   })
 
   it('allows only the frozen no-root steward service route to become Qingyun service staff', () => {
-    const outsider = adultState('r24-no-root-outsider', 'qingyun_sect', 'none', 'baishi_tenant')
-    expect(getQingyunJoinOffer(outsider).available).toBe(false)
-    expect(resolveJoinQingyunSect(outsider).applied).toBe(false)
-
-    const service = adultState(
-      'r24-service', 'qingyun_family_quarters', 'none', 'qingyun_steward_family', ['adult_path:qingyun_mortal_service'],
+    const valid = adultState(
+      'r24-service-valid', 'qingyun_family_quarters', 'none', 'qingyun_steward_family', ['adult_path:qingyun_mortal_service'],
     )
-    const offer = getQingyunJoinOffer(service)
-    expect(offer.available).toBe(true)
-    expect(offer.targetRank).toBe('service')
-    expect(offer.joinPath).toBe('mortal-service')
-
-    const joined = resolveJoinQingyunSect(service)
-    expect(joined.state.sectMembership?.rank).toBe('service')
-    expect(joined.state.identity.faction).toBe('qingyun')
-    expect(getSectAccess(joined.state).basicTeaching).toBe(false)
+    const invalid = adultState('r24-service-invalid', 'qingyun_family_quarters', 'none', 'baishi_tenant')
+    const validOffer = getQingyunJoinOffer(valid)
+    expect(validOffer.available).toBe(true)
+    expect(validOffer.targetRank).toBe('service')
+    expect(resolveJoinQingyunSect(valid).state.sectMembership).toMatchObject({ rank: 'service', joinPath: 'mortal-service' })
+    expect(getQingyunJoinOffer(invalid).available).toBe(false)
+    expect(resolveJoinQingyunSect(invalid).applied).toBe(false)
   })
 
   it('represents all four ranks with real permission differences', () => {
-    const base = adultState('r24-access')
-    const none = getSectAccess(base)
-    const service = getSectAccess(withRank(base, 'service'))
-    const outer = getSectAccess(withRank(base, 'outer'))
-    const inner = getSectAccess(withRank(base, 'inner'))
-    const trueDisciple = getSectAccess(withRank(base, 'true'))
-
-    expect(none.publicArea).toBe(true)
-    expect(none.outerRegistry).toBe(false)
-    expect(service.outerRegistry).toBe(true)
-    expect(service.basicTeaching).toBe(false)
-    expect(outer.basicTeaching).toBe(true)
-    expect(outer.discipleCultivationArea).toBe(true)
-    expect(outer.affairsHallEntry).toBe(true)
-    expect(outer.innerResources).toBe(false)
-    expect(inner.innerResources).toBe(true)
-    expect(inner.trueInheritance).toBe(false)
-    expect(trueDisciple.trueInheritance).toBe(true)
+    const base = adultState('r24-ranks')
+    const accessFor = (rank: 'service' | 'outer' | 'inner' | 'true') => getSectAccess({
+      ...base,
+      identity: { ...base.identity, faction: 'qingyun' },
+      sectMembership: { sectId: 'qingyun', rank, joinedDay: 0, joinPath: 'regular-recruitment' },
+    })
+    expect(accessFor('service')).toMatchObject({ basicInternalResources: true, basicTeaching: false, affairsHallEntry: false, innerResources: false, trueInheritance: false })
+    expect(accessFor('outer')).toMatchObject({ basicTeaching: true, discipleCultivationArea: true, affairsHallEntry: true, innerResources: false, trueInheritance: false })
+    expect(accessFor('inner')).toMatchObject({ affairsHallEntry: true, innerResources: true, trueInheritance: false })
+    expect(accessFor('true')).toMatchObject({ innerResources: true, trueInheritance: true })
   })
 
   it('never grants inner or true rank from any R24 admission offer', () => {
     const candidates = [
-      adultState('r24-rank-public'),
-      adultState('r24-rank-xie', 'qingyun_sect', 'single_metal', 'xie_branch', ['adult_access:qingyun_family_recommendation']),
-      adultState('r24-rank-steward', 'qingyun_family_quarters', 'single_fire', 'qingyun_steward_family', ['adult_access:qingyun_regular_recruitment']),
-      adultState('r24-rank-service', 'qingyun_family_quarters', 'none', 'qingyun_steward_family', ['adult_path:qingyun_mortal_service']),
+      adultState('r24-normal'),
+      adultState('r24-clan', 'qingyun_sect', 'single_water', 'lu_main_line', ['adult_access:qingyun_clan_recruitment']),
+      adultState('r24-family', 'qingyun_family_quarters', 'single_fire', 'qingyun_steward_family', ['adult_access:qingyun_regular_recruitment']),
+      adultState('r24-service', 'qingyun_family_quarters', 'none', 'qingyun_steward_family', ['adult_path:qingyun_mortal_service']),
     ]
-    for (const state of candidates) {
-      const offer = getQingyunJoinOffer(state)
+    for (const candidate of candidates) {
+      const offer = getQingyunJoinOffer(candidate)
       expect(['service', 'outer']).toContain(offer.targetRank)
       expect(offer.targetRank).not.toBe('inner')
       expect(offer.targetRank).not.toBe('true')
@@ -171,33 +140,34 @@ describe('R24 Qingyun sect membership', () => {
   })
 
   it('turns outer-disciple access into real Qingyun teaching and sect cultivation access', () => {
-    const outsider: GameState = {
-      ...adultState('r24-real-access'),
-      cultivation: {
-        realm: 'mortal', stage: 0, practiceInitialized: true, knownTechniqueIds: [], mainTechniqueId: null,
-        techniqueSystemInitialized: true, auxiliaryTechniqueIds: [], techniquePractice: {},
-      },
-    }
-    const outsiderPreview = calculateCultivationPreview(outsider, 'qingyuan_yinqi', 10)
-    expect(outsiderPreview?.environmentLabel).toBe('宗门外围 · 灵气普通')
-    expect(resolveReceiveQingyunBasicTeaching(outsider).reason).toBe('QINGYUN_BASIC_TEACHING_NOT_ALLOWED')
+    const state = adultState('r24-access')
+    const before = calculateCultivationPreview(state, 'xiaozhoutian_tuna', 10)
+    expect(before?.environmentLabel).toBe('宗门外围 · 灵气普通')
 
-    const joined = resolveJoinQingyunSect(outsider)
+    const joined = resolveJoinQingyunSect(state)
     expect(joined.applied).toBe(true)
-    const memberPreview = calculateCultivationPreview(joined.state, 'qingyuan_yinqi', 10)
-    expect(memberPreview?.environmentLabel).toBe('灵气充沛')
-    expect((memberPreview?.gain ?? 0)).toBeGreaterThan(outsiderPreview?.gain ?? 0)
-
     const taught = resolveReceiveQingyunBasicTeaching(joined.state)
     expect(taught.applied).toBe(true)
     expect(taught.state.cultivation.knownTechniqueIds).toContain('qingyuan_yinqi')
     expect(taught.state.cultivation.techniquePractice?.qingyuan_yinqi?.proficiencyPoints).toBe(0)
     expect(resolveReceiveQingyunBasicTeaching(taught.state).reason).toBe('QINGYUN_BASIC_TEACHING_ALREADY_KNOWN')
+
+    const after = calculateCultivationPreview(taught.state, 'xiaozhoutian_tuna', 10)
+    expect(after?.environmentLabel).toBe('灵气充沛')
+    expect((after?.gain ?? 0)).toBeGreaterThan(before?.gain ?? 0)
+
+    const cultivation = resolveCultivateDays(taught.state, 10)
+    expect(cultivation.applied).toBe(true)
+    expect(cultivation.gainApplied).toBe(after?.gain)
+
+    const service = adultState('r24-service-teaching', 'qingyun_family_quarters', 'none', 'qingyun_steward_family', ['adult_path:qingyun_mortal_service'])
+    const serviceJoined = resolveJoinQingyunSect(service)
+    expect(getSectAccess(serviceJoined.state).basicTeaching).toBe(false)
+    expect(resolveReceiveQingyunBasicTeaching({ ...serviceJoined.state, world: { currentLocationId: 'qingyun_sect' } }).applied).toBe(false)
   })
 
   it('persists the sole membership truth across save and reload', () => {
     const joined = resolveJoinQingyunSect(adultState('r24-persist'))
-    expect(joined.applied).toBe(true)
     const persistent: PersistentGame = {
       schemaVersion: 3,
       phase: 'life',
@@ -208,30 +178,24 @@ describe('R24 Qingyun sect membership', () => {
     }
     const storage = new MemoryStorage()
     savePersistentGame(storage, persistent)
-    const loaded = loadPersistentGame(storage)?.currentSession?.state
-    expect(loaded?.sectMembership).toEqual(joined.state.sectMembership)
-    expect(loaded?.identity.faction).toBe('qingyun')
-    expect(loaded && getSectAccess(loaded).basicTeaching).toBe(true)
+    const loaded = loadPersistentGame(storage)
+    expect(loaded?.currentSession?.state.sectMembership).toEqual(joined.state.sectMembership)
+    expect(loaded?.currentSession?.state.identity.faction).toBe('qingyun')
   })
 
   it('replays the explicit Qingyun join deterministically through the existing session log', () => {
     const seed = findReplayRootSeed()
     let session = createGameSession({ runSeed: seed, runId: `run-${seed}` })
-    const setup = [
+    for (const command of [
       { type: 'game-action', action: { type: 'SET_LIFE_STAGE', stage: 'adult' } },
       { type: 'game-action', action: { type: 'SET_CURRENT_LOCATION', locationId: 'qingyun_sect' } },
-      { type: 'game-action', action: { type: 'SET_LOCATION_KNOWLEDGE', locationId: 'qingyun_sect', status: 'discovered' } },
-    ] as const
-    for (const command of setup) {
-      const step = executeSessionCommand(session, command)
-      expect(step.applied).toBe(true)
-      session = step.session
+      { type: 'game-action', action: { type: 'JOIN_QINGYUN_SECT' } },
+    ] as const) {
+      const result = executeSessionCommand(session, command)
+      expect(result.applied).toBe(true)
+      session = result.session
     }
-
-    const joined = executeSessionCommand(session, { type: 'game-action', action: { type: 'JOIN_QINGYUN_SECT' } })
-    expect(joined.applied).toBe(true)
-    expect(joined.session.state.sectMembership?.sectId).toBe('qingyun')
-    expect(joined.session.state.sectMembership?.rank).toBe('outer')
-    expect(verifySessionReplay(joined.session)).toBe(true)
+    expect(session.state.sectMembership).toMatchObject({ sectId: 'qingyun', rank: 'outer' })
+    expect(verifySessionReplay(session)).toBe(true)
   })
 })

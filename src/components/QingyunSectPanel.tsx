@@ -1,4 +1,4 @@
-import { getQingyunJoinOffer, getSectAccess, formatQingyunJoinPath, formatSectRank } from '../core/sectMembershipEngine'
+import { getQingyunJoinOffer, getSectAccess, formatQingyunJoinPath, formatSectRank, isActiveQingyunMember, isFormerQingyunMember } from '../core/sectMembershipEngine'
 import type { GameState } from '../types/game'
 
 interface QingyunSectPanelProps {
@@ -14,6 +14,8 @@ function AccessRow({ enabled, label, note }: { enabled: boolean; label: string; 
 export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: QingyunSectPanelProps) {
   const locationId = state.world.currentLocationId
   const membership = state.sectMembership?.sectId === 'qingyun' ? state.sectMembership : null
+  const activeMembership = isActiveQingyunMember(state) ? membership : null
+  const formerMembership = isFormerQingyunMember(state) ? membership : null
   const offer = getQingyunJoinOffer(state)
   const access = getSectAccess(state)
   const knownQingyuan = (state.cultivation.knownTechniqueIds ?? []).includes('qingyuan_yinqi')
@@ -21,7 +23,7 @@ export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: Qing
   if (!canShow) return null
 
   return <div className="qingyun-sect-section">
-    <div className="sect-heading"><div><p className="subsection-title">青云宗身份</p><h3>{membership ? `${formatSectRank(membership.rank)} · 已在册` : '尚未入宗'}</h3></div>{membership && <span>{formatQingyunJoinPath(membership.joinPath)}</span>}</div>
+    <div className="sect-heading"><div><p className="subsection-title">青云宗身份</p><h3>{activeMembership ? `${formatSectRank(activeMembership.rank)} · 已在册` : formerMembership ? '旧名籍 · 已结束' : '尚未入宗'}</h3></div>{membership && <span>{formatQingyunJoinPath(membership.joinPath)}</span>}</div>
 
     {!membership && <div className="sect-join-card">
       <strong>{offer.routeLabel}</strong>
@@ -30,7 +32,12 @@ export function QingyunSectPanel({ state, onJoin, onReceiveBasicTeaching }: Qing
       {offer.available && offer.targetRank && <button className="primary-button" onClick={onJoin} type="button">登记入宗 · {formatSectRank(offer.targetRank)}</button>}
     </div>}
 
-    {membership && <>
+    {formerMembership && <div className="sect-join-card former-membership-summary">
+      <strong>你本世的青云宗名籍已经结束。</strong>
+      <p>旧档仍保留，但它不再给予传功堂、事务堂、弟子修炼区或更高层级资源权限。</p>
+    </div>}
+
+    {activeMembership && <>
       <div className="sect-access-list">
         <AccessRow enabled={access.outerRegistry} label="外院" note="查验名籍、身份与宗门内部登记。" />
         <AccessRow enabled={access.serviceArea} label="杂役与外围区域" note="宗门日常运转所需的外围区域。" />

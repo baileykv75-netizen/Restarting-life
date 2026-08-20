@@ -186,6 +186,11 @@ function applyR16Progress(state: GameState, gain: number): { state: GameState; e
   return { state: next, enteredQi }
 }
 
+export function applyFormalCultivationGain(state: GameState, gain: number): GameState {
+  if (!Number.isFinite(gain) || gain <= 0 || state.status !== 'playing') return state
+  return applyR16Progress(state, Math.floor(gain)).state
+}
+
 function buildR16Outcome(before: GameState, after: GameState, preview: CultivationPreview, proficiencyBefore?: string, proficiencyAfter?: string): ResolvedOutcome {
   const beforeRealm = formatCultivationRealm(before.cultivation.realm, before.cultivation.stage); const afterRealm = formatCultivationRealm(after.cultivation.realm, after.cultivation.stage)
   const changes: StateChange[] = [{ label: '时间', value: `+${formatDuration(preview.days)}`, tone: 'neutral' }]
