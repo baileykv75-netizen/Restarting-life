@@ -28,7 +28,7 @@ import type { PlayerAction, SessionCommand } from './types/command'
 import type { ExplorationDuration } from './types/exploration'
 import type { GameAction } from './types/gameAction'
 import type { PersistentGame, ResolvedOutcome } from './types/persistence'
-import type { SectAssignmentId } from './types/sect'
+import type { QingyunMasterNpcId, SectAssignmentId, SectViolationId } from './types/sect'
 import type { StrongBeastTerritoryId } from './types/territory'
 import { chooseBirthAndSave, clearGame, commandAndSave, loadGame, startAndSaveRun } from './store/browserGameStore'
 import './experience-cleanup.css'
@@ -37,6 +37,7 @@ import './childhood.css'
 import './adult-entry.css'
 import './world-map.css'
 import './sect-assignment.css'
+import './sect-consequence.css'
 import './secret-realm.css'
 import './inventory.css'
 import './beast-loot.css'
@@ -57,6 +58,15 @@ function sectAssignmentError(reason?: string): string {
   if (reason === 'SECT_ASSIGNMENT_OBJECTIVE_INCOMPLETE') return '这桩事务的目标还没有真正完成。'
   if (reason === 'SECT_ASSIGNMENT_WRONG_LOCATION') return '这里不是这桩事务要求前往的地点。'
   return reason ?? '这桩事务现在无法继续。'
+}
+function sectConsequenceError(reason?: string): string {
+  if (reason === 'QINGYUN_MENTOR_CONDITIONS_UNMET') return '这位长老现在还没有正式收你为徒的理由。把面板里缺的条件真正做出来再来。'
+  if (reason === 'CULTIVATION_NOT_INITIALIZED' || reason === 'NO_MAIN_TECHNIQUE') return '当面指点需要你已经有一门正在实际修炼的主修功法。'
+  if (reason === 'MASTER_GUIDANCE_ALREADY_USED') return '这次正式当面指点本世已经用过。'
+  if (reason === 'SECT_VIOLATION_REQUIRES_QINGYUN') return '这条违规指的是宗门内部越权行为，需要本人在青云宗。'
+  if (reason === 'NO_KNOWN_RESTRICTED_EVIL_TECHNIQUE') return '你目前并不会宗门明令限制的邪道功法。'
+  if (reason === 'BETRAYAL_REQUIRES_ACTIVE_QINGYUN_MEMBER') return '你现在已经不是在册青云弟子。'
+  return reason ?? '当前无法处理这件宗门事务。'
 }
 const initialViewState = readInitialGame()
 
@@ -92,11 +102,7 @@ function App() {
 
       if (workingState && !workingState.inventory) {
         const initializedInventory = commandAndSave(window.localStorage, working, { type: 'initialize-inventory' })
-        if (!initializedInventory.applied) {
-          if (changed) setGame(working)
-          setNotice(initializedInventory.reason ?? '本世背包无法初始化')
-          return
-        }
+        if (!initializedInventory.applied) { if (changed) setGame(working); setNotice(initializedInventory.reason ?? '本世背包无法初始化'); return }
         working = initializedInventory.persistent
         workingState = working.currentSession?.state
         changed = true
@@ -104,11 +110,7 @@ function App() {
 
       if (workingState?.inventory && !workingState.equipment) {
         const initializedEquipment = commandAndSave(window.localStorage, working, { type: 'initialize-equipment' })
-        if (!initializedEquipment.applied) {
-          if (changed) setGame(working)
-          setNotice(initializedEquipment.reason ?? '本世装备状态无法初始化')
-          return
-        }
+        if (!initializedEquipment.applied) { if (changed) setGame(working); setNotice(initializedEquipment.reason ?? '本世装备状态无法初始化'); return }
         working = initializedEquipment.persistent
         workingState = working.currentSession?.state
         changed = true
@@ -116,11 +118,7 @@ function App() {
 
       if (workingState?.adultEntry?.resolved && !workingState.cultivation.practiceInitialized) {
         const initializedCultivation = commandAndSave(window.localStorage, working, { type: 'initialize-cultivation' })
-        if (!initializedCultivation.applied) {
-          if (changed) setGame(working)
-          setNotice(initializedCultivation.reason ?? '本世修炼状态无法初始化')
-          return
-        }
+        if (!initializedCultivation.applied) { if (changed) setGame(working); setNotice(initializedCultivation.reason ?? '本世修炼状态无法初始化'); return }
         working = initializedCultivation.persistent
         workingState = working.currentSession?.state
         changed = true
@@ -128,19 +126,12 @@ function App() {
 
       if (workingState?.adultEntry?.resolved && workingState.cultivation.practiceInitialized && !workingState.cultivation.techniqueSystemInitialized) {
         const initializedTechniques = commandAndSave(window.localStorage, working, { type: 'initialize-technique-system' })
-        if (!initializedTechniques.applied) {
-          if (changed) setGame(working)
-          setNotice(initializedTechniques.reason ?? '本世功法实践状态无法初始化')
-          return
-        }
+        if (!initializedTechniques.applied) { if (changed) setGame(working); setNotice(initializedTechniques.reason ?? '本世功法实践状态无法初始化'); return }
         working = initializedTechniques.persistent
         changed = true
       }
 
-      if (changed) {
-        setGame(working)
-        setNotice(null)
-      }
+      if (changed) { setGame(working); setNotice(null) }
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : '本世运行状态无法初始化')
     }
@@ -156,20 +147,17 @@ function App() {
       if (currentState && !currentState.sublocations) {
         const initialized = commandAndSave(window.localStorage, working, { type: 'game-action', action: { type: 'INITIALIZE_SUBLOCATIONS' } })
         if (!initialized.applied) { setNotice(initialized.reason ?? '本世子地点无法初始化'); return }
-        working = initialized.persistent
-        currentState = working.currentSession?.state
+        working = initialized.persistent; currentState = working.currentSession?.state
       }
       if (currentState && !currentState.secretRealm) {
         const initializedRealm = commandAndSave(window.localStorage, working, { type: 'initialize-secret-realm' })
         if (!initializedRealm.applied) { setNotice(initializedRealm.reason ?? '本世秘境状态无法初始化'); return }
-        working = initializedRealm.persistent
-        currentState = working.currentSession?.state
+        working = initializedRealm.persistent; currentState = working.currentSession?.state
       }
       if (currentState && !currentState.inventory) {
         const initializedInventory = commandAndSave(window.localStorage, working, { type: 'initialize-inventory' })
         if (!initializedInventory.applied) { setNotice(initializedInventory.reason ?? '本世背包无法初始化'); return }
-        working = initializedInventory.persistent
-        currentState = working.currentSession?.state
+        working = initializedInventory.persistent; currentState = working.currentSession?.state
       }
       if (currentState && currentState.flags.wilderness_encounters_initialized !== true) {
         const initializedEncounters = commandAndSave(window.localStorage, working, { type: 'game-action', action: { type: 'SET_FLAG', key: 'wilderness_encounters_initialized', value: true } })
@@ -178,69 +166,58 @@ function App() {
       }
       const result = commandAndSave(window.localStorage, working, { type: 'explore-region', days })
       if (!result.applied) { setNotice(result.reason ?? '当前无法探索'); return }
-      setGame(result.persistent)
-      setNotice(null)
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '本次探索未能保存')
-    }
+      setGame(result.persistent); setNotice(null)
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '本次探索未能保存') }
   }
   function persistEnterTerritory(territoryId: StrongBeastTerritoryId) {
     try {
       const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'ENTER_BEAST_TERRITORY', territoryId } })
       if (!result.applied) {
-        const message = result.reason === 'COLD_POOL_TERRITORY_CLEARED' || result.reason === 'AZURE_WOLF_TERRITORY_CLEARED'
-          ? '这处领地已经失去原先的强大个体。'
-          : result.reason === 'TERRITORY_NOT_DISCOVERED'
-            ? '你掌握的线索还不足以找到这处领地。'
-            : result.reason ?? '现在无法进入这处领地。'
-        setNotice(message)
-        return
+        const message = result.reason === 'COLD_POOL_TERRITORY_CLEARED' || result.reason === 'AZURE_WOLF_TERRITORY_CLEARED' ? '这处领地已经失去原先的强大个体。' : result.reason === 'TERRITORY_NOT_DISCOVERED' ? '你掌握的线索还不足以找到这处领地。' : result.reason ?? '现在无法进入这处领地。'
+        setNotice(message); return
       }
       const nextState = result.persistent.currentSession?.state
       setGame(result.persistent)
-      if (territoryId === 'lingxi_cold_pool' && nextState?.flags.cold_pool_checked_empty === true && !nextState.combat) {
-        setNotice('你沿寒潭边缘和浅水处查了一遍。这里确实危险，但没有发现仍在活动的大型妖兽。')
-      } else {
-        setNotice(null)
-      }
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '进入领地时状态未能保存')
-    }
+      if (territoryId === 'lingxi_cold_pool' && nextState?.flags.cold_pool_checked_empty === true && !nextState.combat) setNotice('你沿寒潭边缘和浅水处查了一遍。这里确实危险，但没有发现仍在活动的大型妖兽。')
+      else setNotice(null)
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '进入领地时状态未能保存') }
   }
   function persistJoinQingyunSect() {
     try {
       const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'JOIN_QINGYUN_SECT' } })
       if (!result.applied) { setNotice(result.reason ?? '当前无法办理青云宗入门登记'); return }
-      setGame(result.persistent)
-      setNotice('宗门名籍已经登记。身份与权限会从现在起按正式宗门成员处理。')
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '宗门身份未能保存')
-    }
+      setGame(result.persistent); setNotice('宗门名籍已经登记。身份与权限会从现在起按正式宗门成员处理。')
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '宗门身份未能保存') }
   }
   function persistReceiveQingyunBasicTeaching() {
     try {
       const result = commandAndSave(window.localStorage, game, { type: 'game-action', action: { type: 'RECEIVE_QINGYUN_BASIC_TEACHING' } })
       if (!result.applied) { setNotice(result.reason ?? '当前无法领取基础传功'); return }
-      setGame(result.persistent)
-      setNotice('你已经取得《青元引气诀》的基础传授，可以在修炼面板中正式使用。')
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '基础传功未能保存')
-    }
+      setGame(result.persistent); setNotice('你已经取得《青元引气诀》的基础传授，可以在修炼面板中正式使用。')
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '基础传功未能保存') }
   }
   function persistSectGameAction(action: GameAction, successNotice: string) {
     try {
       const result = commandAndSave(window.localStorage, game, { type: 'game-action', action })
       if (!result.applied) { setNotice(sectAssignmentError(result.reason)); return }
-      setGame(result.persistent)
-      setNotice(result.persistent.currentSession?.state.combat ? null : successNotice)
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : '这桩事务的进度未能保存')
-    }
+      setGame(result.persistent); setNotice(result.persistent.currentSession?.state.combat ? null : successNotice)
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '这桩事务的进度未能保存') }
+  }
+  function persistSectConsequenceAction(action: GameAction, successNotice: string) {
+    try {
+      const result = commandAndSave(window.localStorage, game, { type: 'game-action', action })
+      if (!result.applied) { setNotice(sectConsequenceError(result.reason)); return }
+      setGame(result.persistent); setNotice(successNotice)
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '这次宗门身份变化未能保存') }
   }
   function persistAcceptSectAssignment(assignmentId: SectAssignmentId) { persistSectGameAction({ type: 'ACCEPT_SECT_ASSIGNMENT', assignmentId }, '任务牌已经领下。目的地与交结要求都记在地图上的事务记录里。') }
   function persistPerformSectAssignment() { persistSectGameAction({ type: 'PERFORM_SECT_ASSIGNMENT' }, '这一步已经办完；若目标已经完成，回青云宗事务堂交结即可。') }
   function persistSettleSectAssignment() { persistSectGameAction({ type: 'SETTLE_SECT_ASSIGNMENT' }, '事务已经交结，贡献与灵石报酬都已入账。') }
   function persistAbandonSectAssignment() { persistSectGameAction({ type: 'ABANDON_SECT_ASSIGNMENT' }, '你把这桩事务放弃了。本世事务堂不会再次把同一桩差事挂给你。') }
+  function persistAcceptQingyunMaster(masterNpcId: QingyunMasterNpcId) { persistSectConsequenceAction({ type: 'ACCEPT_QINGYUN_MASTER', masterNpcId }, '正式师承已经记入名册，师父传下的法门也进入了你的功法记录。') }
+  function persistReceiveMasterGuidance() { persistSectConsequenceAction({ type: 'RECEIVE_MASTER_GUIDANCE' }, '十日当面指点已经结束。额外修为收益与剩余指点次数都已结算。') }
+  function persistCommitSectViolation(violationId: SectViolationId) { persistSectConsequenceAction({ type: 'COMMIT_SECT_VIOLATION', violationId }, '这次越线已经留下正式记录，处罚即时生效。') }
+  function persistBetrayQingyunSect() { persistSectConsequenceAction({ type: 'BETRAY_QINGYUN_SECT' }, '你已经主动叛离青云宗。当前身份变为散修，旧名籍与叛宗事实仍然保留。') }
   function persistCultivate(days: CultivationDuration) { persistCommand({ type: 'cultivate-days', days }) }
   function persistTechniquePractice(techniqueId: string, days: TechniquePracticeDuration) { persistCommand({ type: 'practice-technique-days', techniqueId, days }) }
   function recoverSave() { try { const next = clearGame(window.localStorage); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法清除本地存档') } }
@@ -255,41 +232,23 @@ function App() {
   const choices = activeEvent ? getAvailableChoices(state, activeEvent) : []
   const latestRecord = game.archives.find((record) => record.runId === state.runId)
   let stageContent
-  if (state.lifeStage === 'childhood') {
-    stageContent = session.pendingResult ? <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} /> : <ChildhoodPanel state={state} onChoice={(choiceId) => persistCommand({ type: 'childhood-choice', choiceId })} />
-  } else if (session.pendingResult) {
-    stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
-  } else if (state.status !== 'playing') {
-    stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
-  } else if (state.combat) {
-    stageContent = <CombatPanel state={state} onAction={(action) => persistCommand({ type: 'game-action', action: { type: 'COMBAT_ACTION', action } })} />
-  } else if (state.pendingBeastLoot) {
-    stageContent = <BeastLootPanel state={state} onClaim={(itemId, quantity) => persistCommand({ type: 'game-action', action: { type: 'CLAIM_BEAST_LOOT', itemId, quantity } })} onAbandon={() => persistCommand({ type: 'game-action', action: { type: 'ABANDON_BEAST_LOOT' } })} />
-  } else if (state.secretRealm?.sunkenVeinChamber.active) {
-    stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
-  } else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
+  if (state.lifeStage === 'childhood') stageContent = session.pendingResult ? <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} /> : <ChildhoodPanel state={state} onChoice={(choiceId) => persistCommand({ type: 'childhood-choice', choiceId })} />
+  else if (session.pendingResult) stageContent = <ResultPanel result={session.pendingResult} onContinue={() => persistCommand({ type: 'continue' })} />
+  else if (state.status !== 'playing') stageContent = <EndPanel record={latestRecord} onRestart={persistStart} onOpenArchive={() => setArchiveOpen(true)} />
+  else if (state.combat) stageContent = <CombatPanel state={state} onAction={(action) => persistCommand({ type: 'game-action', action: { type: 'COMBAT_ACTION', action } })} />
+  else if (state.pendingBeastLoot) stageContent = <BeastLootPanel state={state} onClaim={(itemId, quantity) => persistCommand({ type: 'game-action', action: { type: 'CLAIM_BEAST_LOOT', itemId, quantity } })} onAbandon={() => persistCommand({ type: 'game-action', action: { type: 'ABANDON_BEAST_LOOT' } })} />
+  else if (state.secretRealm?.sunkenVeinChamber.active) stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
+  else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
     stageContent = <>
-      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} onAcceptSectAssignment={persistAcceptSectAssignment} onPerformSectAssignment={persistPerformSectAssignment} onSettleSectAssignment={persistSettleSectAssignment} onAbandonSectAssignment={persistAbandonSectAssignment} />
+      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} onAcceptSectAssignment={persistAcceptSectAssignment} onPerformSectAssignment={persistPerformSectAssignment} onSettleSectAssignment={persistSettleSectAssignment} onAbandonSectAssignment={persistAbandonSectAssignment} onAcceptQingyunMaster={persistAcceptQingyunMaster} onReceiveMasterGuidance={persistReceiveMasterGuidance} onCommitSectViolation={persistCommitSectViolation} onBetrayQingyunSect={persistBetrayQingyunSect} />
       {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
-      <FoundationBreakthroughPanel
-        state={state}
-        onAttempt={(options) => persistCommand({ type: 'attempt-foundation-breakthrough', usePozhangDan: options.usePozhangDan, useNingjiDan: options.useNingjiDan, spiritStoneInvestment: options.spiritStoneInvestment })}
-        onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })}
-      />
-      <GoldenCoreBreakthroughPanel
-        state={state}
-        onAttempt={(options) => persistCommand({ type: 'attempt-golden-core-breakthrough', route: options.route, useBaoyuanDan: options.useBaoyuanDan, useCenturySpiritGinsengForRecovery: options.useCenturySpiritGinsengForRecovery, spiritStoneInvestment: options.spiritStoneInvestment })}
-      />
+      <FoundationBreakthroughPanel state={state} onAttempt={(options) => persistCommand({ type: 'attempt-foundation-breakthrough', usePozhangDan: options.usePozhangDan, useNingjiDan: options.useNingjiDan, spiritStoneInvestment: options.spiritStoneInvestment })} onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })} />
+      <GoldenCoreBreakthroughPanel state={state} onAttempt={(options) => persistCommand({ type: 'attempt-golden-core-breakthrough', route: options.route, useBaoyuanDan: options.useBaoyuanDan, useCenturySpiritGinsengForRecovery: options.useCenturySpiritGinsengForRecovery, spiritStoneInvestment: options.spiritStoneInvestment })} />
     </>
-  } else if (state.lifeStage === 'adult' && state.world.currentLocationId) {
-    stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
-  } else if (state.lifeStage === 'adult') {
-    stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} onInitializeWorld={() => persistCommand({ type: 'initialize-world' })} />
-  } else if (activeEvent) {
-    stageContent = <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
-  } else {
-    stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
-  }
+  } else if (state.lifeStage === 'adult' && state.world.currentLocationId) stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
+  else if (state.lifeStage === 'adult') stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} onInitializeWorld={() => persistCommand({ type: 'initialize-world' })} />
+  else if (activeEvent) stageContent = <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
+  else stageContent = <ActionPanel state={state} actions={getAvailableActions(state) as PlayerAction[]} onAction={(action) => persistCommand({ type: 'action', action })} />
 
   return <main className="game-shell"><header className="topbar app-header"><div className="shell-brand"><p className="eyebrow">此世问长生 · V2.0</p><h1>此世问长生</h1></div><div className="topbar-actions"><button className="text-button" onClick={() => setArchiveOpen(true)} type="button">人生档案 {game.archives.length}</button></div></header><GameStatusBar state={state} /><div className="game-grid"><CharacterPanel state={state} onUnequip={(slot) => state.combat ? setNotice('战斗中不能调整护甲与法器。') : persistCommand({ type: 'unequip-slot', slot })} /><section className="main-stage" aria-label="当前经历">{stageContent}{state.inventory && !state.combat && <InventoryPanel state={state} onDrop={(itemId, quantity) => persistCommand({ type: 'inventory-drop', itemId, quantity })} onEquip={(itemId) => persistCommand({ type: 'equip-item', itemId })} onUseLifespanItem={(itemId) => persistCommand({ type: 'use-lifespan-item', itemId })} onUseTreatment={(itemId, injuryId) => persistCommand({ type: 'use-treatment-item', itemId, ...(injuryId ? { injuryId } : {}) })} onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })} />}{notice && <p className="notice">{notice}</p>}</section><ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} /></div>{archiveOpen && <ArchivePanel records={game.archives} onClose={() => setArchiveOpen(false)} />}</main>
 }
