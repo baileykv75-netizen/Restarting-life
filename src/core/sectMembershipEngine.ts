@@ -1,5 +1,5 @@
 import type { GameState } from '../types/game'
-import type { QingyunJoinPath, SectAccess, SectRank } from '../types/sect'
+import type { QingyunJoinPath, SectAccess, SectExitReason, SectRank } from '../types/sect'
 
 const QINGYUAN_YINQI = 'qingyuan_yinqi'
 
@@ -15,6 +15,11 @@ const JOIN_PATH_LABELS: Readonly<Record<QingyunJoinPath, string>> = {
   'clan-recommendation': '家族引荐',
   'steward-family': '执事家属正规流程',
   'mortal-service': '宗门外围凡俗差事',
+}
+
+const EXIT_REASON_LABELS: Readonly<Record<SectExitReason, string>> = {
+  expelled: '被逐出宗门',
+  betrayed: '主动叛离宗门',
 }
 
 export interface QingyunJoinOffer {
@@ -41,8 +46,14 @@ function hasTag(state: GameState, tag: string): boolean {
   return state.tags.includes(tag)
 }
 
-function isQingyunMember(state: GameState): boolean {
-  return state.sectMembership?.sectId === 'qingyun'
+export function isActiveQingyunMember(state: GameState): boolean {
+  const membership = state.sectMembership
+  return membership?.sectId === 'qingyun' && membership.status !== 'ended'
+}
+
+export function isFormerQingyunMember(state: GameState): boolean {
+  const membership = state.sectMembership
+  return membership?.sectId === 'qingyun' && membership.status === 'ended'
 }
 
 export function formatSectRank(rank: SectRank): string {
@@ -53,8 +64,12 @@ export function formatQingyunJoinPath(path: QingyunJoinPath): string {
   return JOIN_PATH_LABELS[path]
 }
 
+export function formatSectExitReason(reason: SectExitReason): string {
+  return EXIT_REASON_LABELS[reason]
+}
+
 export function getSectAccess(state: GameState): SectAccess {
-  const rank = state.sectMembership?.sectId === 'qingyun' ? state.sectMembership.rank : null
+  const rank = isActiveQingyunMember(state) ? state.sectMembership!.rank : null
   if (!rank) {
     return {
       publicArea: true,
@@ -133,8 +148,12 @@ function rootJoinPath(state: GameState): QingyunJoinPath {
 }
 
 export function getQingyunJoinOffer(state: GameState): QingyunJoinOffer {
-  if (isQingyunMember(state)) {
+  if (isActiveQingyunMember(state)) {
     return { available: false, routeLabel: '已登记', conditions: [], missing: [], reason: 'ALREADY_QINGYUN_MEMBER' }
+  }
+  if (isFormerQingyunMember(state)) {
+    const reason = state.sectMembership?.exitReason === 'betrayed' ? '你已经主动叛离青云宗，本世旧名籍仍在。' : '你本世曾被青云宗逐出，旧名籍仍在。'
+    return { available: false, routeLabel: '旧名籍仍在', conditions: [], missing: [reason], reason: 'FORMER_QINGYUN_MEMBER' }
   }
   if (state.lifeStage !== 'adult') {
     return { available: false, routeLabel: '尚未成年', conditions: ['成年后才能登记宗门身份'], missing: ['尚未成年'], reason: 'SECT_REQUIRES_ADULT' }
@@ -207,6 +226,8 @@ export function resolveJoinQingyunSect(state: GameState): SectMutationResult {
     rank: offer.targetRank,
     joinedDay: state.worldDay,
     joinPath: offer.joinPath,
+    status: 'active' as const,
+    violations: [],
   }
   const rankLabel = RANK_LABELS[offer.targetRank]
   const pathLabel = JOIN_PATH_LABELS[offer.joinPath]
