@@ -4,515 +4,531 @@
 
 ## 当前状态
 
-- R00.1～R24 已合入 `main`。
-- R24 merge commit：`9637cd7abc6f5f5fda7bad2f401b294035f21ee3`。
-- **R25「宗门贡献与任务」实现完成并通过 Typecheck / Test / Build；下一轮进入 R26「拜师 / 违规 / 叛宗」。**
-- R25 PR：#15 `V2 R25: add Qingyun contribution and real assignments`。
-- R26 结束后应暂停新增大系统，进行一轮宗门 + 野外 + 修炼的完整人生验收，再进入 R27。
+- R00.1～R25 已合入 `main`。
+- R25 merge commit：`a01503276314f47c49cb9b6e46841e5223686183`。
+- **R26「拜师 / 违规 / 叛宗」实现完成；只有最终 PR head 的 Typecheck / Test / Build 全绿后才能合入。**
+- R26 PR：#16 `V2 R26: add mentorship discipline and sect-exit consequences`。
+- **R26 合并后不进入 R27。下一步必须先完整试玩 R24～R26 的宗门 + 野外 + 修炼人生闭环。**
 
 ---
 
 # 一、长期架构纪律
 
-继续保持唯一链路：
+唯一运行链继续保持：
 
 ```text
 React UI
-→ SessionCommand
-→ resolver / GameAction
+→ SessionCommand / GameAction
+→ resolver
 → 唯一 GameState
 → debug log / digest / replay
 → PersistentGame
 → localStorage
 ```
 
-严禁新增：
+禁止新增：
 
 ```text
 第二套 sect identity
-第二套 contribution 真值
+第二份 rank / faction
+第二套 contribution
 第二套 inventory
 第二套 worldDay
 第二套 travel
 第二套 CombatEngine
-UI 自己结算任务完成 / 奖励
+UI 自己修改师父 / 违规 / 离宗事实
 ```
 
-宗门正式身份唯一真源仍是：
+宗门正式身份及其历史唯一真源仍是：
 
 ```ts
 GameState.sectMembership
 ```
 
-R25 新增宗门事务唯一运行态：
+R25 宗门事务与贡献唯一运行态仍是：
 
 ```ts
 GameState.sectProgress
 ```
 
-`sectProgress` 只负责：
-
-- 当前宗门贡献；
-- 同时最多 1 个 active assignment；
-- 本世已经正式交结 / 放弃过哪些具体事务。
-
 ---
 
-# 二、R25 authoritative state
+# 二、R26 membership 生命周期
 
-`src/types/sect.ts` 新增：
-
-```ts
-SectAssignmentId
-SectAssignmentKind
-SectAssignmentStatus
-SectAssignmentOutcome
-ActiveSectAssignment
-SectContributionRecord
-SectProgressState
-```
-
-`GameState` 新增 optional：
-
-```ts
-sectProgress?: {
-  contribution: number
-  activeAssignment?: {
-    assignmentId: SectAssignmentId
-    acceptedDay: number
-    status: 'accepted' | 'ready-to-settle'
-    progressDays: number
-    objectiveCompletedDay?: number
-  }
-  history: Array<{
-    assignmentId: SectAssignmentId
-    outcome: 'settled' | 'abandoned'
-    resolvedDay: number
-    contributionDelta: number
-  }>
-}
-```
-
-保持 optional 以兼容 R25 前 schema-3 存档；不提升 schemaVersion。
-
-旧存档没有 `sectProgress` 时等价于：
-
-```text
-贡献 0
-无当前事务
-无已处理事务记录
-```
-
-不会自动生成贡献。
-
----
-
-# 三、C25 数值冻结
+R26 没有在离宗时删除 `sectMembership`。
 
 新增：
 
-```text
-C25_SECT_ASSIGNMENT_FREEZE.md
-src/data/sectAssignments.ts
+```ts
+status?: 'active' | 'ended'
+endedDay?: number
+exitReason?: 'expelled' | 'betrayed'
 ```
 
-首版只做四桩**本世具体存在的事务**，不是无限生成模板：
+兼容规则：
 
-| 事务 | 真实目标 | 贡献 | 下品灵石 |
-|---|---|---:|---:|
-| 灵溪谷采药 | 灵溪谷采得并上交 3 株青露草；现场 3 日 | +8 | +4 |
-| 黑风山外巡 | 黑风山累计完成 2 个实际探索日 | +10 | +5 |
-| 坊市物资护送 | 从青云宗实际抵达青霞坊市，再回宗交结 | +12 | +6 |
-| 黑风山狼患清剿 | 黑风山实际击杀 1 只青背狼 | +18 | +8 |
+- R26 前 schema-3 存档没有 `status`；
+- `status !== 'ended'` 仍视为 active；
+- 因此旧 R24 / R25 membership 不会升级后自动失效。
 
-全部精确数值集中在：
-
-```text
-src/data/sectAssignments.ts
-```
-
-UI / engine 不另写第二份奖励表。
-
----
-
-# 四、防止重新变成每日任务
-
-R25 固定规则：
-
-```text
-一世四桩具体事务
-+ 同时最多 1 桩 active
-+ settled 后不再出现
-+ abandoned 后也不再出现
-```
-
-因此不存在：
-
-- 每日刷新；
-- 每周刷新；
-- 活跃度；
-- 无限采药；
-- 无限巡山刷贡献；
-- 重复领取同一桩清剿；
-- 放弃后立刻重接；
-- 同一桩重复交差。
-
-贡献是宗门长期资源，不是日常签到货币。
-
----
-
-# 五、事务堂权限直接复用 R24
-
-R25 不重新判断“是不是青云宗弟子”。
-
-所有领取 / 交结入口只读：
+正式 selector：
 
 ```ts
-getSectAccess(state).affairsHallEntry
+isActiveQingyunMember(state)
+isFormerQingyunMember(state)
+getSectAccess(state)
 ```
 
-因此：
+`getSectAccess()` 只给 active membership 内部权限。
+
+离宗后：
 
 ```text
-非成员 → 无事务堂权限
-杂役 → 无事务堂权限
-外门 → 有
-内门 → 有
-真传 → 有
+sectMembership.status = ended
+identity.faction = loose
+所有青云宗内部 access = false
 ```
 
-任务列表只在玩家实际位于：
+但以下历史保留：
 
-```text
-qingyun_sect
-```
-
-且拥有事务堂权限时开放。
+- 原 rank；
+- joinedDay；
+- joinPath；
+- mastership；
+- violations；
+- endedDay；
+- exitReason；
+- R25 contribution / assignment history；
+- 已经学会的功法。
 
 ---
 
-# 六、四桩事务真实复用现有系统
+# 三、C26 两名正式师父
 
-## 6.1 灵溪谷采药
-
-完整链路：
+冻结文件：
 
 ```text
-青云宗领任务
-→ 事务堂告诉玩家灵溪谷路线，地点正式进入已知地图
-→ 玩家真实旅行到灵溪谷
-→ 点击按药图采集三日
-→ advanceWorldTime(3)
-→ inventory 加入 3 × green_dew_grass
-→ 返回青云宗
-→ 上交 3 株青露草
-→ 贡献 +8 / 灵石 +4
+C26_SECT_CONSEQUENCE_FREEZE.md
+src/data/qingyunMentors.ts
 ```
 
-约束：
+只复用 Content Bible 已有 NPC，没有新增长老群体。
 
-- 使用现有 inventory capacity；
-- 背包放不下时不会先扣 3 天再失败；
-- 重伤 / 严重中毒会阻止三日采药；
-- 交结时必须真实拥有 3 株青露草；
-- 交结会移除 3 株，不会既交差又把任务药材继续留在背包。
+## 林照川｜N03｜外事长老｜筑基中期
 
-## 6.2 黑风山外巡
-
-不新增“巡山计时器”。
-
-玩家必须真实使用已有：
+收徒要求：
 
 ```text
-试探 1 天
-巡探 3 天
-深入 10 天
+active 青云正式弟子
+非杂役
+本人位于 qingyun_sect
+贡献 >= 18
+正式交结过：黑风山巡山 或 青背狼清剿
 ```
 
-R25 只读取 `resolveRegionExploration()` 本次**实际已经发生的 elapsedDays**。
-
-因此：
-
-- 普通探索时间真实推进 worldDay；
-- R22-FIX 妖兽遭遇仍可中断；
-- 遭遇前已经巡过的时间照常进入巡山进度；
-- 累计至少 2 个实际探索日后才完成目标；
-- 若在满足 2 日的当次探索中进入战斗，先处理战斗，活着结束后再标记可交结。
-
-## 6.3 坊市物资护送
-
-不新增护送地图 / 第二移动系统。
-
-完整链路：
+拜师后真实获得：
 
 ```text
-青云宗领任务
-→ 携宗门物资出发
-→ 使用现有 travel / fast travel
-→ 真实抵达 qingxia_market
-→ objective ready
-→ 返回青云宗
-→ 正式交结
+《青锋剑诀》 qingfeng_jianjue
+《流云步》 liuyun_bu
+1 次十日当面指点
 ```
 
-青云宗 → 青霞坊市现有路线为 1 日；R25 不在事务堂原地替玩家结算路程。
+## 陆清仪｜N04｜丹堂长老｜筑基初期
 
-## 6.4 黑风山狼患清剿
-
-目标沿用已有：
+收徒要求：
 
 ```text
-greenback_wolf
-combat opponent = greenback-wolf
+active 青云正式弟子
+非杂役
+本人位于 qingyun_sect
+贡献 >= 8
+正式交结过：灵溪谷采药
 ```
 
-显式搜索狼踪或在任务期间实际遭遇对应目标后，继续进入**现有 CombatEngine**。
-
-完成证据不是 UI 按钮，而是正式战斗退出后存在与该 `battleId` 匹配的青背狼 `pendingBeastLoot`。
-
-因此：
+拜师后真实获得：
 
 ```text
-玩家逃跑 → 不完成
-青背狼逃跑 → 不完成
-玩家死亡 → 不完成
-真实击杀 → 完成
+《春木养元功》 chunmu_yangyuan
+《水幕术》 shuimu_shu
+1 次十日当面指点
 ```
 
-清剿仍会触发现有：
-
-- 伤势；
-- 中毒（如适用）；
-- 妖兽生态 pressure；
-- 尸体战利品；
-- 背包取舍。
-
-宗门贡献奖励与妖兽尸体战利品是两条不同且真实的资源来源。
-
-若当前黑风山青背狼 pressure 已经归零，事务堂不会凭空刷出一只任务狼。
+师父同时最多 1 名；已有 active mastership 时不能直接无代价改投。
 
 ---
 
-# 七、完成目标 ≠ 立即拿奖励
+# 四、师父收益真实进入既有系统
 
-四桩事务统一两阶段：
+师承结构写入：
 
-```text
-accepted
-→ 实际完成 objective
-→ ready-to-settle
-→ 回 qingyun_sect
-→ settle
+```ts
+sectMembership.mastership
 ```
 
-只有正式 `SETTLE_SECT_ASSIGNMENT` 才会：
-
-- 增加 contribution；
-- 增加 spirit stones；
-- 写 history；
-- 清除 activeAssignment；
-- 写 Chronicle。
-
-因此无法在野外一完成目标就凭空收到宗门报酬。
-
-放弃统一通过：
+包含：
 
 ```text
-ABANDON_SECT_ASSIGNMENT
+masterNpcId
+acceptedDay
+status
+remaining guidance uses
+endedDay / endedReason（若离宗）
 ```
+
+功法传授直接写入已有：
+
+```text
+cultivation.knownTechniqueIds
+cultivation.techniquePractice
+```
+
+没有第二套“师门技能”。
+
+当面指点：
+
+```text
+resolveCultivateDays(state, 10)
+→ 先按当前真实主修 / 灵根 / 环境 / 伤势结算正常十日修炼
+→ 再通过 applyFormalCultivationGain() 增加正常 gain 的 25%
+→ guidanceUsesRemaining - 1
+```
+
+因此：
+
+- 必须真的有可修炼主修；
+- 真正消耗 10 worldDay；
+- 仍读取伤势、中毒、环境、灵根和现有功法系统；
+- 不可以无限刷同一次师父加成。
+
+---
+
+# 五、R26 三条真实违规行为
+
+处罚不新增纪律点 / 声望点 / 恶名点，只复用现有：
+
+```text
+贡献
+下品灵石
+正式 membership
+权限
+Chronicle
+```
+
+## 5.1 越过内门资源区封线
+
+前提：当前没有 `innerResources` 权限。
+
+第一次：
+
+```text
+轻度违规
+贡献最多 -3
+留档
+不逐出
+```
+
+重复：
+
+```text
+中度违规
+贡献最多 -10
+下品灵石最多 -5
+留档
+不逐出
+```
+
+## 5.2 强闯核心传承禁地
+
+前提：当前没有 `trueInheritance` 权限。
 
 结果：
 
-- 不发贡献；
-- 不发灵石；
-- 写 `outcome = abandoned`；
-- 本世不再重新出现同一事务。
+```text
+重度违规
+贡献最多 -20
+下品灵石最多 -10
+立即逐出
+```
+
+## 5.3 在宗门内公开演练受限邪法
+
+只有角色真的掌握带：
+
+```text
+cultivation:evil
+```
+
+规则标签的功法时才出现。
+
+结果：
+
+```text
+重度违规
+贡献最多 -15
+下品灵石最多 -10
+立即逐出
+```
+
+不会给普通角色凭空显示一个可点的“邪修违规”。
+
+每条正式处罚结构化写入：
+
+```ts
+sectMembership.violations[]
+```
+
+至少包含：
+
+```text
+violationId
+severity
+worldDay
+actionLabel
+penaltyLabel
+contributionDelta
+spiritStoneDelta
+expelled
+```
 
 ---
 
-# 八、正式 GameAction 与 hooks
+# 六、逐出与主动叛宗
 
-R25 新增 GameAction：
+统一离宗 helper 会：
 
-```text
-ACCEPT_SECT_ASSIGNMENT
-PERFORM_SECT_ASSIGNMENT
-SETTLE_SECT_ASSIGNMENT
-ABANDON_SECT_ASSIGNMENT
-```
+1. 若有 active R25 assignment，先按现有 `resolveAbandonSectAssignment()` 作废；
+2. 当前 membership → ended；
+3. faction → loose；
+4. active mastership → ended；
+5. 所有宗门内部权限立即失效；
+6. Chronicle 写 major 身份变化。
 
-核心 engine：
-
-```text
-src/core/sectAssignmentEngine.ts
-```
-
-它不接管其他系统，只通过少量 hooks 读取结果：
+## 被逐出
 
 ```text
-travelEngine
-→ refreshSectAssignmentAfterTravel()
-
-regionExplorationEngine
-→ refreshSectAssignmentAfterExploration()
-
-gameActionReducer 的 COMBAT_ACTION 完成后
-→ refreshSectAssignmentAfterCombat()
+exitReason = expelled
 ```
 
-真实动作的 authoritative resolver 仍然是原系统。
+由重度违规触发。
+
+## 主动叛宗
+
+```text
+exitReason = betrayed
+```
+
+玩家 UI 必须经过二次确认。
+
+主动叛宗不是普通退出按钮，确认前明确告知：
+
+- 当前宗门身份结束；
+- 内部权限立即失效；
+- 正式师承结束；
+- active R25 事务作废；
+- 旧名籍保留“主动叛宗”事实；
+- 已学功法不删除。
+
+R26 只保存未来可读取的叛宗事实，不提前做追杀 AI / 通缉榜 / 第二宗门。
 
 ---
 
-# 九、UI
+# 七、R25 与 R26 的交叉规则
+
+离宗时，若：
+
+```ts
+sectProgress.activeAssignment
+```
+
+仍存在，统一调用 R25 已有放弃 resolver。
+
+结果：
+
+```text
+activeAssignment 清除
+history 写 outcome = abandoned
+不发事务奖励
+该事务本世不能重新领取
+```
+
+已经积累的 `sectProgress.contribution` 不清零；它成为历史事实，但由于 `getSectAccess()` 已失效，不代表仍可使用宗门内部入口。
+
+---
+
+# 八、UI
 
 新增：
 
 ```text
-src/components/SectAssignmentPanel.tsx
-src/sect-assignment.css
+src/components/SectConsequencePanel.tsx
+src/sect-consequence.css
 ```
 
-事务堂页面显示：
+玩家可以直接看到：
 
-- 当前宗门贡献；
-- 四桩事务名称；
-- 地点；
-- 目标；
-- 已知风险；
-- 现场时间（如适用）；
-- 贡献与灵石报酬；
-- 当前可否领取。
+- 当前正式师父；
+- 两名候选师父各自擅长什么；
+- 为什么愿意 / 不愿意收徒；
+- 拜师后实际传授；
+- 剩余当面指点；
+- 可主动做出的真实越权行为；
+- 行为将属于轻 / 中 / 重哪一级违规；
+- 处罚含义；
+- 主动叛宗二次确认；
+- 离宗后的旧名籍、原师父、退出原因；
+- 已有正式违规记录。
 
-领任务后，当前事务卡会跟随玩家出现在世界地图页面，不要求回宗门才能查看目标。
-
-不同任务在目标地点读取真实行动入口：
-
-- 采药：出现三日采药按钮；
-- 巡山：明确要求使用现有区域探索；
-- 护送：明确要求使用现有旅行；
-- 清剿：出现沿狼踪寻找目标按钮并进入 CombatEngine。
-
-完成后只有在青云宗才出现“交结事务并领取报酬”。
-
-`CharacterPanel` 的宗门身份卡始终显示：
+`CharacterPanel` 现在区分：
 
 ```text
-宗门贡献 N
+青云宗 · 当前 rank
+曾属青云宗 · 原 rank
 ```
 
-玩家离开宗门后仍能确认自己的累计贡献。
+并显示：
 
-玩家可见文案不出现开发轮次、debug 或“先占位后实现”措辞。
+- 当前 / 原师父；
+- contribution；
+- 违规条数；
+- 离宗原因 / 日期。
+
+`QingyunSectPanel` 不再把 ended membership 显示为仍可使用内部权限的“在册弟子”。
+
+玩家文案不显示 R26、debug、开发轮次或“后续版本实现”。
 
 ---
 
-# 十、专项测试覆盖
+# 九、正式 GameAction
 
-`src/core/sectAssignmentEngine.test.ts` 至少验证：
+R26 新增：
 
-1. 四类事务定义唯一；
-2. 非成员 / 杂役不能接事务堂任务；
-3. 同时只能有 1 个 active assignment；
-4. 采药推进真实 worldDay；
-5. 采药真实占用 inventory；
-6. 交差移除任务药材；
-7. 贡献与灵石只在 settlement 写入一次；
-8. 同一任务 settled 后不能重接；
-9. 巡山进度来自真实 region exploration；
-10. 护送完成来自真实 travel arrival；
-11. 清剿启动现有 CombatEngine；
-12. 逃跑 / 无 victory loot 不算清剿完成；
-13. 真正击杀证据可标记 ready-to-settle；
-14. abandon 无奖励且本世不能重接；
-15. `sectProgress` save / reload 不丢；
-16. 完整采药 → 回宗 → settlement 可 deterministic replay；
-17. R00～R24 既有回归测试继续通过。
+```text
+ACCEPT_QINGYUN_MASTER
+RECEIVE_MASTER_GUIDANCE
+COMMIT_SECT_VIOLATION
+BETRAY_QINGYUN_SECT
+```
+
+统一路径仍为：
+
+```text
+UI
+→ commandAndSave
+→ SessionCommand(game-action)
+→ applyGameAction
+→ sectConsequenceEngine
+→ GameState
+→ debug log / digest / replay
+→ save
+```
+
+核心文件：
+
+```text
+src/core/sectConsequenceEngine.ts
+src/core/sectConsequenceEngine.test.ts
+```
 
 ---
 
-# 十一、CI 安装说明
+# 十、专项回归
 
-2026-08-19 GitHub Actions 的 Node 22 / npm 10.9.8 在本仓库连续两次于 `npm install` 的 Arborist peer-tree 阶段崩溃：
+R26 专项测试覆盖：
+
+1. 非青云成员不能拜师；
+2. 杂役不能进入正式师承；
+3. 收徒条件读取真实 R25 settled affairs + contribution；
+4. 同时只有 1 名正式师父；
+5. 拜师真实教授现有功法；
+6. 十日指点真实推进时间并高于普通十日修炼；
+7. 指点只有有限 1 次；
+8. 首次越内门封线为轻罚；
+9. 重复越权升级为中罚；
+10. 贡献 / 灵石真实扣除；
+11. 强闯核心禁地重罚并逐出；
+12. 逐出后 faction = loose；
+13. 逐出后 `getSectAccess()` 立即失效；
+14. 已学功法不会被清空；
+15. 邪法违规仅在角色真的会邪法时出现；
+16. 主动叛宗与逐出 exitReason 不同；
+17. 叛宗结束师承；
+18. active R25 事务自动 abandoned；
+19. contribution / history 保留；
+20. former membership save / reload 保持；
+21. 重度违规链 deterministic replay；
+22. R24 旧 membership 无 `status` 仍兼容为 active；
+23. R22～R25 原测试继续通过。
+
+合并前硬门槛：
 
 ```text
-Cannot read properties of null (reading 'edgesOut')
+npm run typecheck
+npm test
+npm run build
 ```
 
-失败发生在任何 Typecheck / Test / Build 之前，R25 没有修改依赖。
-
-为了让真正的代码门槛可以运行，CI 安装改为：
-
-```text
-npm install --legacy-peer-deps
-```
-
-依赖版本仍来自现有精确 `package.json`；没有借此跳过 TypeScript、Vitest 或 Build。
-
-修改后 CI 已实际跑通：
-
-```text
-Install dependencies ✅
-Typecheck ✅
-Test ✅
-Build ✅
-```
-
-后续若仓库正式加入 lockfile，可再单独把 CI 收敛为 lockfile 驱动安装；不要在功能轮顺手做大规模依赖升级。
+最终 PR head 必须三项全绿。
 
 ---
 
-# 十二、R25 明确没有做
+# 十一、Pages 部署
 
-没有实现：
+R25 CI 曾暴露 GitHub runner 的 npm dependency-tree `edgesOut` 内部错误。
 
-- 贡献兑换商店；
-- 用贡献直接晋升身份；
-- 重复 / 随机生成宗门日常；
-- 周常 / 活跃度；
-- 第二宗门；
-- 派系政治；
-- 拜师；
-- 师父 NPC 关系闭环；
-- 违规 / 处罚；
-- 逐出；
-- 主动叛宗；
-- 通缉。
+R26 同步把：
 
-这些属于后续，尤其师承与身份后果属于 R26。
+```text
+.github/workflows/pages.yml
+```
+
+安装步骤改为确定性安装：
+
+```bash
+npm ci --no-audit --no-fund --legacy-peer-deps
+```
+
+避免功能代码已经全绿但 Pages 又卡在旧的 `npm install` 安装器问题。
+
+R26 合入 `main` 后必须实际确认 Pages 的 build + deploy 均成功，不能只说“代码已经 merge”。
 
 ---
 
-# 十三、下一轮 R26 的正确入口
+# 十二、下一步不是 R27
 
-R26 必须直接复用：
+R26 完成后，立即暂停新增大系统。
 
-```text
-sectMembership
-+ getSectAccess()
-+ sectProgress.contribution
-+ R25 事务历史
-```
-
-目标是让宗门身份开始产生**关系与后果**：
+下一轮唯一任务：
 
 ```text
-正式拜师
-→ 师承提供真实功法 / 资源 / 指点
-→ 违规有轻 / 中 / 重后果
-→ 严重后果可以逐出
-→ 玩家也可以主动叛宗
-→ 成为散修后，原宗门历史仍被世界记住
+R24～R26 完整人生试玩验收
 ```
 
-禁止在 R26 重新设计贡献任务、重写 membership，或提前做 R27 炼丹。
-
-R26 完成后暂停新增大系统，完整玩一世，重点审查：
+至少实际验证：
 
 ```text
-散修路线是否仍成立
-宗门路线是否真的有稳定资源也有义务
-R25 事务是否像世界里的事而不是任务列表
-师承 / 违规是否真实改变选择
-成年野外与宗门内容能否自然交替
+成年路线
+→ 加入 / 不加入青云宗的选择
+→ 宗门任务
+→ 贡献
+→ 达成师父条件
+→ 拜师
+→ 当面指点
+→ 野外探索 / 战斗 / 撤退
+→ 宗门违规
+→ 被罚 / 逐出 或 主动叛宗
+→ 离宗后继续作为散修行动
+→ 刷新 / 存读档
 ```
+
+重点找：
+
+- 路线是否真实可达；
+- 节奏是否拖；
+- 有没有重复菜单劳动；
+- 文案有没有 AI 味 / 开发说明味；
+- 权限有没有状态分裂；
+- 是否出现“系统做了但玩家实际碰不到”；
+- 离宗之后世界是否还能正常玩。
+
+**试玩完成前禁止开始 R27 炼丹。**
