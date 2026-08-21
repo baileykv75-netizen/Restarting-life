@@ -24,6 +24,7 @@ interface InventoryPanelProps {
   onUseLifespanItem: (itemId: string) => void
   onUseTreatment: (itemId: string, injuryId?: string) => void
   onRecuperate: (days: 10 | 30) => void
+  defaultExpanded?: boolean
 }
 
 function injuryLabel(injury: InjuryCondition): string {
@@ -38,8 +39,8 @@ function injuryEffect(injury: InjuryCondition): string {
   return '不能修炼或突破；战斗最大灵力 ×0.65；逃跑 -10%。'
 }
 
-export function InventoryPanel({ state, onDrop, onEquip, onUseLifespanItem, onUseTreatment, onRecuperate }: InventoryPanelProps) {
-  const [expanded, setExpanded] = useState(false)
+export function InventoryPanel({ state, onDrop, onEquip, onUseLifespanItem, onUseTreatment, onRecuperate, defaultExpanded = false }: InventoryPanelProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const inventory = state.inventory
   if (!inventory) return null
   const usage = getInventoryUsage(state)
