@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ActionPanel } from './components/ActionPanel'
 import { AdultEntryPanel } from './components/AdultEntryPanel'
+import { AdultWorldExperience } from './components/AdultWorldExperience'
 import { ArchivePanel } from './components/ArchivePanel'
 import { BeastLootPanel } from './components/BeastLootPanel'
 import { BirthSelectionPanel } from './components/BirthSelectionPanel'
@@ -8,18 +9,15 @@ import { CharacterPanel } from './components/CharacterPanel'
 import { ChildhoodPanel } from './components/ChildhoodPanel'
 import { ChroniclePanel } from './components/ChroniclePanel'
 import { CombatPanel } from './components/CombatPanel'
-import { CultivationPanel } from './components/CultivationPanel'
 import { EndPanel } from './components/EndPanel'
 import { EventPanel } from './components/EventPanel'
-import { FoundationBreakthroughPanel } from './components/FoundationBreakthroughPanel'
 import { GameStatusBar } from './components/GameStatusBar'
-import { GoldenCoreBreakthroughPanel } from './components/GoldenCoreBreakthroughPanel'
 import { InventoryPanel } from './components/InventoryPanel'
 import { LocationKnowledgeSetupPanel } from './components/LocationKnowledgeSetupPanel'
 import { SecretRealmPanel } from './components/SecretRealmPanel'
-import { WorldMapPanel } from './components/WorldMapPanel'
 import { getAvailableActions } from './core/actionEngine'
 import type { CultivationDuration } from './core/cultivationEngine'
+import { getWorldLocationById } from './data/worldLocations'
 import { createEmptyPersistentGame } from './core/persistentGameEngine'
 import { FORMAL_EVENT_CATALOG } from './core/sessionEngine'
 import { getAvailableChoices } from './core/eventEngine'
@@ -36,6 +34,7 @@ import './birth-selection.css'
 import './childhood.css'
 import './adult-entry.css'
 import './world-map.css'
+import './adult-shell.css'
 import './sect-assignment.css'
 import './sect-consequence.css'
 import './secret-realm.css'
@@ -139,7 +138,28 @@ function App() {
 
   function persistStart() { try { const next = startAndSaveRun(window.localStorage, game, Date.now()); setGame(next); setError(null); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法开启新的人生') } }
   function persistBirthChoice(candidateId: string) { try { const next = chooseBirthAndSave(window.localStorage, game, candidateId); setGame(next); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '无法确定这一世') } }
-  function persistCommand(command: SessionCommand) { try { const result = commandAndSave(window.localStorage, game, command); if (!result.applied) { setNotice(result.reason ?? '当前操作无法执行'); return } setGame(result.persistent); setNotice(null) } catch (caught) { setNotice(caught instanceof Error ? caught.message : '本次操作未能保存') } }
+  function persistCommand(command: SessionCommand) {
+    try {
+      const beforeState = game.currentSession?.state
+      const result = commandAndSave(window.localStorage, game, command)
+      if (!result.applied) { setNotice(result.reason ?? '当前操作无法执行'); return }
+      let next = result.persistent
+      let nextNotice: string | null = null
+      const isTravel = command.type === 'travel' || command.type === 'fast-travel'
+      const arrivedState = next.currentSession?.state
+      if (isTravel && arrivedState?.status === 'playing' && next.currentSession?.pendingResult) {
+        const cleared = commandAndSave(window.localStorage, next, { type: 'continue' })
+        if (cleared.applied) {
+          next = cleared.persistent
+          const destination = getWorldLocationById(command.destinationId)
+          const elapsedDays = Math.max(0, arrivedState.worldDay - (beforeState?.worldDay ?? arrivedState.worldDay))
+          nextNotice = `已抵达${destination?.name ?? '目的地'}${elapsedDays > 0 ? ` · 行程 ${elapsedDays} 日` : ''}`
+        }
+      }
+      setGame(next)
+      setNotice(nextNotice)
+    } catch (caught) { setNotice(caught instanceof Error ? caught.message : '本次操作未能保存') }
+  }
   function persistExplore(days: ExplorationDuration) {
     try {
       let working = game
@@ -239,12 +259,27 @@ function App() {
   else if (state.pendingBeastLoot) stageContent = <BeastLootPanel state={state} onClaim={(itemId, quantity) => persistCommand({ type: 'game-action', action: { type: 'CLAIM_BEAST_LOOT', itemId, quantity } })} onAbandon={() => persistCommand({ type: 'game-action', action: { type: 'ABANDON_BEAST_LOOT' } })} />
   else if (state.secretRealm?.sunkenVeinChamber.active) stageContent = <SecretRealmPanel state={state} onAction={(action) => persistCommand({ type: 'secret-realm', action })} onStartCoreCombat={() => persistCommand({ type: 'game-action', action: { type: 'START_COMBAT', opponentId: 'adult-rock-lizard', source: 'sunken-vein-core' } })} />
   else if (state.lifeStage === 'adult' && state.world.currentLocationId && state.flags.location_knowledge_initialized === true) {
-    stageContent = <>
-      <WorldMapPanel state={state} onTravel={(destinationId) => persistCommand({ type: 'travel', destinationId })} onFastTravel={(destinationId) => persistCommand({ type: 'fast-travel', destinationId })} onExplore={persistExplore} onEnterSecretRealm={() => persistCommand({ type: 'secret-realm', action: 'enter' })} onEnterStrongTerritory={persistEnterTerritory} onJoinQingyunSect={persistJoinQingyunSect} onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching} onAcceptSectAssignment={persistAcceptSectAssignment} onPerformSectAssignment={persistPerformSectAssignment} onSettleSectAssignment={persistSettleSectAssignment} onAbandonSectAssignment={persistAbandonSectAssignment} onAcceptQingyunMaster={persistAcceptQingyunMaster} onReceiveMasterGuidance={persistReceiveMasterGuidance} onCommitSectViolation={persistCommitSectViolation} onBetrayQingyunSect={persistBetrayQingyunSect} />
-      {state.cultivation.practiceInitialized && <CultivationPanel state={state} onSelectTechnique={(techniqueId) => persistCommand({ type: 'select-main-technique', techniqueId })} onChangeMainTechnique={(techniqueId) => persistCommand({ type: 'change-main-technique', techniqueId })} onSetAuxiliaryTechnique={(techniqueId, enabled) => persistCommand({ type: 'set-auxiliary-technique', techniqueId, enabled })} onPracticeTechnique={persistTechniquePractice} onCultivate={persistCultivate} />}
-      <FoundationBreakthroughPanel state={state} onAttempt={(options) => persistCommand({ type: 'attempt-foundation-breakthrough', usePozhangDan: options.usePozhangDan, useNingjiDan: options.useNingjiDan, spiritStoneInvestment: options.spiritStoneInvestment })} onRecuperate={(days) => persistCommand({ type: 'recuperate-days', days })} />
-      <GoldenCoreBreakthroughPanel state={state} onAttempt={(options) => persistCommand({ type: 'attempt-golden-core-breakthrough', route: options.route, useBaoyuanDan: options.useBaoyuanDan, useCenturySpiritGinsengForRecovery: options.useCenturySpiritGinsengForRecovery, spiritStoneInvestment: options.spiritStoneInvestment })} />
-    </>
+    stageContent = <AdultWorldExperience
+      state={state}
+      notice={notice}
+      archiveCount={game.archives.length}
+      onOpenArchive={() => setArchiveOpen(true)}
+      onCommand={persistCommand}
+      onExplore={persistExplore}
+      onEnterStrongTerritory={persistEnterTerritory}
+      onJoinQingyunSect={persistJoinQingyunSect}
+      onReceiveQingyunBasicTeaching={persistReceiveQingyunBasicTeaching}
+      onAcceptSectAssignment={persistAcceptSectAssignment}
+      onPerformSectAssignment={persistPerformSectAssignment}
+      onSettleSectAssignment={persistSettleSectAssignment}
+      onAbandonSectAssignment={persistAbandonSectAssignment}
+      onAcceptQingyunMaster={persistAcceptQingyunMaster}
+      onReceiveMasterGuidance={persistReceiveMasterGuidance}
+      onCommitSectViolation={persistCommitSectViolation}
+      onBetrayQingyunSect={persistBetrayQingyunSect}
+      onCultivate={persistCultivate}
+      onPracticeTechnique={persistTechniquePractice}
+    />
   } else if (state.lifeStage === 'adult' && state.world.currentLocationId) stageContent = <LocationKnowledgeSetupPanel state={state} onInitialize={() => persistCommand({ type: 'initialize-location-knowledge' })} />
   else if (state.lifeStage === 'adult') stageContent = <AdultEntryPanel state={state} onChoice={(optionId) => persistCommand({ type: 'adult-entry-choice', optionId })} onInitializeWorld={() => persistCommand({ type: 'initialize-world' })} />
   else if (activeEvent) stageContent = <EventPanel event={activeEvent} choices={choices} onChoice={(choiceId) => persistCommand({ type: 'choice', choiceId })} />
