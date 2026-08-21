@@ -1,0 +1,24 @@
+body:has(.adult-world-shell) .game-shell {
+  min-height: 0;
+  padding: 0;
+}
+
+body:has(.adult-world-shell) .game-shell > .app-header,
+body:has(.adult-world-shell) .game-shell > .status-strip,
+body:has(.adult-world-shell) .game-grid > .character-panel,
+body:has(.adult-world-shell) .game-grid > .chronicle-panel,
+body:has(.adult-world-shell) .main-stage > .inventory-card,
+body:has(.adult-world-shell) .main-stage > .notice {
+  display: none;
+}
+
+body:has(.adult-world-shell) .game-grid {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: block;
+}
+
+body:has(.adult-world-shell) .main-stage {
+  min-width: 0;
+}

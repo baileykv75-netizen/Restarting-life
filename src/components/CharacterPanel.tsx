@@ -21,6 +21,7 @@ import { formatEquipmentSlot, formatItemGrade } from '../ui/itemFormatters'
 interface CharacterPanelProps {
   state: GameState
   onUnequip: (slot: EquipmentSlot) => void
+  defaultExpanded?: boolean
 }
 
 const STAT_LABELS: Partial<Record<keyof GameState['stats'], string>> = {
@@ -35,8 +36,8 @@ function effectLabels(statModifiers: StatModifiers, spiritStones: number): strin
   return labels
 }
 
-export function CharacterPanel({ state, onUnequip }: CharacterPanelProps) {
-  const [expanded, setExpanded] = useState(false)
+export function CharacterPanel({ state, onUnequip, defaultExpanded = false }: CharacterPanelProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const background = getBackgroundById(state.identity.backgroundId)
   const activeBackground = BACKGROUNDS.find((item) => item.id === state.identity.backgroundId)
   const talents = state.identity.talentIds.map(getTalentById).filter((item): item is NonNullable<typeof item> => item !== undefined)
