@@ -1,3 +1,5 @@
+body:has(.adult-world-shell) { overflow: hidden; }
+
 .adult-world-shell {
   position: fixed;
   z-index: 25;
