@@ -5,6 +5,7 @@ import { getCharacterDisplayName } from '../core/nameEngine'
 import { getActivePoisonConditions } from '../core/poisonEngine'
 import type { GameState } from '../types/game'
 import { formatAge, formatRealm } from '../ui/formatters'
+import '../adult-shell-bridge.css'
 
 type AdultDrawer = 'character' | 'inventory' | 'cultivation' | 'assignment' | 'chronicle'
 
