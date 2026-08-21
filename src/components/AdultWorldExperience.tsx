@@ -57,8 +57,9 @@ export function AdultWorldExperience({ state, notice, archiveCount, onOpenArchiv
     onBetrayQingyunSect={onBetrayQingyunSect}
   />
 
-  const character = <CharacterPanel state={state} onUnequip={(slot) => onCommand({ type: 'unequip-slot', slot })} />
+  const character = <CharacterPanel defaultExpanded state={state} onUnequip={(slot) => onCommand({ type: 'unequip-slot', slot })} />
   const inventory = state.inventory ? <InventoryPanel
+    defaultExpanded
     state={state}
     onDrop={(itemId, quantity) => onCommand({ type: 'inventory-drop', itemId, quantity })}
     onEquip={(itemId) => onCommand({ type: 'equip-item', itemId })}
@@ -69,6 +70,7 @@ export function AdultWorldExperience({ state, notice, archiveCount, onOpenArchiv
 
   const cultivation = state.cultivation.practiceInitialized ? <>
     <CultivationPanel
+      defaultExpanded
       state={state}
       onSelectTechnique={(techniqueId) => onCommand({ type: 'select-main-technique', techniqueId })}
       onChangeMainTechnique={(techniqueId) => onCommand({ type: 'change-main-technique', techniqueId })}
@@ -81,7 +83,7 @@ export function AdultWorldExperience({ state, notice, archiveCount, onOpenArchiv
   </> : undefined
 
   const assignment = state.sectProgress?.activeAssignment ? <SectAssignmentPanel state={state} onAccept={onAcceptSectAssignment} onPerform={onPerformSectAssignment} onSettle={onSettleSectAssignment} onAbandon={onAbandonSectAssignment} /> : undefined
-  const chronicle = <ChroniclePanel entries={state.chronicle} birthDay={state.identity.birthDay} />
+  const chronicle = <ChroniclePanel defaultExpanded entries={state.chronicle} birthDay={state.identity.birthDay} />
 
   return <AdultWorldShell state={state} world={world} character={character} inventory={inventory} cultivation={cultivation} assignment={assignment} chronicle={chronicle} notice={notice} archiveCount={archiveCount} onOpenArchive={onOpenArchive} />
 }
