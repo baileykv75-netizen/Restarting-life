@@ -27,14 +27,15 @@ interface CultivationPanelProps {
   onSetAuxiliaryTechnique: (techniqueId: string, enabled: boolean) => void
   onPracticeTechnique: (techniqueId: string, days: TechniquePracticeDuration) => void
   onCultivate: (days: CultivationDuration) => void
+  defaultExpanded?: boolean
 }
 
 const CATEGORY_LABEL: Readonly<Record<TechniqueDefinition['category'], string>> = {
   main: '主修', combat: '战斗术法', movement: '身法', body: '炼体', secret: '秘术',
 }
 
-export function CultivationPanel({ state, onSelectTechnique, onChangeMainTechnique, onSetAuxiliaryTechnique, onPracticeTechnique, onCultivate }: CultivationPanelProps) {
-  const [expanded, setExpanded] = useState(false)
+export function CultivationPanel({ state, onSelectTechnique, onChangeMainTechnique, onSetAuxiliaryTechnique, onPracticeTechnique, onCultivate, defaultExpanded = false }: CultivationPanelProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
   if (!state.cultivation.practiceInitialized) return null
   const known = (state.cultivation.knownTechniqueIds ?? []).map((id) => getTechniqueById(id)).filter((entry): entry is TechniqueDefinition => Boolean(entry))
   const mainTechniques = known.filter((entry) => entry.category === 'main')
