@@ -6,6 +6,7 @@ import '../chronicle.css'
 interface ChroniclePanelProps {
   entries: readonly ChronicleEntry[]
   birthDay: number
+  defaultExpanded?: boolean
 }
 
 function timeLabel(entry: ChronicleEntry, birthDay: number): string {
@@ -26,8 +27,8 @@ function StoryEntry({ entry, birthDay }: { entry: ChronicleEntry; birthDay: numb
   return <li className={`chronicle-entry chronicle-${entry.importance}`}><div className="chronicle-entry-time">{timeLabel(entry, birthDay)}</div><h3>{entry.title}</h3><p className="chronicle-scene">{entry.sceneText}</p>{entry.choiceText && <p className="chronicle-choice"><span>当时你选择</span>{entry.choiceText}</p>}{entry.narrative && <p className="chronicle-result">{entry.narrative}</p>}<ChronicleChanges entry={entry} />{entry.consequence && <p className="chronicle-consequence">后来 · {entry.consequence}</p>}</li>
 }
 
-export function ChroniclePanel({ entries, birthDay }: ChroniclePanelProps) {
-  const [expanded, setExpanded] = useState(false)
+export function ChroniclePanel({ entries, birthDay, defaultExpanded = false }: ChroniclePanelProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const newestFirst = [...entries].reverse()
   const visibleEntries = expanded ? newestFirst : newestFirst.slice(0, 3)
 
