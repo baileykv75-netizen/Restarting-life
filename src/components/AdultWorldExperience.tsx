@@ -42,6 +42,7 @@ export function AdultWorldExperience({ state, notice, archiveCount, onOpenArchiv
     state={state}
     onTravel={(destinationId) => onCommand({ type: 'travel', destinationId })}
     onFastTravel={(destinationId) => onCommand({ type: 'fast-travel', destinationId })}
+    onGatherLocalRumor={() => onCommand({ type: 'game-action', action: { type: 'GATHER_LOCAL_RUMOR' } })}
     onExplore={onExplore}
     onEnterSecretRealm={() => onCommand({ type: 'secret-realm', action: 'enter' })}
     onEnterStrongTerritory={onEnterStrongTerritory}
