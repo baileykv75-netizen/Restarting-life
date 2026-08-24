@@ -80,7 +80,8 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onGatherLocalRumo
     .filter((entry) => entry.location && entry.status !== 'unknown')
   const directTravel = getDirectTravelOptions(state)
   const fastTravel = getFastTravelOptions(state).filter((option) => option.routeIds.length > 1)
-  const localRumorCount = getLocalRumorCandidates(state).length
+  const localRumorCandidates = getLocalRumorCandidates(state)
+  const localRumorCount = localRumorCandidates.length
   const exploredDays = current.type === 'wilderness' ? getRegionExploredDays(state, current.id) : 0
   const explorationStage = getExplorationStage(exploredDays)
   const currentAssessment = current.type === 'wilderness' ? getRegionRiskAssessment(state, current.id, current.danger) : null
@@ -118,9 +119,10 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onGatherLocalRumo
   }
 
   function gatherLocalRumor() {
-    setSelectedLocationId(null)
+    const rumorTargetId = localRumorCandidates[0]?.id ?? null
     setLocalSection(null)
     onGatherLocalRumor()
+    setSelectedLocationId(rumorTargetId)
   }
 
   return <section className="story-card world-map-card">
