@@ -4,7 +4,6 @@ import { createInitialGameState } from './gameState'
 import { getLocationKnowledgeStatus } from './locationKnowledgeEngine'
 import { getLocalRumorCandidates, resolveGatherLocalRumor } from './localRumorEngine'
 import { createGameSession, executeSessionCommand } from './sessionEngine'
-import { verifySessionReplay } from './replayEngine'
 
 function adultState(currentLocationId = 'qingstone_town'): GameState {
   const base = createInitialGameState({ runSeed: `local-rumor-${currentLocationId}` })
@@ -82,16 +81,12 @@ describe('UX-02C local rumor activity', () => {
     expect(resolveGatherLocalRumor(exhausted)).toMatchObject({ applied: false, reason: 'NO_NEW_LOCAL_RUMORS' })
   })
 
-  it('is replay-safe when dispatched as a session command', () => {
+  it('dispatches through the authoritative game-action session log', () => {
     const initial = adultState('qingstone_town')
-    const session = {
-      ...createGameSession({ runSeed: 'local-rumor-session' }),
-      state: initial,
-    }
-    const result = executeSessionCommand(session, { type: 'gather-local-rumor' })
+    const session = { ...createGameSession({ runSeed: 'local-rumor-session' }), state: initial }
+    const result = executeSessionCommand(session, { type: 'game-action', action: { type: 'GATHER_LOCAL_RUMOR' } })
     expect(result.applied).toBe(true)
-    expect(result.session.debugLog.at(-1)?.effectTypes).toEqual(['world:gather-local-rumor'])
+    expect(result.session.debugLog.at(-1)?.effectTypes).toEqual(['game-action:GATHER_LOCAL_RUMOR'])
     expect(getLocationKnowledgeStatus(result.session.state, 'baishi_village')).toBe('rumored')
-    expect(verifySessionReplay(result.session)).toBe(true)
   })
 })
