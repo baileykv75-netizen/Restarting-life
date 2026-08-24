@@ -58,7 +58,7 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     case 'SET_LIFE_STAGE': {
       if (!isLifeStage(action.stage)) return rejected(state, 'INVALID_LIFE_STAGE')
       if (state.lifeStage === action.stage) return rejected(state, 'NO_CHANGE')
-      return { state: { ...state, lifeStage: { ...state }.lifeStage === action.stage ? state.lifeStage : action.stage }, applied: true }
+      return { state: { ...state, lifeStage: action.stage }, applied: true }
     }
     case 'SET_CURRENT_LOCATION': {
       if (action.locationId !== null && !isNonEmptyId(action.locationId)) return rejected(state, 'INVALID_LOCATION')
