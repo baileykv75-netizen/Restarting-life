@@ -3,6 +3,7 @@ import type { GameState, LifeStage, LocationKnowledgeStatus } from '../types/gam
 import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
+import { resolveGatherLocalRumor } from './localRumorEngine'
 import {
   refreshSectAssignmentAfterCombat,
   resolveAbandonSectAssignment,
@@ -57,7 +58,7 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     case 'SET_LIFE_STAGE': {
       if (!isLifeStage(action.stage)) return rejected(state, 'INVALID_LIFE_STAGE')
       if (state.lifeStage === action.stage) return rejected(state, 'NO_CHANGE')
-      return { state: { ...state, lifeStage: action.stage }, applied: true }
+      return { state: { ...state, lifeStage: { ...state }.lifeStage === action.stage ? state.lifeStage : action.stage }, applied: true }
     }
     case 'SET_CURRENT_LOCATION': {
       if (action.locationId !== null && !isNonEmptyId(action.locationId)) return rejected(state, 'INVALID_LOCATION')
@@ -66,6 +67,10 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     }
     case 'INITIALIZE_SUBLOCATIONS': {
       return resolveSublocationInitialization(state)
+    }
+    case 'GATHER_LOCAL_RUMOR': {
+      const result = resolveGatherLocalRumor(state)
+      return { state: result.state, applied: result.applied, reason: result.reason }
     }
     case 'START_COMBAT': {
       const result = resolveCombatStart(state, action.opponentId, action.source, action.contextTags, action.encounterVariant)
