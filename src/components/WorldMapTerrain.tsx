@@ -41,7 +41,24 @@ function TreeCluster({ x, y, scale = 1 }: { x: number; y: number; scale?: number
   </g>
 }
 
+function fogZones(points: readonly FogPoint[]): FogPoint[] {
+  const zones = new Map<string, FogPoint>()
+  for (const point of points) {
+    const column = point.x < 34 ? 0 : point.x > 66 ? 2 : 1
+    const row = point.y < 34 ? 0 : point.y > 66 ? 2 : 1
+    const key = `${column}:${row}`
+    if (zones.has(key)) continue
+    zones.set(key, {
+      x: column === 0 ? 14 : column === 2 ? 86 : 50,
+      y: row === 0 ? 15 : row === 2 ? 85 : 50,
+    })
+  }
+  return [...zones.values()]
+}
+
 export function WorldMapTerrain({ connections, fogPoints }: WorldMapTerrainProps) {
+  const regionalFog = fogZones(fogPoints)
+
   return <svg className="world-map-terrain" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
     <defs>
       <linearGradient id="map-paper" x1="0" y1="0" x2="1" y2="1">
@@ -135,7 +152,7 @@ export function WorldMapTerrain({ connections, fogPoints }: WorldMapTerrainProps
     </g>
 
     <g className="terrain-fog" filter="url(#map-fog-blur)">
-      {fogPoints.map((point, index) => <ellipse key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} rx="13" ry="9" fill="url(#map-fog)" />)}
+      {regionalFog.map((point, index) => <ellipse key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} rx="18" ry="13" fill="url(#map-fog)" />)}
       <ellipse cx="96" cy="13" rx="14" ry="13" fill="url(#map-fog)" />
       <ellipse cx="3" cy="94" rx="15" ry="12" fill="url(#map-fog)" />
     </g>
