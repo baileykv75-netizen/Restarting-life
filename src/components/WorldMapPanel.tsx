@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
+import { useEffect, useState } from 'react'
+import { WORLD_LOCATIONS, getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
 import { getLocationKnowledgeStatus, getVisibleWorldConnections, getVisibleWorldLocations } from '../core/locationKnowledgeEngine'
 import { EXPLORATION_DURATIONS, getExplorationStage, getExplorationStageLabel, getRegionExploredDays, getRegionRiskLabel } from '../core/regionExplorationEngine'
 import { getOpponentRiskAssessment, getRegionRiskAssessment } from '../core/riskAssessmentEngine'
@@ -15,6 +15,7 @@ import type { QiDensity, WorldDanger, WorldLocationType } from '../types/world'
 import { QingyunSectPanel } from './QingyunSectPanel'
 import { SectAssignmentPanel } from './SectAssignmentPanel'
 import { SectConsequencePanel } from './SectConsequencePanel'
+import { WorldMapTerrain } from './WorldMapTerrain'
 
 const TYPE_LABELS: Record<WorldLocationType, string> = {
   'mortal-settlement': '凡俗聚落', 'cultivation-market': '修仙坊市', sect: '宗门', 'clan-estate': '家族据点', wilderness: '野外区域', 'fixed-entry': '固定入口',
@@ -22,6 +23,10 @@ const TYPE_LABELS: Record<WorldLocationType, string> = {
 const DANGER_LABELS: Record<WorldDanger, string> = { safe: '安全', low: '较低', moderate: '一般', high: '较高', extreme: '危险' }
 const QI_LABELS: Record<QiDensity, string> = { none: '几乎无', thin: '稀薄', low: '较低', medium: '中等', high: '浓郁' }
 const EXPLORATION_LABELS: Record<ExplorationDuration, string> = { 1: '试探 · 1天', 3: '巡探 · 3天', 10: '深入 · 10天' }
+const LOCATION_SIGILS: Readonly<Record<string, string>> = {
+  baishi_village: '村', qingstone_town: '镇', linhe_county: '县', qingxia_market: '坊', qingyun_sect: '宗',
+  blackwind_mountain: '山', blackwind_foothill: '麓', lingxi_valley: '谷', lu_estate: '庄', beast_ridge: '岭', qingyun_family_quarters: '居',
+}
 
 type LocalSection = 'details' | 'explore' | 'discoveries' | 'sect' | 'assignment' | 'mentor' | null
 
@@ -47,8 +52,13 @@ interface WorldMapPanelProps {
 export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching, onAcceptSectAssignment, onPerformSectAssignment, onSettleSectAssignment, onAbandonSectAssignment, onAcceptQingyunMaster, onReceiveMasterGuidance, onCommitSectViolation, onBetrayQingyunSect }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(currentId ?? null)
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
   const [localSection, setLocalSection] = useState<LocalSection>(null)
+
+  useEffect(() => {
+    setSelectedLocationId(null)
+    setLocalSection(null)
+  }, [currentId])
 
   if (!current) {
     return <section className="story-card world-map-card world-map-error"><p className="story-kicker">青霞地界</p><h2>当前地点无法读取</h2><p className="story-text">这份行程记录出现了异常。为避免继续推进错误地点，当前行动已经停下。</p><p className="error-text">currentLocationId: {currentId ?? 'null'}</p></section>
@@ -59,6 +69,9 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
 
   const visible = getVisibleWorldLocations(state)
   const connections = getVisibleWorldConnections(state)
+  const fogPoints = WORLD_LOCATIONS
+    .filter((location) => getLocationKnowledgeStatus(state, location.id) === 'unknown')
+    .map((location) => location.mapPosition)
   const parent = getWorldLocationParent(current)
   const adjacent = current.adjacentLocationIds
     .map((id) => ({ location: getWorldLocationById(id), status: getLocationKnowledgeStatus(state, id) }))
@@ -82,6 +95,7 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
   const selectedFast = fastTravel.find((option) => option.destination.id === selectedLocation.id)
   const selectedTravel = selectedDirect ?? selectedFast
   const selectedIsCurrent = selectedLocation.id === current.id
+  const showSelection = selectedLocationId !== null
 
   function toggleSection(section: Exclude<LocalSection, null>) {
     setLocalSection((active) => active === section ? null : section)
@@ -96,40 +110,45 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
     if (!selectedTravel || selectedIsCurrent || selectedStatus !== 'discovered') return
     if (selectedDirect) onTravel(selectedLocation.id)
     else onFastTravel(selectedLocation.id)
-    setSelectedLocationId(selectedLocation.id)
+    setSelectedLocationId(null)
     setLocalSection(null)
   }
 
   return <section className="story-card world-map-card">
     <div className="world-map-heading"><div><p className="story-kicker">青霞地界</p><h2>{current.name}</h2></div><span>你在这里</span></div>
-    <div className="world-knowledge-legend"><span>已知 {visible.filter((entry) => entry.status === 'discovered').length}</span><span>传闻 {visible.filter((entry) => entry.status === 'rumored').length}</span><span>点击地点查看路线</span></div>
+    <div className="world-knowledge-legend"><span>已知 {visible.filter((entry) => entry.status === 'discovered').length}</span><span>传闻 {visible.filter((entry) => entry.status === 'rumored').length}</span><span>点击地点规划行程</span></div>
 
     <div className="world-map-canvas" aria-label="角色当前知道的青霞地界">
-      <svg className="world-map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {connections.map(({ key, from, to }) => <line key={key} x1={from.mapPosition.x} y1={from.mapPosition.y} x2={to.mapPosition.x} y2={to.mapPosition.y} />)}
-      </svg>
+      <WorldMapTerrain connections={connections} fogPoints={fogPoints} />
+
+      {activeAssignment && activeAssignmentDefinition && <button className="active-assignment-tracker map-assignment-tracker" onClick={() => toggleSection('assignment')} type="button">
+        <span>当前事务</span><strong>{activeAssignmentDefinition.name}</strong><em>{activeAssignment.status === 'ready-to-settle' ? '已完成，待交结' : `目标 · ${activeAssignmentDefinition.targetLocationLabel}`}</em>
+      </button>}
+
       {visible.map(({ location, status }) => <button
-        className={`world-map-node ${status}${location.id === current.id ? ' current' : ''}${location.id === selectedLocation.id ? ' selected' : ''}${location.parentLocationId ? ' child-node' : ''}`}
+        className={`world-map-node ${status}${location.id === current.id ? ' current' : ''}${location.id === selectedLocation.id && showSelection ? ' selected' : ''}${location.parentLocationId ? ' child-node' : ''}`}
         key={location.id}
         onClick={() => selectLocation(location.id)}
         style={{ left: `${location.mapPosition.x}%`, top: `${location.mapPosition.y}%` }}
         title={status === 'rumored' ? location.rumorText : location.description}
         type="button"
-      ><span>{status === 'rumored' ? `传闻 · ${location.name}` : location.name}</span>{location.id === current.id && <em>当前</em>}</button>)}
-    </div>
+      >
+        <span className="world-map-node-seal" aria-hidden="true">{status === 'rumored' ? '?' : (LOCATION_SIGILS[location.id] ?? '地')}</span>
+        <span className="world-map-node-label">{location.name}</span>
+        {status === 'rumored' && <em>传闻</em>}
+        {location.id === current.id && <span className="world-map-current-dot" aria-label="当前位置" />}
+      </button>)}
 
-    <div className={`map-selection-card ${selectedStatus === 'rumored' ? 'rumored' : ''}`}>
-      <div className="map-selection-heading"><div><span>{selectedStatus === 'rumored' ? '传闻地点' : TYPE_LABELS[selectedLocation.type]}</span><h3>{selectedLocation.name}</h3></div>{selectedStatus === 'discovered' && <em>{DANGER_LABELS[selectedLocation.danger]}</em>}</div>
-      {selectedStatus === 'rumored' ? <p>{selectedLocation.rumorText}</p> : <p>{selectedLocation.description}</p>}
-      {selectedIsCurrent ? <div className="map-selection-current"><strong>当前位置</strong><span>从这里选择下一步行动，或点击地图上的其他地点规划行程。</span></div>
-        : selectedStatus === 'rumored' ? <p className="muted">你只听过这个地方，还不知道可靠走法。</p>
-        : selectedTravel ? <div className="map-travel-confirm"><div><span>从 {current.name} 出发</span><strong>{selectedTravel.travelDays} 天</strong>{selectedFast && !selectedDirect && <small>沿已经走熟的路线连续赶路</small>}</div><button className="primary-button" onClick={confirmTravel} type="button">确认前往</button></div>
-        : <p className="muted">目前没有一条你已经确认并能直接执行的路线。</p>}
+      {showSelection && <aside className={`map-selection-card map-selection-overlay ${selectedStatus === 'rumored' ? 'rumored' : ''}`} aria-live="polite">
+        <button className="map-selection-close" onClick={() => setSelectedLocationId(null)} type="button" aria-label="关闭地点信息">×</button>
+        <div className="map-selection-heading"><div><span>{selectedStatus === 'rumored' ? '传闻地点' : TYPE_LABELS[selectedLocation.type]}</span><h3>{selectedLocation.name}</h3></div>{selectedStatus === 'discovered' && <em>{DANGER_LABELS[selectedLocation.danger]}</em>}</div>
+        {selectedStatus === 'rumored' ? <p>{selectedLocation.rumorText}</p> : <p>{selectedLocation.description}</p>}
+        {selectedIsCurrent ? <div className="map-selection-current"><strong>当前位置</strong><span>这里的行动入口在地图下方。</span></div>
+          : selectedStatus === 'rumored' ? <p className="muted">你只听过这个地方，还不知道可靠走法。</p>
+          : selectedTravel ? <div className="map-travel-confirm"><div><span>从 {current.name} 出发</span><strong>{selectedTravel.travelDays} 天</strong>{selectedFast && !selectedDirect && <small>沿已经走熟的路线连续赶路</small>}</div><button className="primary-button" onClick={confirmTravel} type="button">前往此地</button></div>
+          : <p className="muted">目前没有一条你已经确认并能直接执行的路线。</p>}
+      </aside>}
     </div>
-
-    {activeAssignment && activeAssignmentDefinition && <button className="active-assignment-tracker" onClick={() => toggleSection('assignment')} type="button">
-      <span>当前事务</span><strong>{activeAssignmentDefinition.name}</strong><em>{activeAssignment.status === 'ready-to-settle' ? '已完成，待交结' : `目标 · ${activeAssignmentDefinition.targetLocationLabel}`}</em>
-    </button>}
 
     <div className="location-action-bar" aria-label="当前位置行动">
       <button className={localSection === 'details' ? 'active' : ''} onClick={() => toggleSection('details')} type="button">地点详情</button>
