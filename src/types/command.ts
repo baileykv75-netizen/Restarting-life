@@ -13,6 +13,7 @@ export type SessionCommand =
   | { type: 'adult-entry-choice'; optionId: string }
   | { type: 'initialize-world' }
   | { type: 'initialize-location-knowledge' }
+  | { type: 'gather-local-rumor' }
   | { type: 'initialize-secret-realm' }
   | { type: 'secret-realm'; action: SecretRealmAction }
   | { type: 'initialize-inventory' }
