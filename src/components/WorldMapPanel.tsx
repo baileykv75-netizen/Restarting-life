@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { WORLD_LOCATIONS, getWorldLocationById, getWorldLocationParent } from '../data/worldLocations'
 import { getLocationKnowledgeStatus, getVisibleWorldConnections, getVisibleWorldLocations } from '../core/locationKnowledgeEngine'
+import { getLocalRumorCandidates } from '../core/localRumorEngine'
 import { EXPLORATION_DURATIONS, getExplorationStage, getExplorationStageLabel, getRegionExploredDays, getRegionRiskLabel } from '../core/regionExplorationEngine'
 import { getOpponentRiskAssessment, getRegionRiskAssessment } from '../core/riskAssessmentEngine'
 import { getActiveSectAssignmentDefinition } from '../core/sectAssignmentEngine'
@@ -34,6 +35,7 @@ interface WorldMapPanelProps {
   state: GameState
   onTravel: (destinationId: string) => void
   onFastTravel: (destinationId: string) => void
+  onGatherLocalRumor: () => void
   onExplore: (days: ExplorationDuration) => void
   onEnterSecretRealm: () => void
   onEnterStrongTerritory: (territoryId: StrongBeastTerritoryId) => void
@@ -49,7 +51,7 @@ interface WorldMapPanelProps {
   onBetrayQingyunSect: () => void
 }
 
-export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching, onAcceptSectAssignment, onPerformSectAssignment, onSettleSectAssignment, onAbandonSectAssignment, onAcceptQingyunMaster, onReceiveMasterGuidance, onCommitSectViolation, onBetrayQingyunSect }: WorldMapPanelProps) {
+export function WorldMapPanel({ state, onTravel, onFastTravel, onGatherLocalRumor, onExplore, onEnterSecretRealm, onEnterStrongTerritory, onJoinQingyunSect, onReceiveQingyunBasicTeaching, onAcceptSectAssignment, onPerformSectAssignment, onSettleSectAssignment, onAbandonSectAssignment, onAcceptQingyunMaster, onReceiveMasterGuidance, onCommitSectViolation, onBetrayQingyunSect }: WorldMapPanelProps) {
   const currentId = state.world.currentLocationId
   const current = currentId ? getWorldLocationById(currentId) : undefined
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
@@ -78,6 +80,7 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
     .filter((entry) => entry.location && entry.status !== 'unknown')
   const directTravel = getDirectTravelOptions(state)
   const fastTravel = getFastTravelOptions(state).filter((option) => option.routeIds.length > 1)
+  const localRumorCount = getLocalRumorCandidates(state).length
   const exploredDays = current.type === 'wilderness' ? getRegionExploredDays(state, current.id) : 0
   const explorationStage = getExplorationStage(exploredDays)
   const currentAssessment = current.type === 'wilderness' ? getRegionRiskAssessment(state, current.id, current.danger) : null
@@ -112,6 +115,12 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
     else onFastTravel(selectedLocation.id)
     setSelectedLocationId(null)
     setLocalSection(null)
+  }
+
+  function gatherLocalRumor() {
+    setSelectedLocationId(null)
+    setLocalSection(null)
+    onGatherLocalRumor()
   }
 
   return <section className="story-card world-map-card">
@@ -152,6 +161,7 @@ export function WorldMapPanel({ state, onTravel, onFastTravel, onExplore, onEnte
 
     <div className="location-action-bar" aria-label="当前位置行动">
       <button className={localSection === 'details' ? 'active' : ''} onClick={() => toggleSection('details')} type="button">地点详情</button>
+      {localRumorCount > 0 && <button className="local-rumor-action" onClick={gatherLocalRumor} type="button">打听去路 · 1日</button>}
       {current.type === 'wilderness' && <button className={localSection === 'explore' ? 'active' : ''} onClick={() => toggleSection('explore')} type="button">探索此地</button>}
       {current.type === 'wilderness' && (visibleSublocations.length > 0 || strongTerritories.length > 0 || sunkenVein?.discovered) && <button className={localSection === 'discoveries' ? 'active' : ''} onClick={() => toggleSection('discoveries')} type="button">已知地点</button>}
       {atQingyun && <button className={localSection === 'sect' ? 'active' : ''} onClick={() => toggleSection('sect')} type="button">宗门</button>}
