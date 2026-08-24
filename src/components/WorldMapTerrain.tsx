@@ -1,4 +1,5 @@
 import type { WorldLocationDefinition } from '../types/world'
+import '../world-map-visual.css'
 
 interface VisibleConnection {
   key: string
