@@ -21,6 +21,7 @@ export type GameAction =
   | { type: 'SET_LIFE_STAGE'; stage: LifeStage }
   | { type: 'SET_CURRENT_LOCATION'; locationId: string | null }
   | { type: 'INITIALIZE_SUBLOCATIONS' }
+  | { type: 'GATHER_LOCAL_RUMOR' }
   | {
       type: 'START_COMBAT'
       opponentId: CombatOpponentId
