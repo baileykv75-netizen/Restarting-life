@@ -1,4 +1,6 @@
-import type { GameState, LocationKnowledgeStatus } from '../types/game'
+import { getWorldLocationById } from '../data/worldLocations'
+import type { GameState } from '../types/game'
+import { advanceWorldTime } from './worldEngine'
 
 export type RumorExploreResult = {
   state: GameState
@@ -10,45 +12,36 @@ export type RumorExploreResult = {
 /**
  * UX-02D exploration boundary.
  * Rumors are information, not automatic discoveries.
- * The resolver only changes knowledge after an explicit player action.
+ * Only an explicit player action can upgrade rumored -> discovered.
  */
 export function exploreRumor(
   state: GameState,
   locationId: string,
-  rng: number = state.rngState,
 ): RumorExploreResult {
-  const current = state.knowledge.locations[locationId]
+  const location = getWorldLocationById(locationId)
 
-  if (current !== 'rumored') {
-    return {
-      state,
-      success: false,
-      elapsedDays: 0,
-      message: '此处没有可探查的传闻。',
-    }
+  if (!location) {
+    return { state, success: false, elapsedDays: 0, message: '未知地点。' }
   }
 
-  const success = Math.abs(rng) % 10 < 7
-  const nextStatus: LocationKnowledgeStatus = success
-    ? 'discovered'
-    : 'rumor_failed'
+  if (state.knowledge.locations[locationId] !== 'rumored') {
+    return { state, success: false, elapsedDays: 0, message: '此处没有可探查的传闻。' }
+  }
+
+  const advanced = advanceWorldTime(state, 3)
 
   return {
     state: {
-      ...state,
-      worldDay: state.worldDay + 3,
+      ...advanced.state,
       knowledge: {
-        ...state.knowledge,
         locations: {
-          ...state.knowledge.locations,
-          [locationId]: nextStatus,
+          ...advanced.state.knowledge.locations,
+          [locationId]: 'discovered',
         },
       },
     },
-    success,
-    elapsedDays: 3,
-    message: success
-      ? '你循着传闻寻找，确认了这处地点。'
-      : '你寻找数日，没有发现传闻中的踪迹。',
+    success: true,
+    elapsedDays: advanced.elapsedDays,
+    message: '你循着传闻寻找，确认了这处地点。',
   }
 }
