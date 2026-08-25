@@ -4,6 +4,7 @@ import type { GameAction, GameFlagValue } from '../types/gameAction'
 import { resolveBeastLootAbandon, resolveBeastLootClaim } from './beastEngine'
 import { resolveCombatAction, resolveCombatStart } from './combatEngine'
 import { resolveGatherLocalRumor } from './localRumorEngine'
+import { exploreRumor } from './rumorExplorationEngine'
 import {
   refreshSectAssignmentAfterCombat,
   resolveAbandonSectAssignment,
@@ -71,6 +72,10 @@ export function applyGameAction(state: GameState, action: GameAction): GameActio
     case 'GATHER_LOCAL_RUMOR': {
       const result = resolveGatherLocalRumor(state)
       return { state: result.state, applied: result.applied, reason: result.reason }
+    }
+    case 'EXPLORE_RUMOR': {
+      const result = exploreRumor(state, action.locationId)
+      return { state: result.state, applied: result.success, reason: result.success ? undefined : result.message }
     }
     case 'START_COMBAT': {
       const result = resolveCombatStart(state, action.opponentId, action.source, action.contextTags, action.encounterVariant)
