@@ -22,6 +22,7 @@ export type GameAction =
   | { type: 'SET_CURRENT_LOCATION'; locationId: string | null }
   | { type: 'INITIALIZE_SUBLOCATIONS' }
   | { type: 'GATHER_LOCAL_RUMOR' }
+  | { type: 'EXPLORE_RUMOR'; locationId: string }
   | {
       type: 'START_COMBAT'
       opponentId: CombatOpponentId
